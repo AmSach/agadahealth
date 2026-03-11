@@ -16,18 +16,8 @@
  */
 
 const API_KEYS = [
-  import.meta.env.VITE_GEMINI_API_KEY_1,
-  import.meta.env.VITE_GEMINI_API_KEY_2,
-  import.meta.env.VITE_GEMINI_API_KEY_3,
+  'AIzaSyBrEnABpxhozw4GYh00UoX9WBnr-i1JoS4', // hardcoded for testing
 ].filter(Boolean)
-
-let currentKeyIndex = 0
-
-function getNextKey() {
-  const key = API_KEYS[currentKeyIndex]
-  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length
-  return key
-}
 
 function buildUrl(key) {
   return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`
