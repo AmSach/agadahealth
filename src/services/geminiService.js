@@ -77,7 +77,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
   }
 
   const body = {
-    model: 'google/gemini-2.0-flash-exp:free',
+    model: 'google/gemini-2.0-flash-lite:free',
     messages: [{
       role: 'user',
       content: [
