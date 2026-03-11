@@ -15,8 +15,23 @@
  * It is never committed to the repo. It lives only in Vercel's servers.
  */
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
+const API_KEYS = [
+  import.meta.env.VITE_GEMINI_API_KEY_1,
+  import.meta.env.VITE_GEMINI_API_KEY_2,
+  import.meta.env.VITE_GEMINI_API_KEY_3,
+].filter(Boolean) // ignores any that aren't set yet
+
+let currentKeyIndex = 0
+
+function getNextKey() {
+  const key = API_KEYS[currentKeyIndex]
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length
+  return key
+}
+
+function buildUrl(key) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`
+}
 
 const PROMPT = `You are Agada, an Indian medicine information assistant. 
 A user has photographed a medicine strip. Analyse the image carefully.
