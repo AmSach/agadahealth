@@ -1,22 +1,28 @@
 /**
  * geminiService.js
  *
- * One API call. Does everything:
- *   - Reads the medicine strip photo
- *   - Checks if it looks legitimate (brand, manufacturer, registration cues)
- *   - Explains what the medicine does in plain language
- *   - Suggests cheaper Jan Aushadhi generics with estimated prices
+ * Uses OpenRouter API instead of Gemini directly.
+ * Reason: Gemini free tier assigns zero quota to new Indian-region Google accounts,
+ * causing 429 errors on the very first request. OpenRouter routes to the same
+ * Gemini models without regional quota blocks, and is free.
  *
- * We use the Gemini REST API directly (no SDK) so there are zero npm
- * dependencies beyond React itself. This is why the build can't fail
- * due to a missing package.
- *
- * API key: stored in Vercel environment variables as VITE_GEMINI_API_KEY.
- * It is never committed to the repo. It lives only in Vercel's servers.
+ * Get your free key at: openrouter.ai → Sign up → Keys → Create Key
+ * Add to Vercel as: VITE_OPENROUTER_KEY_1, VITE_OPENROUTER_KEY_2, etc.
  */
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`
+const API_KEYS = [
+  import.meta.env.VITE_OPENROUTER_KEY_1,
+  import.meta.env.VITE_OPENROUTER_KEY_2,
+  import.meta.env.VITE_OPENROUTER_KEY_3,
+].filter(Boolean)
+
+let currentKeyIndex = 0
+
+function getNextKey() {
+  const key = API_KEYS[currentKeyIndex]
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length
+  return key
+}
 
 const PROMPT = `You are Agada, an Indian medicine information assistant. 
 A user has photographed a medicine strip. Analyse the image carefully.
@@ -40,20 +46,20 @@ Return ONLY a valid JSON object — no markdown, no backticks, no explanation be
   "medicineInfo": {
     "whatItDoes": "1-2 sentences in very plain language. Example: This medicine reduces fever and relieves mild pain like headaches or body aches.",
     "commonUses": ["up to 4 common conditions it treats, as short phrases"],
-    "isOTC": true or false,
-    "prescriptionRequired": true or false,
+    "isOTC": true,
+    "prescriptionRequired": false,
     "importantWarnings": ["up to 3 key warnings in plain language, short phrases"],
     "doNotTakeWith": "brief note on key interactions or contraindications, or null"
   },
 
   "alternatives": {
-    "hasGenerics": true or false,
-    "janAushadhiAvailable": true or false,
+    "hasGenerics": true,
+    "janAushadhiAvailable": true,
     "topAlternatives": [
       {
         "name": "Jan Aushadhi generic product name",
         "salt": "same active ingredient",
-        "estimatedMrp": "estimated price in rupees as a number, based on known Jan Aushadhi pricing",
+        "estimatedMrp": 3,
         "savingsVsBranded": "estimated % savings vs branded if MRP was visible, else approximate savings description"
       }
     ],
@@ -69,63 +75,71 @@ Return ONLY a valid JSON object — no markdown, no backticks, no explanation be
 Rules:
 - If the image is too blurry or dark to read, set cannotRead: true and explain in cannotReadReason.
 - Never fabricate a brand name. If you can read some text but not all, say what you can.
-- For authenticity, look at: professional labelling quality, recognisable manufacturer names, standard Indian pharma formatting, batch/expiry format. You cannot do a live CDSCO query — be honest about this.
+- For authenticity, look at: professional labelling quality, recognisable manufacturer names, standard Indian pharma formatting, batch/expiry format.
 - For alternatives, base Jan Aushadhi prices on what is publicly known: paracetamol ~Rs.2-3 per tablet, metformin ~Rs.0.30/tablet, azithromycin ~Rs.7/tablet, amoxicillin ~Rs.1.80/capsule, etc.
 - Keep all language simple. The user may be elderly or have low health literacy.`
 
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEY) {
-    throw new Error('API key not configured. Please add VITE_GEMINI_API_KEY to your Vercel environment variables.')
+  if (API_KEYS.length === 0) {
+    throw new Error('No API keys configured. Add VITE_OPENROUTER_KEY_1 to Vercel environment variables.')
   }
 
   const body = {
-    contents: [
+    model: 'google/gemini-2.0-flash-exp:free',
+    messages: [
       {
-        parts: [
-          { text: PROMPT },
+        role: 'user',
+        content: [
+          { type: 'text', text: PROMPT },
           {
-            inline_data: {
-              mime_type: mimeType,
-              data: imageBase64,
+            type: 'image_url',
+            image_url: {
+              url: `data:${mimeType};base64,${imageBase64}`,
             },
           },
         ],
       },
     ],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 1500,
-    },
+    max_tokens: 1500,
+    temperature: 0.1,
   }
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  for (let attempt = 0; attempt < API_KEYS.length; attempt++) {
+    const key = getNextKey()
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    const msg = err?.error?.message || `API error ${response.status}`
-    if (response.status === 400) throw new Error('Could not process the image. Please try a clearer photo.')
-    if (response.status === 403) throw new Error('API key invalid. Check Vercel environment variables.')
-    if (response.status === 429) throw new Error('Too many requests. Please wait a moment and try again.')
-    throw new Error(msg)
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': 'https://agada.vercel.app',
+        'X-Title': 'Agada Medicine Scanner',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (response.status === 429) continue
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      if (response.status === 400) throw new Error('Could not process the image. Please try a clearer photo.')
+      if (response.status === 401) throw new Error('API key invalid. Check Vercel environment variables.')
+      throw new Error(err?.error?.message || `API error ${response.status}`)
+    }
+
+    const data = await response.json()
+    const text = data?.choices?.[0]?.message?.content
+    if (!text) throw new Error('No response from AI. Please try again.')
+
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    try {
+      return JSON.parse(cleaned)
+    } catch {
+      throw new Error('AI returned an unreadable response. Please try again.')
+    }
   }
 
-  const data = await response.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-
-  if (!text) throw new Error('No response from AI. Please try again.')
-
-  // Strip markdown fences if Gemini added them despite instructions
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-  try {
-    return JSON.parse(cleaned)
-  } catch {
-    throw new Error('AI returned an unreadable response. Please try again.')
-  }
+  throw new Error('All API keys are rate limited. Please try again in a minute.')
 }
 
 export async function compressAndEncode(file) {
