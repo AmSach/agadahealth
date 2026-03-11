@@ -2,7 +2,7 @@
  * aiService.js (named geminiService.js for drop-in compatibility)
  *
  * Calls OpenRouter — NOT Google directly.
- * OpenRouter bypasses Indian-region Gemini quota blocks.
+ * Tries 3 models in order — if one fails, uses the next.
  *
  * Env var needed in Vercel: VITE_OPENROUTER_KEY_1
  * Get free key at: openrouter.ai → Sign up → Keys → Create Key
@@ -13,6 +13,13 @@ const API_KEYS = [
   import.meta.env.VITE_OPENROUTER_KEY_2,
   import.meta.env.VITE_OPENROUTER_KEY_3,
 ].filter(Boolean)
+
+// Tries these models in order until one works
+const MODELS = [
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+  'google/gemini-2.0-flash-lite:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+]
 
 let keyIndex = 0
 const nextKey = () => { const k = API_KEYS[keyIndex]; keyIndex = (keyIndex + 1) % API_KEYS.length; return k }
@@ -76,22 +83,9 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
     throw new Error('API key not configured. Add VITE_OPENROUTER_KEY_1 in Vercel → Settings → Environment Variables.')
   }
 
-  const body = {
-    model: 'google/gemini-2.0-flash-lite:free',
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'text', text: PROMPT },
-        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
-      ]
-    }],
-    max_tokens: 1500,
-    temperature: 0.1,
-  }
+  const key = nextKey()
 
-  for (let attempt = 0; attempt < API_KEYS.length; attempt++) {
-    const key = nextKey()
-
+  for (const model of MODELS) {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -100,10 +94,21 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
         'HTTP-Referer': 'https://agada.vercel.app',
         'X-Title': 'Agada',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: PROMPT },
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+          ]
+        }],
+        max_tokens: 1500,
+        temperature: 0.1,
+      }),
     })
 
-    if (res.status === 429) continue
+    if (res.status === 404 || res.status === 429) continue
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -114,17 +119,17 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
 
     const data = await res.json()
     const text = data?.choices?.[0]?.message?.content
-    if (!text) throw new Error('No response. Please try again.')
+    if (!text) continue
 
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     try {
       return JSON.parse(cleaned)
     } catch {
-      throw new Error('Could not parse AI response. Please try again.')
+      continue
     }
   }
 
-  throw new Error('Service busy. Please try again in a moment.')
+  throw new Error('Could not get a response. Please try again in a moment.')
 }
 
 export async function compressAndEncode(file) {
