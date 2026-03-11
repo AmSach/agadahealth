@@ -16,9 +16,10 @@ const API_KEYS = [
 
 // Tries these models in order until one works
 const MODELS = [
+  'openrouter/auto',
+  'google/gemma-3-27b-it:free',
+  'google/gemma-3-12b-it:free',
   'meta-llama/llama-3.2-11b-vision-instruct:free',
-  'google/gemini-2.0-flash-lite:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
 ]
 
 let keyIndex = 0
