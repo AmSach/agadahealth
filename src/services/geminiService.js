@@ -11,15 +11,15 @@
  * dependencies beyond React itself. This is why the build can't fail
  * due to a missing package.
  *
- * API key: stored in Vercel environment variables as VITE_GEMINI_API_KEY.
- * It is never committed to the repo. It lives only in Vercel's servers.
+ * API keys: stored in Vercel environment variables as VITE_GEMINI_API_KEY_1,
+ * VITE_GEMINI_API_KEY_2, VITE_GEMINI_API_KEY_3. Auto-rotates on 429.
  */
 
 const API_KEYS = [
   import.meta.env.VITE_GEMINI_API_KEY_1,
   import.meta.env.VITE_GEMINI_API_KEY_2,
   import.meta.env.VITE_GEMINI_API_KEY_3,
-].filter(Boolean) // ignores any that aren't set yet
+].filter(Boolean)
 
 let currentKeyIndex = 0
 
@@ -89,8 +89,8 @@ Rules:
 - Keep all language simple. The user may be elderly or have low health literacy.`
 
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEY) {
-    throw new Error('API key not configured. Please add VITE_GEMINI_API_KEY to your Vercel environment variables.')
+  if (API_KEYS.length === 0) {
+    throw new Error('No API keys configured. Add VITE_GEMINI_API_KEY_1 to Vercel environment variables.')
   }
 
   const body = {
@@ -113,34 +113,37 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
     },
   }
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  // Try each key once before giving up
+  for (let attempt = 0; attempt < API_KEYS.length; attempt++) {
+    const key = getNextKey()
+    const response = await fetch(buildUrl(key), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    const msg = err?.error?.message || `API error ${response.status}`
-    if (response.status === 400) throw new Error('Could not process the image. Please try a clearer photo.')
-    if (response.status === 403) throw new Error('API key invalid. Check Vercel environment variables.')
-    if (response.status === 429) throw new Error('Too many requests. Please wait a moment and try again.')
-    throw new Error(msg)
+    if (response.status === 429) continue // rate limited — try next key
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      if (response.status === 400) throw new Error('Could not process the image. Please try a clearer photo.')
+      if (response.status === 403) throw new Error('API key invalid. Check Vercel environment variables.')
+      throw new Error(err?.error?.message || `API error ${response.status}`)
+    }
+
+    const data = await response.json()
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) throw new Error('No response from AI. Please try again.')
+
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    try {
+      return JSON.parse(cleaned)
+    } catch {
+      throw new Error('AI returned an unreadable response. Please try again.')
+    }
   }
 
-  const data = await response.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-
-  if (!text) throw new Error('No response from AI. Please try again.')
-
-  // Strip markdown fences if Gemini added them despite instructions
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-  try {
-    return JSON.parse(cleaned)
-  } catch {
-    throw new Error('AI returned an unreadable response. Please try again.')
-  }
+  throw new Error('All API keys are rate limited. Please try again in a minute.')
 }
 
 export async function compressAndEncode(file) {
