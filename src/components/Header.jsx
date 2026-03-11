@@ -3,12 +3,11 @@
  */
 
 import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 export default function Header() {
   const { i18n } = useTranslation()
-  const location = useLocation()
   const [langOpen, setLangOpen] = useState(false)
 
   const languages = [

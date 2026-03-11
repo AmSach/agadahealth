@@ -12,7 +12,6 @@
  */
 
 import React, { useState, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 import CameraCapture from '../components/CameraCapture.jsx'
 import ResultsPanel from '../components/ResultsPanel.jsx'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
@@ -30,7 +29,6 @@ const STATES = {
 }
 
 export default function ScannerPage() {
-  const { t } = useTranslation()
   const [pageState, setPageState] = useState(STATES.IDLE)
   const [capturedImage, setCapturedImage] = useState(null)  // base64 preview
   const [results, setResults] = useState(null)

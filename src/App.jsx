@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Header from './components/Header.jsx'
 import Footer from './components/Footer.jsx'
