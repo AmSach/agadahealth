@@ -9,18 +9,16 @@
  */
 
 const API_KEYS = [
-  import.meta.env.VITE_OPENROUTER_KEY_1,
-  import.meta.env.VITE_OPENROUTER_KEY_2,
-  import.meta.env.VITE_OPENROUTER_KEY_3,
+  import.meta.env.VITE_GROQ_KEY,
 ].filter(Boolean)
 
 // Tries these models in order until one works
 const MODELS = [
-  'openrouter/auto',
-  'google/gemma-3-27b-it:free',
-  'google/gemma-3-12b-it:free',
-  'meta-llama/llama-3.2-11b-vision-instruct:free',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.2-11b-vision-preview',
 ]
+
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 let keyIndex = 0
 const nextKey = () => { const k = API_KEYS[keyIndex]; keyIndex = (keyIndex + 1) % API_KEYS.length; return k }
@@ -87,7 +85,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
   const key = nextKey()
 
   for (const model of MODELS) {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const res = await fetch(GROQ_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
