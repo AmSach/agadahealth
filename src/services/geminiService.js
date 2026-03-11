@@ -1,210 +1,161 @@
 /**
  * geminiService.js
- * 
- * Handles all interactions with Google Gemini API for Agada.
- * 
- * Two distinct calls are made:
- *   1. extractMedicineFromImage() — Vision model reads the medicine strip photo
- *      and returns structured JSON with brand name, salt, dosage, etc.
- *   2. generateMedicineExplanation() — Text model generates a plain-English
- *      explanation of what the medicine does, its warnings, and OTC status.
- * 
- * Both calls use gemini-1.5-flash for speed and free-tier capacity.
- * 
- * Privacy note: Images are sent directly to Google's API and are NOT stored
- * on any Agada server. Google's API usage policies apply.
+ *
+ * One API call. Does everything:
+ *   - Reads the medicine strip photo
+ *   - Checks if it looks legitimate (brand, manufacturer, registration cues)
+ *   - Explains what the medicine does in plain language
+ *   - Suggests cheaper Jan Aushadhi generics with estimated prices
+ *
+ * We use the Gemini REST API directly (no SDK) so there are zero npm
+ * dependencies beyond React itself. This is why the build can't fail
+ * due to a missing package.
+ *
+ * API key: stored in Vercel environment variables as VITE_GEMINI_API_KEY.
+ * It is never committed to the repo. It lives only in Vercel's servers.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
-
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`
 
-if (!API_KEY) {
-  console.error('[Agada] VITE_GEMINI_API_KEY is not set. Add it to your .env.local file.')
-}
+const PROMPT = `You are Agada, an Indian medicine information assistant. 
+A user has photographed a medicine strip. Analyse the image carefully.
 
-const genAI = new GoogleGenerativeAI(API_KEY)
-
-// ─────────────────────────────────────────────
-// PROMPT 1: EXTRACTION PROMPT (Vision)
-// ─────────────────────────────────────────────
-// This prompt is engineered to be extremely explicit about output format.
-// We never want Gemini to return free text — we need machine-parseable JSON.
-// The prompt instructs Gemini to return ONLY the JSON object, no preamble.
-// ─────────────────────────────────────────────
-const EXTRACTION_PROMPT = `You are an expert at reading Indian medicine packaging. 
-Analyse this medicine strip, box, or label image carefully.
-
-Extract and return ONLY a valid JSON object with these exact keys. 
-Do NOT include any text before or after the JSON. No markdown. No explanation. Just the JSON.
+Return ONLY a valid JSON object — no markdown, no backticks, no explanation before or after. Just the raw JSON.
 
 {
-  "brandName": "exact brand name as printed (e.g., Crocin, Dolo-650, Metformin SR)",
-  "saltComposition": "active ingredient(s) with dosage (e.g., Paracetamol 500mg, or Metformin HCl 500mg + Glipizide 5mg)",
-  "dosage": "strength as printed (e.g., 500mg, 10mg/5ml)",
-  "manufacturer": "manufacturer name exactly as printed",
-  "batchNumber": "batch or lot number if visible, else null",
-  "expiryDate": "expiry date if visible (format: MM/YYYY or as printed), else null",
-  "mrp": "MRP in rupees as a number if visible (e.g., 30.50), else null",
-  "tabletCount": "number of tablets/capsules/ml as printed if visible, else null",
-  "confidence": "your confidence in this extraction as a percentage (0-100)",
-  "extractionNotes": "any important caveats, e.g., 'image blurry', 'partial label visible', or null"
+  "brandName": "exact brand name as printed on the strip",
+  "saltComposition": "active ingredient(s) and dosage exactly as printed, e.g. Paracetamol 500mg",
+  "manufacturer": "manufacturer name as printed, or null if not visible",
+  "dosage": "strength as printed, e.g. 500mg",
+  "mrp": "MRP in rupees as a number if visible, else null",
+  
+  "authenticity": {
+    "status": "LIKELY_GENUINE or LIKELY_FAKE or CANNOT_DETERMINE",
+    "reason": "One sentence explanation. For LIKELY_GENUINE: what legitimate cues you see (manufacturer name, professional labelling, registered-looking batch format). For LIKELY_FAKE: specific red flags. For CANNOT_DETERMINE: what is unclear.",
+    "cdscoBadge": "Mention that this medicine's salt/brand appears in publicly known CDSCO approved drug categories if true, or flag if the combination seems unusual",
+    "warning": "A practical one-sentence warning the user should act on, or null if not needed"
+  },
+
+  "medicineInfo": {
+    "whatItDoes": "1-2 sentences in very plain language. Example: This medicine reduces fever and relieves mild pain like headaches or body aches.",
+    "commonUses": ["up to 4 common conditions it treats, as short phrases"],
+    "isOTC": true or false,
+    "prescriptionRequired": true or false,
+    "importantWarnings": ["up to 3 key warnings in plain language, short phrases"],
+    "doNotTakeWith": "brief note on key interactions or contraindications, or null"
+  },
+
+  "alternatives": {
+    "hasGenerics": true or false,
+    "janAushadhiAvailable": true or false,
+    "topAlternatives": [
+      {
+        "name": "Jan Aushadhi generic product name",
+        "salt": "same active ingredient",
+        "estimatedMrp": "estimated price in rupees as a number, based on known Jan Aushadhi pricing",
+        "savingsVsBranded": "estimated % savings vs branded if MRP was visible, else approximate savings description"
+      }
+    ],
+    "savingsSummary": "One punchy sentence about the savings available, e.g. The same paracetamol is available at Jan Aushadhi for around Rs.2.50 vs Rs.30 branded.",
+    "whereToFind": "Jan Aushadhi Kendras. Search at janaushadhi.gov.in or call 1800-180-8080 (free)."
+  },
+
+  "confidence": 85,
+  "cannotRead": false,
+  "cannotReadReason": null
 }
 
 Rules:
-- If you cannot read the brand name clearly, still provide your best guess and set confidence below 60.
-- brandName should be the trade name, not the generic name.
-- saltComposition is critical — extract it precisely as it appears, including all active ingredients.
-- If multiple medicines appear in the image, extract the most prominent/front-facing one.
-- Never fabricate information. If a field is genuinely unreadable, use null.`
+- If the image is too blurry or dark to read, set cannotRead: true and explain in cannotReadReason.
+- Never fabricate a brand name. If you can read some text but not all, say what you can.
+- For authenticity, look at: professional labelling quality, recognisable manufacturer names, standard Indian pharma formatting, batch/expiry format. You cannot do a live CDSCO query — be honest about this.
+- For alternatives, base Jan Aushadhi prices on what is publicly known: paracetamol ~Rs.2-3 per tablet, metformin ~Rs.0.30/tablet, azithromycin ~Rs.7/tablet, amoxicillin ~Rs.1.80/capsule, etc.
+- Keep all language simple. The user may be elderly or have low health literacy.`
 
-// ─────────────────────────────────────────────
-// PROMPT 2: EXPLANATION PROMPT (Text)
-// ─────────────────────────────────────────────
-// This prompt generates the "What is this?" card content.
-// Language: plain Hindi-inflected English. No jargon. Built for Tier 3 India.
-// ─────────────────────────────────────────────
-const buildExplanationPrompt = (saltComposition, brandName) => `
-You are a pharmacist explaining a medicine to a patient in simple, clear, friendly English. 
-The patient may have low health literacy. Avoid all medical jargon.
+export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
+  if (!API_KEY) {
+    throw new Error('API key not configured. Please add VITE_GEMINI_API_KEY to your Vercel environment variables.')
+  }
 
-Medicine: ${brandName}
-Active ingredient(s): ${saltComposition}
-
-Return ONLY a valid JSON object. No markdown. No preamble. Just the JSON.
-
-{
-  "whatItDoes": "1-2 sentences in plain language. Example: 'This medicine reduces fever and relieves mild to moderate pain, like headaches or body aches.'",
-  "commonUses": ["list", "of", "3-5", "common", "conditions", "it", "treats"],
-  "importantWarnings": ["list", "of", "2-4", "key", "warnings", "in", "plain", "language"],
-  "isOTC": true or false (true if available Over The Counter, false if prescription required),
-  "scheduleH": true or false (true if it requires a doctor's prescription under Schedule H),
-  "doNotTakeIf": ["list", "of", "2-3", "key", "contraindications", "in", "plain", "language", "e.g.", "pregnant"],
-  "foodInteractions": "brief note on food interactions, or null if none significant",
-  "storageInstructions": "brief plain-language storage note (e.g., 'Store in a cool dry place. Keep away from sunlight.')",
-  "sourceNote": "AI Estimated — This information is generated by AI and should be verified with a pharmacist or doctor."
-}
-
-Keep all text SHORT. Use simple words. Avoid Latin terms. Write as if speaking to a patient at a chemist counter.`
-
-// ─────────────────────────────────────────────
-// FUNCTION 1: extractMedicineFromImage
-// ─────────────────────────────────────────────
-
-/**
- * Takes a base64-encoded JPEG image of a medicine strip and returns
- * structured extraction data from Gemini Vision.
- * 
- * @param {string} base64Image - Base64 encoded image (without data: prefix)
- * @param {string} mimeType - Image MIME type (default: 'image/jpeg')
- * @returns {Promise<Object>} Parsed extraction result
- */
-export async function extractMedicineFromImage(base64Image, mimeType = 'image/jpeg') {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
-
-  const imagePart = {
-    inlineData: {
-      data: base64Image,
-      mimeType,
+  const body = {
+    contents: [
+      {
+        parts: [
+          { text: PROMPT },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: imageBase64,
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 1500,
     },
   }
 
-  try {
-    const result = await model.generateContent([EXTRACTION_PROMPT, imagePart])
-    const response = await result.response
-    const text = response.text()
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 
-    // Strip any markdown fences Gemini might add despite instructions
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const parsed = JSON.parse(cleaned)
-
-    return {
-      success: true,
-      data: parsed,
-      rawText: text,
-    }
-  } catch (error) {
-    console.error('[Agada] Gemini extraction error:', error)
-
-    // Structured error for UI to handle gracefully
-    return {
-      success: false,
-      error: error.message,
-      errorType: classifyGeminiError(error),
-      data: null,
-    }
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    const msg = err?.error?.message || `API error ${response.status}`
+    if (response.status === 400) throw new Error('Could not process the image. Please try a clearer photo.')
+    if (response.status === 403) throw new Error('API key invalid. Check Vercel environment variables.')
+    if (response.status === 429) throw new Error('Too many requests. Please wait a moment and try again.')
+    throw new Error(msg)
   }
-}
 
-// ─────────────────────────────────────────────
-// FUNCTION 2: generateMedicineExplanation
-// ─────────────────────────────────────────────
+  const data = await response.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
-/**
- * Takes extracted medicine data and generates a plain-English explanation
- * of what the medicine does, its warnings, OTC status, etc.
- * 
- * @param {string} saltComposition - Active ingredient(s) as extracted
- * @param {string} brandName - Brand name for context
- * @returns {Promise<Object>} Parsed explanation result
- */
-export async function generateMedicineExplanation(saltComposition, brandName) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
-  const prompt = buildExplanationPrompt(saltComposition, brandName)
+  if (!text) throw new Error('No response from AI. Please try again.')
+
+  // Strip markdown fences if Gemini added them despite instructions
+  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
   try {
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
-
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const parsed = JSON.parse(cleaned)
-
-    return {
-      success: true,
-      data: parsed,
-      source: 'AI Estimated',
-    }
-  } catch (error) {
-    console.error('[Agada] Gemini explanation error:', error)
-    return {
-      success: false,
-      error: error.message,
-      errorType: classifyGeminiError(error),
-      data: null,
-    }
+    return JSON.parse(cleaned)
+  } catch {
+    throw new Error('AI returned an unreadable response. Please try again.')
   }
 }
 
-// ─────────────────────────────────────────────
-// HELPER: Classify errors for user-friendly messages
-// ─────────────────────────────────────────────
-function classifyGeminiError(error) {
-  const message = error.message?.toLowerCase() || ''
+export async function compressAndEncode(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
 
-  if (message.includes('api_key') || message.includes('401')) {
-    return 'INVALID_API_KEY'
-  }
-  if (message.includes('quota') || message.includes('429')) {
-    return 'QUOTA_EXCEEDED'
-  }
-  if (message.includes('safety') || message.includes('blocked')) {
-    return 'SAFETY_BLOCKED'
-  }
-  if (message.includes('json') || message.includes('parse')) {
-    return 'PARSE_ERROR'
-  }
-  if (message.includes('network') || message.includes('fetch')) {
-    return 'NETWORK_ERROR'
-  }
-  return 'UNKNOWN_ERROR'
-}
-
-export const GeminiErrorMessages = {
-  INVALID_API_KEY: 'Gemini API key is missing or invalid. Please check setup instructions.',
-  QUOTA_EXCEEDED: 'AI request limit reached. Please try again in a few minutes.',
-  SAFETY_BLOCKED: 'The image could not be processed. Please try a clearer photo.',
-  PARSE_ERROR: 'AI returned an unexpected response. Please try again.',
-  NETWORK_ERROR: 'Network error. Please check your internet connection.',
-  UNKNOWN_ERROR: 'Something went wrong. Please try again.',
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      const MAX = 1024
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height / width * MAX); width = MAX }
+        else { width = Math.round(width / height * MAX); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      }, 'image/jpeg', 0.82)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
+    img.src = url
+  })
 }
