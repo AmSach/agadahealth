@@ -1,236 +1,243 @@
 /**
- * geminiService.js — Agada AI Service v2.1
- * Uses Groq (free, no card, fast vision)
- * Fixes: salt accuracy, bottles/drops, Ayurvedic, supplements,
- *        confidence gating, detailed medicine info, 5+ alternatives,
- *        stronger legitimacy signals
+ * geminiService.js — Agada AI Service v3
+ *
+ * AI ONLY reads the medicine name/salt from the photo.
+ * Everything else — alternatives, pricing, authenticity — from local CSV DBs.
+ *
+ * Phase 1: Groq vision → read brand + salt from image
+ * Phase 2: dbService → real JA alternatives + CDSCO registry check
+ * Phase 3: Groq text  → plain English description + warnings only
  */
 
-const API_KEYS = [
-  import.meta.env.VITE_GROQ_KEY,
-].filter(Boolean)
+import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
 
-const MODELS = [
+const API_KEYS = [import.meta.env.VITE_GROQ_KEY].filter(Boolean)
+
+const VISION_MODELS = [
   'meta-llama/llama-4-scout-17b-16e-instruct',
   'llama-3.2-11b-vision-preview',
 ]
-
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const TEXT_MODEL = 'llama-3.3-70b-versatile'
+const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions'
 
 let keyIndex = 0
-const nextKey = () => {
-  const k = API_KEYS[keyIndex]
-  keyIndex = (keyIndex + 1) % API_KEYS.length
-  return k
-}
+const nextKey = () => { const k = API_KEYS[keyIndex]; keyIndex = (keyIndex + 1) % API_KEYS.length; return k }
 
-const PROMPT = `You are Agada, an Indian medicine authenticity and information assistant.
-The user has photographed a medicine — blister strip, tablet box, syrup bottle, eye drops, ointment, Ayurvedic product, or supplement.
+// Phase 1 prompt: READ ONLY
+const IMAGE_READ_PROMPT = `You are a medicine label reader for an Indian healthcare app.
+Your ONLY job: read text printed on this medicine packaging. Extract structured data.
+Do NOT suggest alternatives. Do NOT give clinical advice. Read only what is visible.
 
-Return ONLY a valid JSON object. No markdown, no backticks, no explanation. Raw JSON only.
+SALT RULE: Copy salt/composition EXACTLY as printed. NEVER substitute.
+Bilastine != Cetirizine. Metoprolol != Atenolol. Pantoprazole != Omeprazole.
+If unclear: saltComposition=null, confidence<50.
+Do NOT set cannotRead:true for bottles/tubes/drops — try to read what is visible.
 
-════════════════════════════════════════
-CRITICAL RULES — READ BEFORE ANSWERING
-════════════════════════════════════════
+DAMAGED / TORN / PARTIAL PACKAGING — VERY IMPORTANT:
+- If the wrapper is torn, stained, crumpled, or partially missing: READ WHAT IS VISIBLE. Do not refuse.
+- A torn wrapper does NOT mean fake. Ignore damage when assessing authenticity.
+- Partial label: extract whatever fields are readable. Leave others null.
+- Blurry image: lower confidence but still attempt to read brand name and salt.
+- If you can read even just the brand name: return it. That alone is useful.
+- ONLY set cannotRead:true if literally nothing is readable — not even a single word.
+- The user's need for information is more important than having a perfect image.
 
-SALT IDENTIFICATION (most important rule):
-- Read the salt/composition EXACTLY as printed. Copy it verbatim.
-- NEVER substitute a similar drug even if they treat the same condition:
-  Bilastine ≠ Cetirizine ≠ Fexofenadine (all antihistamines but different)
-  Metoprolol ≠ Atenolol ≠ Amlodipine (all cardiac but different)
-  Pantoprazole ≠ Omeprazole ≠ Rabeprazole (all PPIs but different)
-  Amoxicillin ≠ Ampicillin ≠ Azithromycin (all antibiotics but different)
-- If salt is unclear or partially obscured: set saltComposition to null, confidence below 50.
-- Never infer a salt from the brand name alone unless confidence >85%.
+LEGITIMACY: List every signal you actually see. Ignore torn/damaged portions.
+Genuine: hologram, QR/barcode, govt price sticker with rupee amount, tamper seal, batch number, expiry date, full manufacturer address with PIN, licence number
+Fake: pixelated text (despite clear image), missing MRP/batch/expiry on undamaged portions, font inconsistency, no manufacturer address on undamaged label
+NOTE: Do not mark fake signals for missing fields if the label is visibly torn/damaged in that area.
 
-LEGITIMACY — ONLY these signals count as evidence:
-GENUINE signals (each adds ~15-20% confidence):
-  • Hologram/security sticker visible
-  • QR code or barcode present and sharp
-  • Govt "Price Controlled" / MRP sticker with ₹ clearly printed
-  • Tamper-evident seal or shrink wrap intact
-  • Batch number in correct format (e.g. BN240312)
-  • Expiry date in DD/MM/YYYY or MM/YYYY format clearly printed
-  • Manufacturing licence number present
-  • Complete manufacturer address with city and PIN code
-  • "Mfg Lic No." or "Lic No." field present
-FAKE signals:
-  • Text blurry or pixelated despite overall clear image
-  • Font inconsistencies within same line
-  • Missing MRP, batch, expiry, or manufacturer address
-  • Colour bleeding on text or logo
-  • Generic-looking packaging without brand-specific design elements
-NEVER say genuine based on: professional printing alone, label looks nice, ingredients listed in standard format — fakes replicate all of these.
-CANNOT_DETERMINE when: image unclear, Ayurvedic (AYUSH, not CDSCO), supplement, expired/damaged, bottle label unreadable.
-
-PRODUCT TYPE:
-- AYURVEDIC: Must set authenticity.status = CANNOT_DETERMINE. Add ayurvedicWarning.
-- SUPPLEMENT: Add supplementWarning about overdose.
-- DROPS: Eye/ear/nasal drops. Do NOT set cannotRead just because it is a bottle or tube.
-- MEDICINE: All standard allopathic Rx and OTC drugs.
-
-CONFIDENCE GATE: If confidence < 50, override authenticity.status to CANNOT_DETERMINE and add warning "Low confidence — results may be inaccurate. Verify with a pharmacist."
-Do NOT set cannotRead for non-standard packaging formats — always attempt.
-
-════════════════════════════════════════
-MEDICINE INFO — BE DETAILED
-════════════════════════════════════════
-- whatItDoes: 3-4 sentences. Explain mechanism of action in plain language, what the patient will feel, and how long it takes to work. Class 8 student level.
-- howToTake: dosing guidance, with or without food, timing, duration of course if applicable.
-- sideEffects: 3-5 common side effects the patient may actually experience (not just "consult doctor").
-- overdoseRisk: specific what-happens-if-overdosed, in plain terms.
-
-════════════════════════════════════════
-ALTERNATIVES — GIVE 5+ OPTIONS
-════════════════════════════════════════
-Always provide at minimum:
-1. Jan Aushadhi BPPI generic (cheapest, highest priority)
-2. At least 2-3 other branded generics with lower MRP than original
-3. If applicable, different dosage forms of same salt (e.g. syrup vs tablet)
-Sort by price ascending. Always include real BPPI Jan Aushadhi product first.
-
-BPPI Jan Aushadhi reference prices per unit:
-Paracetamol 500mg ~₹2.5/tab | Metformin 500mg ~₹0.30/tab | Azithromycin 500mg ~₹7/tab
-Amoxicillin 500mg ~₹1.80/cap | Atorvastatin 10mg ~₹1/tab | Cetirizine 10mg ~₹0.50/tab
-Bilastine 20mg ~₹8/tab | Omeprazole 20mg ~₹0.80/cap | Amlodipine 5mg ~₹0.40/tab
-Metoprolol 50mg ~₹0.50/tab | Pantoprazole 40mg ~₹1.20/tab | Montelukast 10mg ~₹2/tab
-Losartan 50mg ~₹0.60/tab | Glimepiride 2mg ~₹0.80/tab | Telmisartan 40mg ~₹0.70/tab
-Clopidogrel 75mg ~₹1.50/tab | Aspirin 75mg ~₹0.30/tab | Ranitidine 150mg ~₹0.50/tab
-Levocetirizine 5mg ~₹0.80/tab | Domperidone 10mg ~₹0.60/tab | Rabeprazole 20mg ~₹1.10/tab
-
-════════════════════════════════════════
-JSON STRUCTURE
-════════════════════════════════════════
-
+Return ONLY valid JSON, no markdown:
 {
   "productType": "MEDICINE or AYURVEDIC or SUPPLEMENT or DROPS",
-  "brandName": "exact brand name as printed, or null",
-  "saltComposition": "active ingredient(s) and dosage exactly as printed, or null if unclear",
-  "manufacturer": "full manufacturer name or null",
-  "dosage": "strength e.g. 500mg or null",
+  "brandName": "exact as printed or null",
+  "saltComposition": "exact as printed or null",
+  "manufacturer": "name or null",
+  "dosage": "strength or null",
   "mrp": null,
-
-  "authenticity": {
-    "status": "LIKELY_GENUINE or LIKELY_FAKE or CANNOT_DETERMINE",
-    "reason": "list every specific visual cue observed — e.g. 'Hologram sticker visible top-right, MRP ₹32 printed clearly, batch BN240312 embossed, tamper seal intact' OR 'MRP field missing, font inconsistency on brand name, no licence number visible'",
-    "genuineSignalsFound": ["signal 1", "signal 2"],
-    "fakeSignalsFound": ["signal 1"],
-    "cdscoBadge": "Is this salt/brand on CDSCO drug schedule? One sentence. If Ayurvedic/supplement, say so.",
-    "warning": "one practical sentence or null. If confidence<50: 'Low confidence — verify with pharmacist.'"
-  },
-
-  "medicineInfo": {
-    "whatItDoes": "3-4 plain English sentences: what it does, mechanism in simple terms, what patient feels, onset of effect",
-    "howToTake": "dosing guidance — when to take, with/without food, for how long",
-    "commonUses": ["condition 1", "condition 2", "condition 3", "condition 4"],
-    "isOTC": true,
-    "prescriptionRequired": false,
-    "sideEffects": ["side effect 1", "side effect 2", "side effect 3"],
-    "importantWarnings": ["warning 1", "warning 2", "warning 3"],
-    "overdoseRisk": "what happens in overdose, plain language",
-    "ayurvedicWarning": "Ayurvedic products are regulated by AYUSH Ministry, not CDSCO. Quality and dosage standards differ from allopathic drugs. Consult a qualified Ayurvedic practitioner before use. — only if AYURVEDIC, else null",
-    "supplementWarning": "Supplements can interact with prescription medicines. Do not exceed stated dose — overdose of fat-soluble vitamins (A, D, E, K) causes serious harm. Consult your doctor if you take other medications. — only if SUPPLEMENT, else null",
-    "doNotTakeWith": "specific drugs or conditions to avoid — or null"
-  },
-
-  "alternatives": {
-    "hasGenerics": true,
-    "janAushadhiAvailable": true,
-    "topAlternatives": [
-      {
-        "name": "product name",
-        "brand": "brand or BPPI",
-        "salt": "active ingredient and strength",
-        "form": "tablet or capsule or syrup",
-        "packSize": "10 tablets",
-        "estimatedMrp": 3,
-        "perUnitCost": 0.30,
-        "savingsVsBranded": "91% cheaper",
-        "isJanAushadhi": true
-      }
-    ],
-    "savingsSummary": "specific punchy sentence with real rupee numbers e.g. Same Paracetamol available at Jan Aushadhi for ₹2.50 vs ₹30 branded — 91% cheaper.",
-    "whereToFind": "Jan Aushadhi Kendras — janaushadhi.gov.in or call 1800-180-8080 (free)",
-    "disclaimer": "Only buy generics from Jan Aushadhi Kendras (govt stores) or licensed pharmacies. Online pharmacy quality is unverified — Agada cannot vouch for third-party sellers."
-  },
-
+  "batchNumber": "as printed or null",
+  "expiryDate": "as printed or null",
+  "licenceNumber": "as printed or null",
+  "genuineSignalsFound": [],
+  "fakeSignalsFound": [],
   "confidence": 85,
   "cannotRead": false,
   "cannotReadReason": null
+}`
+
+function descriptionPrompt(brand, salt, type) {
+  return `Plain-language medicine information for Indian patients.
+Medicine: ${brand || 'Unknown'} (${salt || 'Unknown salt'}) — Type: ${type || 'MEDICINE'}
+Do NOT suggest brands or alternatives. General drug class info only. Return ONLY JSON, no markdown:
+{
+  "whatItDoes": "3-4 plain English sentences: mechanism, what patient feels, onset",
+  "howToTake": "general guidance — with/without food, timing, typical duration",
+  "commonUses": ["use1","use2","use3","use4"],
+  "prescriptionRequired": false,
+  "sideEffects": ["effect1","effect2","effect3"],
+  "importantWarnings": ["warning1","warning2","warning3"],
+  "overdoseRisk": "what happens in overdose, plain language",
+  "ayurvedicWarning": "if AYURVEDIC only: AYUSH regulated, consult practitioner — else null",
+  "supplementWarning": "if SUPPLEMENT only: overdose risk, interactions — else null",
+  "doNotTakeWith": "interactions or null"
+}`
 }
 
-Plain language always. No medical jargon. Be specific, be helpful.`
-
-export async function scanMedicine(imageBase64, mimeType = 'image/jpeg') {
-  if (API_KEYS.length === 0) {
-    throw new Error('No API key configured. Add VITE_GROQ_KEY in Vercel → Settings → Environment Variables. Get free key at console.groq.com')
-  }
+export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
+  if (API_KEYS.length === 0) throw new Error('No API key. Add VITE_GROQ_KEY in Vercel → Environment Variables. Free key at console.groq.com')
 
   const key = nextKey()
-  let lastError = null
 
-  for (const model of MODELS) {
-    try {
-      const res = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: PROMPT },
-              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
-            ]
-          }],
-          max_tokens: 2200,
-          temperature: 0.05,
-        }),
-      })
+  // Load DBs in parallel with vision call
+  const dbPromise = ensureLoaded().catch(() => {})
 
-      if (res.status === 429) { lastError = 'Rate limited'; continue }
-      if (res.status === 404) { lastError = 'Model not found'; continue }
+  // Phase 1: read image
+  const img = await callVision(key, imageBase64, mimeType, IMAGE_READ_PROMPT)
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        if (res.status === 401) throw new Error('Groq API key invalid. Check VITE_GROQ_KEY in Vercel → Environment Variables.')
-        if (res.status === 400) { lastError = err?.error?.message || 'Bad request'; continue }
-        throw new Error(err?.error?.message || `Error ${res.status}`)
-      }
-
-      const data = await res.json()
-      const text = data?.choices?.[0]?.message?.content
-      if (!text) { lastError = 'Empty response'; continue }
-
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      try {
-        const parsed = JSON.parse(cleaned)
-
-        // Confidence gate
-        if ((parsed.confidence || 0) < 50 && !parsed.cannotRead) {
-          if (parsed.authenticity) {
-            parsed.authenticity.status = 'CANNOT_DETERMINE'
-            parsed.authenticity.warning = (parsed.authenticity.warning || '') +
-              ' Low confidence scan — verify with pharmacist.'
-          }
-        }
-
-        return parsed
-      } catch {
-        lastError = 'JSON parse error'
-        continue
-      }
-    } catch (err) {
-      if (err.message.includes('invalid') || err.message.includes('key')) throw err
-      lastError = err.message
-    }
+  // Merge barcode (more reliable than AI for batch/expiry)
+  if (barcodeData) {
+    if (barcodeData.batchNumber && !img.batchNumber) img.batchNumber = barcodeData.batchNumber
+    if (barcodeData.expiryDate  && !img.expiryDate)  img.expiryDate  = barcodeData.expiryDate
+    if (barcodeData.brandFromQR && !img.brandName)   img.brandName   = barcodeData.brandFromQR
+    if (barcodeData.mrpFromQR   && !img.mrp)         img.mrp         = barcodeData.mrpFromQR
+    if (!img.genuineSignalsFound) img.genuineSignalsFound = []
+    img.genuineSignalsFound.push('QR/barcode decoded successfully')
   }
 
-  throw new Error(lastError || 'Could not get a response. Please try again.')
+  const expiryStr = img.expiryDate || barcodeData?.expiryDate
+  const isExpired = expiryStr ? checkExpired(expiryStr) : false
+
+  await dbPromise
+
+  // Phase 2: DB lookups
+  const jaResults   = lookupJanAushadhi(img.saltComposition, img.mrp ? parseFloat(img.mrp) : null)
+  const cdscoResult = lookupCDSCO(img.saltComposition, img.brandName)
+
+  // Phase 3: description (text only — faster, no vision needed)
+  let info = null
+  if (img.saltComposition || img.brandName) {
+    info = await callText(key, descriptionPrompt(img.brandName, img.saltComposition, img.productType)).catch(() => null)
+  }
+
+  const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData)
+  if ((img.confidence || 0) < 50) {
+    authenticity.status  = 'CANNOT_DETERMINE'
+    authenticity.warning = ((authenticity.warning || '') + ' Low confidence — verify with pharmacist.').trim()
+  }
+
+  return {
+    productType:     img.productType || 'MEDICINE',
+    brandName:       img.brandName,
+    saltComposition: img.saltComposition,
+    manufacturer:    img.manufacturer,
+    dosage:          img.dosage,
+    mrp:             img.mrp,
+    batchNumber:     img.batchNumber,
+    expiryDate:      expiryStr,
+    isExpired,
+    licenceNumber:   img.licenceNumber,
+    confidence:      img.confidence || 70,
+    cannotRead:      img.cannotRead || false,
+    cannotReadReason:img.cannotReadReason,
+    authenticity,
+    medicineInfo:    info || fallbackInfo(img.productType),
+    alternatives: {
+      hasGenerics:          jaResults.length > 0,
+      janAushadhiAvailable: jaResults.some(r => r.isJanAushadhi),
+      topAlternatives:      jaResults,
+      savingsSummary:       buildSavingsSummary(jaResults, img.mrp ? parseFloat(img.mrp) : null),
+      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080 (free)',
+      disclaimer:           'Only buy generics from Jan Aushadhi Kendras or licensed pharmacies. Agada cannot verify online pharmacy quality.',
+      dataSource:           'BPPI Jan Aushadhi Official Product List',
+    },
+    dataSource: {
+      imageRead:    'Groq AI Vision',
+      alternatives: 'BPPI Jan Aushadhi Database',
+      cdsco:        cdscoResult.found ? 'CDSCO Drug Registry' : 'Not found in CDSCO registry',
+      cdscoFound:   cdscoResult.found,
+    }
+  }
 }
+
+function buildAuthenticity(img, cdsco, isExpired, barcode) {
+  const genuine = img.genuineSignalsFound || []
+  const fake    = img.fakeSignalsFound    || []
+
+  if (isExpired) return {
+    status: 'CANNOT_DETERMINE',
+    reason: `Medicine appears expired (${img.expiryDate}). Cannot assess authenticity.`,
+    genuineSignalsFound: genuine, fakeSignalsFound: [...fake, 'Expired medicine'],
+    cdscoBadge: cdsco.found ? `Salt approved by CDSCO (${cdsco.approvalDate || 'on record'})` : 'Salt not found in CDSCO registry.',
+    warning: '⚠ This medicine appears expired. Do not consume.',
+  }
+
+  const score = (genuine.length * 18) - (fake.length * 25) + (cdsco.found ? 20 : 0) + (barcode ? 15 : 0)
+  const status = fake.length >= 2 || score < -20 ? 'LIKELY_FAKE'
+    : score >= 30 || genuine.length >= 2          ? 'LIKELY_GENUINE'
+    : 'CANNOT_DETERMINE'
+
+  const cdscoBadge = cdsco.found
+    ? `✓ Found in CDSCO registry: "${cdsco.drugName}". Approved for: ${(cdsco.indication || '').slice(0,80)}.`
+    : img.productType === 'AYURVEDIC' ? 'Regulated by AYUSH, not CDSCO.'
+    : img.productType === 'SUPPLEMENT' ? 'Supplements not scheduled under CDSCO.'
+    : 'Not found in CDSCO database.'
+
+  return {
+    status,
+    reason: [
+      genuine.length ? `Genuine signals: ${genuine.join(', ')}` : '',
+      fake.length    ? `Suspicious: ${fake.join(', ')}` : '',
+      !genuine.length && !fake.length ? 'Insufficient visual evidence.' : '',
+    ].filter(Boolean).join(' | '),
+    genuineSignalsFound: genuine,
+    fakeSignalsFound:    fake,
+    cdscoBadge,
+    cdscoApprovalDate:  cdsco.approvalDate || null,
+    warning: fake.length ? 'Return to chemist and ask for CDSCO licence proof. Report fakes: 1800-180-3024 (free).' : null,
+  }
+}
+
+function checkExpired(d) {
+  try {
+    const p = d.split('/')
+    const dt = p.length === 3 ? new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`)
+             : p.length === 2 ? new Date(`${p[1]}-${p[0].padStart(2,'0')}-01`) : null
+    return dt ? dt < new Date() : false
+  } catch { return false }
+}
+
+function fallbackInfo(type) {
+  if (type === 'AYURVEDIC') return { whatItDoes: 'Ayurvedic product.', ayurvedicWarning: 'Regulated by AYUSH Ministry, not CDSCO. Consult a qualified Ayurvedic practitioner.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
+  if (type === 'SUPPLEMENT') return { whatItDoes: 'Dietary supplement.', supplementWarning: 'Do not exceed stated dose. Fat-soluble vitamins accumulate and overdose causes harm. Consult doctor if on other medications.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
+  return { whatItDoes: 'Medicine information unavailable.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
+}
+
+async function callVision(key, b64, mime, prompt) {
+  let last = 'no model succeeded'
+  for (const model of VISION_MODELS) {
+    try {
+      const res = await fetch(GROQ_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+        body: JSON.stringify({ model, max_tokens:900, temperature:0.05,
+          messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}]})})
+      if (res.status===429||res.status===404){last=`${res.status}`;continue}
+      if (res.status===401) throw new Error('Groq API key invalid.')
+      if (!res.ok){const e=await res.json().catch(()=>({}));last=e?.error?.message||`${res.status}`;continue}
+      const data=await res.json(); const text=data?.choices?.[0]?.message?.content
+      if (!text){last='empty';continue}
+      const p=safeJSON(text); if(p) return p; last='JSON parse'
+    } catch(e){if(e.message.includes('invalid')||e.message.includes('key'))throw e; last=e.message}
+  }
+  throw new Error(`Could not read image: ${last}`)
+}
+
+async function callText(key, prompt) {
+  const res = await fetch(GROQ_URL, {method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+    body:JSON.stringify({model:TEXT_MODEL,max_tokens:1100,temperature:0.1,messages:[{role:'user',content:prompt}]})})
+  if (!res.ok) throw new Error(`Text call ${res.status}`)
+  const data=await res.json(); return safeJSON(data?.choices?.[0]?.message?.content)
+}
+
+function safeJSON(t) { try{return JSON.parse((t||'').replace(/```json\n?/g,'').replace(/```\n?/g,'').trim())}catch{return null} }
 
 export async function compressAndEncode(file) {
   return new Promise((resolve, reject) => {
@@ -239,26 +246,34 @@ export async function compressAndEncode(file) {
     img.onload = () => {
       URL.revokeObjectURL(url)
       let { width, height } = img
-
-      // 1600px — bottles and small labels need more resolution than 1024
       const MAX = 1600
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height / width * MAX); width = MAX }
         else { width = Math.round(width / height * MAX); height = MAX }
       }
-
       const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
+      canvas.width = width; canvas.height = height
       const ctx = canvas.getContext('2d')
-      ctx.fillStyle = '#ffffff'
+      ctx.fillStyle = '#fff'
       ctx.fillRect(0, 0, width, height)
       ctx.drawImage(img, 0, 0, width, height)
-
-      // 0.90 quality — small labels need fine detail
+      // Try 0.90 quality first, fall back to 0.75 if result > 4MB base64
       canvas.toBlob(blob => {
         const reader = new FileReader()
-        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onload = () => {
+          const b64 = reader.result.split(',')[1]
+          if (b64.length > 4_000_000) {
+            // Too large — re-compress at lower quality
+            canvas.toBlob(blob2 => {
+              const r2 = new FileReader()
+              r2.onload = () => resolve(r2.result.split(',')[1])
+              r2.onerror = reject
+              r2.readAsDataURL(blob2)
+            }, 'image/jpeg', 0.70)
+          } else {
+            resolve(b64)
+          }
+        }
         reader.onerror = reject
         reader.readAsDataURL(blob)
       }, 'image/jpeg', 0.90)
