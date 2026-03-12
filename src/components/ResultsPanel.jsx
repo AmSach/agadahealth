@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
-const JA_STORE_URL = 'https://janaushadhi.gov.in/LocateKendra.aspx'
-const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSexample/viewform'
+const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
+const REPORT_FORM_URL = 'https://cdsco.gov.in/opencms/opencms/en/About-us/contact-us/'
 
 // ─── Translation helper for AI-generated text ────────────────────────────────
 // Sends AI-generated strings through Groq for translation
