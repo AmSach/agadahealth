@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
-const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSexample/viewform'
-const JA_STORE_URL = 'https://janaushadhi.gov.in/LocateKendra.aspx'
+const REPORT_FORM_URL = 'https://cdsco.gov.in/opencms/opencms/en/About-us/contact-us/'
+const JA_STORE_URL = 'https://janaushadhi.gov.in/locate-kendra'
 
 export default function ResultsPanel({ results, preview, onReset, t, lang }) {
   const [card, setCard] = useState(0)
