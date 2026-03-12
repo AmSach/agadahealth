@@ -1,6 +1,6 @@
 {
   "name": "agada",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@vercel/analytics": "^1.3.1",
+    "@vercel/speed-insights": "^1.0.12"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
