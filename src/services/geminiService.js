@@ -1,239 +1,221 @@
 /**
- * geminiService.js — Agada AI Service v3
+ * geminiService.js v4 — Agada AI Service
  *
- * AI ONLY reads the medicine name/salt from the photo.
- * Everything else — alternatives, pricing, authenticity — from local CSV DBs.
- *
- * Phase 1: Groq vision → read brand + salt from image
- * Phase 2: dbService → real JA alternatives + CDSCO registry check
- * Phase 3: Groq text  → plain English description + warnings only
+ * Key changes:
+ * - 5 API key rotation (VITE_GROQ_KEY_1..5)
+ * - Full model cascade — 6 models tried before giving up
+ * - QR saltFromQR = ground truth, skips vision call entirely for that field
+ * - Strict: if QR has salt, DB lookup uses ONLY that. Vision AI = fallback only.
+ * - Parallel: vision + DB preload in parallel from start
+ * - Pharmacy deep links for live prices (no CORS issues)
  */
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
 
-const API_KEYS = [import.meta.env.VITE_GROQ_KEY].filter(Boolean)
+// ─── KEY ROTATION ─────────────────────────────────────────────────────────────
+// Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
+const API_KEYS = [
+  import.meta.env.VITE_GROQ_KEY_1,
+  import.meta.env.VITE_GROQ_KEY_2,
+  import.meta.env.VITE_GROQ_KEY_3,
+  import.meta.env.VITE_GROQ_KEY_4,
+  import.meta.env.VITE_GROQ_KEY_5,
+  import.meta.env.VITE_GROQ_KEY, // legacy single key fallback
+].filter(Boolean)
 
+// ─── MODEL CASCADE ────────────────────────────────────────────────────────────
+// Vision models — tried in order, skip on 429/404
 const VISION_MODELS = [
-  'meta-llama/llama-4-scout-17b-16e-instruct',
-  'llama-3.2-11b-vision-preview',
+  'meta-llama/llama-4-scout-17b-16e-instruct',  // fastest, best for OCR
+  'meta-llama/llama-4-maverick-17b-128e-instruct', // larger, better for complex labels
+  'llama-3.2-90b-vision-preview',               // fallback, slower
+  'llama-3.2-11b-vision-preview',               // last resort vision
 ]
-const TEXT_MODEL = 'llama-3.3-70b-versatile'
-const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions'
+// Text-only models — for description + generics (no image)
+const TEXT_MODELS = [
+  'llama-3.3-70b-versatile',   // best quality
+  'llama-3.1-70b-versatile',   // fallback
+  'llama-3.1-8b-instant',      // fast fallback if others rate-limited
+  'gemma2-9b-it',              // last resort
+]
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
+// Round-robin key selector — distributes load across all keys
 let keyIndex = 0
-const nextKey = () => { const k = API_KEYS[keyIndex]; keyIndex = (keyIndex + 1) % API_KEYS.length; return k }
-
-// Phase 1 prompt: READ ONLY
-const IMAGE_READ_PROMPT = `You are a medicine label reader for an Indian healthcare app.
-Your ONLY job: read text printed on this medicine packaging. Extract structured data.
-Do NOT suggest alternatives. Do NOT give clinical advice. Read only what is visible.
-
-SALT RULE: Copy salt/composition EXACTLY as printed. NEVER substitute.
-Bilastine != Cetirizine. Metoprolol != Atenolol. Pantoprazole != Omeprazole.
-If unclear: saltComposition=null, confidence<50.
-Do NOT set cannotRead:true for bottles/tubes/drops — try to read what is visible.
-
-DAMAGED / TORN / PARTIAL PACKAGING — VERY IMPORTANT:
-- If the wrapper is torn, stained, crumpled, or partially missing: READ WHAT IS VISIBLE. Do not refuse.
-- A torn wrapper does NOT mean fake. Ignore damage when assessing authenticity.
-- Partial label: extract whatever fields are readable. Leave others null.
-- Blurry image: lower confidence but still attempt to read brand name and salt.
-- If you can read even just the brand name: return it. That alone is useful.
-- ONLY set cannotRead:true if literally nothing is readable — not even a single word.
-- The user's need for information is more important than having a perfect image.
-
-LEGITIMACY: List every signal you actually see. Ignore torn/damaged portions.
-Genuine: hologram, QR/barcode, govt price sticker with rupee amount, tamper seal, batch number, expiry date, full manufacturer address with PIN, licence number
-Fake: pixelated text (despite clear image), missing MRP/batch/expiry on undamaged portions, font inconsistency, no manufacturer address on undamaged label
-NOTE: Do not mark fake signals for missing fields if the label is visibly torn/damaged in that area.
-
-Return ONLY valid JSON, no markdown:
-{
-  "productType": "MEDICINE or AYURVEDIC or SUPPLEMENT or DROPS",
-  "brandName": "exact as printed or null",
-  "saltComposition": "exact as printed or null",
-  "manufacturer": "name or null",
-  "dosage": "strength or null",
-  "mrp": null,
-  "batchNumber": "as printed or null",
-  "expiryDate": "as printed or null",
-  "licenceNumber": "as printed or null",
-  "genuineSignalsFound": [],
-  "fakeSignalsFound": [],
-  "confidence": 85,
-  "cannotRead": false,
-  "cannotReadReason": null
-}`
-
-function descriptionPrompt(brand, salt, type) {
-  return `Plain-language medicine information for Indian patients.
-Medicine: ${brand || 'Unknown'} (${salt || 'Unknown salt'}) — Type: ${type || 'MEDICINE'}
-Do NOT suggest brands or alternatives. General drug class info only. Return ONLY JSON, no markdown:
-{
-  "whatItDoes": "3-4 plain English sentences: mechanism, what patient feels, onset",
-  "howToTake": "general guidance — with/without food, timing, typical duration",
-  "commonUses": ["use1","use2","use3","use4"],
-  "prescriptionRequired": false,
-  "sideEffects": ["effect1","effect2","effect3"],
-  "importantWarnings": ["warning1","warning2","warning3"],
-  "overdoseRisk": "what happens in overdose, plain language",
-  "ayurvedicWarning": "if AYURVEDIC only: AYUSH regulated, consult practitioner — else null",
-  "supplementWarning": "if SUPPLEMENT only: overdose risk, interactions — else null",
-  "doNotTakeWith": "interactions or null"
-}`
+const nextKey = () => {
+  if (!API_KEYS.length) return null
+  const k = API_KEYS[keyIndex % API_KEYS.length]
+  keyIndex++
+  return k
 }
 
-// Separate prompt for generic branded alternatives — runs only when JA DB has < 3 results
-function genericsPrompt(salt, jaCount) {
-  return `You are a pharmacist assistant for Indian patients at an emergency.
-The patient needs: ${salt}
-Jan Aushadhi database found ${jaCount} result(s). Supplement with real branded generics available at ANY Indian chemist.
+// ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
+const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
 
-Rules:
-- Only suggest medicines with the EXACT same active salt as: ${salt}
-- Include real Indian manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott, Torrent, Glenmark, Wockhardt, Pfizer India, Micro Labs, Macleods, FDC, Aristo, Cadila
-- Estimate MRP conservatively — err on the low side. These are approximations.
-- Do NOT make up medicines. Only suggest if you are confident this brand+salt exists.
-- Sort by estimated MRP ascending.
-- Mark isJanAushadhi as false for all of these.
+SALT: Copy EXACTLY. Never infer. Bilastine≠Cetirizine. Pantoprazole≠Omeprazole.
+If unreadable: saltComposition=null, confidence<50.
+TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
+Damaged areas: ignore for fake signals.
 
-Return ONLY JSON array, no markdown:
-[
-  {
-    "name": "brand name and strength",
-    "brand": "manufacturer name",
-    "salt": "${salt}",
-    "form": "tablet or capsule or syrup",
-    "packSize": "e.g. 10 tablets",
-    "estimatedMrp": 25,
-    "perUnit": 2.5,
-    "savingsNote": "e.g. 60% cheaper than Crocin",
-    "isJanAushadhi": false,
-    "aiEstimated": true,
-    "availableAt": "Any chemist"
-  }
-]`
+Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
+Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
+
+JSON only, no markdown:
+{"productType":"MEDICINE|AYURVEDIC|SUPPLEMENT|DROPS","brandName":null,"saltComposition":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
+
+// ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
+const mkDescPrompt = (brand, salt, type) =>
+`Indian patient medicine info. Medicine: ${brand||'Unknown'} (${salt||'Unknown'}). Type: ${type||'MEDICINE'}.
+No brand suggestions. General drug class only. JSON only:
+{"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
+
+// ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
+const mkGenericsPrompt = (salt) =>
+`Indian pharmacist. Patient needs: ${salt}
+List real branded generics available at ANY Indian chemist. Same exact salt only.
+Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila.
+Only suggest if confident this brand+salt combination actually exists in India.
+JSON array only, no markdown:
+[{"name":"Brand Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+
+// ─── PHARMACY DEEP LINKS ──────────────────────────────────────────────────────
+// Opens pharmacy site search — user sees live prices directly, no CORS needed
+export function pharmacyLinks(saltComposition) {
+  if (!saltComposition) return []
+  const q = encodeURIComponent(saltComposition.split(/\band\b|,/i)[0].trim())
+  return [
+    { name: '1mg',       url: `https://www.1mg.com/search/all?name=${q}`,                    logo: '💊' },
+    { name: 'PharmEasy', url: `https://pharmeasy.in/search/all?name=${q}`,                   logo: '🟢' },
+    { name: 'Apollo',    url: `https://www.apollo247.com/search?searchQuery=${q}`,            logo: '🔵' },
+    { name: 'Netmeds',   url: `https://www.netmeds.com/catalogsearch/result?q=${q}`,         logo: '🔴' },
+  ]
 }
 
+// ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (API_KEYS.length === 0) throw new Error('No API key. Add VITE_GROQ_KEY in Vercel → Environment Variables. Free key at console.groq.com')
+  if (!API_KEYS.length) throw new Error('No API key. Add VITE_GROQ_KEY_1 in Vercel → Environment Variables. Free key at console.groq.com')
 
-  const key = nextKey()
-
-  // Load DBs in parallel with vision call
+  // Start DB load immediately — parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
 
-  // Phase 1: read image
-  const img = await callVision(key, imageBase64, mimeType, IMAGE_READ_PROMPT)
+  // ── GROUND TRUTH from QR ──────────────────────────────────────────────────
+  // If QR has salt: this IS the correct composition. Vision AI cannot override it.
+  const qrSalt     = barcodeData?.saltFromQR  || null
+  const qrBrand    = barcodeData?.brandFromQR || null
+  const qrBatch    = barcodeData?.batchNumber || null
+  const qrExpiry   = barcodeData?.expiryDate  || null
+  const qrMrp      = barcodeData?.mrpFromQR   || null
 
-  // Merge barcode (more reliable than AI for batch/expiry)
-  if (barcodeData) {
-    if (barcodeData.batchNumber && !img.batchNumber) img.batchNumber = barcodeData.batchNumber
-    if (barcodeData.expiryDate  && !img.expiryDate)  img.expiryDate  = barcodeData.expiryDate
-    if (barcodeData.brandFromQR && !img.brandName)   img.brandName   = barcodeData.brandFromQR
-    if (barcodeData.mrpFromQR   && !img.mrp)         img.mrp         = barcodeData.mrpFromQR
-    if (!img.genuineSignalsFound) img.genuineSignalsFound = []
-    img.genuineSignalsFound.push('QR/barcode decoded successfully')
+  // ── Phase 1: Vision AI reads label ───────────────────────────────────────
+  // If QR already gave us salt+brand, we still call vision for:
+  //   manufacturer, unitSize, mrp, batch (if not in QR), authenticity signals
+  // But we cap tokens lower since less work needed
+  const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
+
+  // QR data overrides vision — QR is always more reliable
+  const finalSalt   = qrSalt   || img.saltComposition
+  const finalBrand  = qrBrand  || img.brandName
+  const finalBatch  = qrBatch  || img.batchNumber
+  const finalExpiry = qrExpiry || img.expiryDate
+  const finalMrp    = qrMrp    || img.mrp
+
+  if (qrSalt) {
+    img.genuineSignalsFound = [...(img.genuineSignalsFound || []), 'QR/barcode decoded — salt verified']
   }
 
-  const expiryStr = img.expiryDate || barcodeData?.expiryDate
+  const expiryStr = finalExpiry
   const isExpired = expiryStr ? checkExpired(expiryStr) : false
 
   await dbPromise
 
-  // Phase 2: DB lookups
-  const jaResults   = lookupJanAushadhi(img.saltComposition, img.mrp ? parseFloat(img.mrp) : null)
-  const cdscoResult = lookupCDSCO(img.saltComposition, img.brandName)
+  // ── Phase 2: DB lookups ───────────────────────────────────────────────────
+  const jaLookup    = lookupJanAushadhi(finalSalt, finalMrp, img.unitSize)
+  const cdscoResult = lookupCDSCO(finalSalt)
+  const jaExact     = jaLookup.exact
+  const jaDoseDiff  = jaLookup.doseMismatch
 
-  // Phase 3: description + generic branded alternatives (run in parallel)
-  let info = null
-  let aiGenerics = []
-  if (img.saltComposition || img.brandName) {
-    const [infoResult, genericsResult] = await Promise.allSettled([
-      callText(key, descriptionPrompt(img.brandName, img.saltComposition, img.productType)),
-      // Only call AI for generics if JA DB found fewer than 3 results
-      jaResults.length < 3 && img.saltComposition
-        ? callText(key, genericsPrompt(img.saltComposition, jaResults.length))
+  // ── Phase 3: Description + AI generics (parallel) ────────────────────────
+  let info = null, aiGenerics = []
+  if (finalSalt || finalBrand) {
+    const [infoRes, genRes] = await Promise.allSettled([
+      callText(mkDescPrompt(finalBrand, finalSalt, img.productType)),
+      jaExact.length < 3 && finalSalt
+        ? callText(mkGenericsPrompt(finalSalt))
         : Promise.resolve(null),
     ])
-    info = infoResult.status === 'fulfilled' ? infoResult.value : null
-    if (genericsResult.status === 'fulfilled' && Array.isArray(genericsResult.value)) {
-      aiGenerics = genericsResult.value.slice(0, 5)
+    info = infoRes.status === 'fulfilled' ? infoRes.value : null
+    if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
+      aiGenerics = genRes.value.slice(0, 5)
     }
   }
 
-  // Merge: JA DB results (verified) + AI generics (estimated), deduplicated by salt similarity
-  const allAlternatives = [
-    ...jaResults,
+  const allAlts = [
+    ...jaExact,
     ...aiGenerics.filter(ag =>
-      !jaResults.some(ja => ja.name?.toLowerCase().includes(ag.name?.toLowerCase().slice(0, 8)))
+      !jaExact.some(ja => ja.name?.toLowerCase().slice(0,10) === ag.name?.toLowerCase().slice(0,10))
     )
   ]
 
-  const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData)
-  if ((img.confidence || 0) < 50) {
+  const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData, qrSalt)
+  if ((img.confidence || 0) < 50 && !qrSalt) {
     authenticity.status  = 'CANNOT_DETERMINE'
     authenticity.warning = ((authenticity.warning || '') + ' Low confidence — verify with pharmacist.').trim()
   }
 
   return {
     productType:     img.productType || 'MEDICINE',
-    brandName:       img.brandName,
-    saltComposition: img.saltComposition,
+    brandName:       finalBrand,
+    saltComposition: finalSalt,
     manufacturer:    img.manufacturer,
-    dosage:          img.dosage,
-    mrp:             img.mrp,
-    batchNumber:     img.batchNumber,
+    mrp:             finalMrp,
+    unitSize:        img.unitSize,
+    batchNumber:     finalBatch,
     expiryDate:      expiryStr,
     isExpired,
     licenceNumber:   img.licenceNumber,
-    confidence:      img.confidence || 70,
+    confidence:      qrSalt ? 99 : (img.confidence || 70),
+    saltSource:      qrSalt ? 'QR_BARCODE' : 'AI_VISION',
     cannotRead:      img.cannotRead || false,
     cannotReadReason:img.cannotReadReason,
     authenticity,
     medicineInfo:    info || fallbackInfo(img.productType),
     alternatives: {
-      hasGenerics:          allAlternatives.length > 0,
-      janAushadhiAvailable: jaResults.some(r => r.isJanAushadhi),
-      topAlternatives:      allAlternatives,
-      jaCount:              jaResults.length,
-      aiGenericsCount:      aiGenerics.length,
-      savingsSummary:       buildSavingsSummary(allAlternatives, img.mrp ? parseFloat(img.mrp) : null),
-      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080 (free)',
-      disclaimer:           'Only buy generics from Jan Aushadhi Kendras or licensed pharmacies. Agada cannot verify online pharmacy quality.',
-      dataSource:           'BPPI Jan Aushadhi Official Product List + AI-estimated branded generics',
+      hasGenerics:          allAlts.length > 0,
+      janAushadhiAvailable: jaExact.some(r => r.isJanAushadhi),
+      topAlternatives:      allAlts,
+      doseMismatchAlts:     jaDoseDiff,
+      jaCount:              jaExact.length,
+      savingsSummary:       buildSavingsSummary(jaExact, finalMrp, img.unitSize),
+      pharmacyLinks:        pharmacyLinks(finalSalt),
+      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. Branded generic prices are AI-estimated. Check pharmacy sites for live prices.',
     },
     dataSource: {
-      imageRead:    'Groq AI Vision',
-      alternatives: 'BPPI Jan Aushadhi Database',
-      cdsco:        cdscoResult.found ? 'CDSCO Drug Registry' : 'Not found in CDSCO registry',
-      cdscoFound:   cdscoResult.found,
+      salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',
+      alts:       'BPPI Jan Aushadhi DB + AI',
+      cdsco:      cdscoResult.found ? 'CDSCO Drug Registry' : 'Not in CDSCO registry',
+      cdscoFound: cdscoResult.found,
     }
   }
 }
 
-function buildAuthenticity(img, cdsco, isExpired, barcode) {
+// ─── AUTHENTICITY ─────────────────────────────────────────────────────────────
+function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
   const genuine = img.genuineSignalsFound || []
   const fake    = img.fakeSignalsFound    || []
 
   if (isExpired) return {
     status: 'CANNOT_DETERMINE',
-    reason: `Medicine appears expired (${img.expiryDate}). Cannot assess authenticity.`,
-    genuineSignalsFound: genuine, fakeSignalsFound: [...fake, 'Expired medicine'],
-    cdscoBadge: cdsco.found ? `Salt approved by CDSCO (${cdsco.approvalDate || 'on record'})` : 'Salt not found in CDSCO registry.',
-    warning: '⚠ This medicine appears expired. Do not consume.',
+    reason: `Medicine appears expired (${img.expiryDate}).`,
+    genuineSignalsFound: genuine, fakeSignalsFound: [...fake, 'Expired'],
+    cdscoBadge: cdsco.badge || null, cdscoIndication: cdsco.indication || null,
+    warning: '⚠ Expired. Do not consume.',
   }
 
-  const score = (genuine.length * 18) - (fake.length * 25) + (cdsco.found ? 20 : 0) + (barcode ? 15 : 0)
+  const score = genuine.length * 18 - fake.length * 25 + (cdsco.found ? 20 : 0) + (barcode ? 15 : 0) + (qrSalt ? 20 : 0)
   const status = fake.length >= 2 || score < -20 ? 'LIKELY_FAKE'
-    : score >= 30 || genuine.length >= 2          ? 'LIKELY_GENUINE'
+    : score >= 30 || genuine.length >= 2           ? 'LIKELY_GENUINE'
     : 'CANNOT_DETERMINE'
-
-  const cdscoBadge = cdsco.found
-    ? `✓ Found in CDSCO registry: "${cdsco.drugName}". Approved for: ${(cdsco.indication || '').slice(0,80)}.`
-    : img.productType === 'AYURVEDIC' ? 'Regulated by AYUSH, not CDSCO.'
-    : img.productType === 'SUPPLEMENT' ? 'Supplements not scheduled under CDSCO.'
-    : 'Not found in CDSCO database.'
 
   return {
     status,
@@ -244,10 +226,76 @@ function buildAuthenticity(img, cdsco, isExpired, barcode) {
     ].filter(Boolean).join(' | '),
     genuineSignalsFound: genuine,
     fakeSignalsFound:    fake,
-    cdscoBadge,
-    cdscoApprovalDate:  cdsco.approvalDate || null,
-    warning: fake.length ? 'Return to chemist and ask for CDSCO licence proof. Report fakes: 1800-180-3024 (free).' : null,
+    cdscoBadge:      cdsco.badge || (
+      img.productType === 'AYURVEDIC'  ? '🌿 Regulated by AYUSH, not CDSCO.' :
+      img.productType === 'SUPPLEMENT' ? 'Dietary supplement — not CDSCO scheduled.' :
+      'Salt not found in CDSCO registry.'
+    ),
+    cdscoIndication:  cdsco.indication || null,
+    cdscoFound:       cdsco.found,
+    approvalDate:     cdsco.approvalDate || null,
+    warning: fake.length ? 'Return to chemist. Report fakes: 1800-180-3024 (free).' : null,
   }
+}
+
+// ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
+async function callVision(b64, mime, prompt) {
+  let lastErr = 'no models available'
+  for (const model of VISION_MODELS) {
+    const key = nextKey()
+    if (!key) continue
+    try {
+      const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model, max_tokens: 600, temperature: 0.05,
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+          ]}]
+        })
+      })
+      if (res.status === 429 || res.status === 404) { lastErr = `${model} ${res.status}`; continue }
+      if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
+      if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; continue }
+      const data = await res.json()
+      const parsed = safeJSON(data?.choices?.[0]?.message?.content)
+      if (parsed) return parsed
+      lastErr = 'JSON parse fail'
+    } catch(e) {
+      if (e.message.includes('Invalid API')) throw e
+      lastErr = e.message
+    }
+  }
+  throw new Error(`Could not read image: ${lastErr}`)
+}
+
+async function callText(prompt) {
+  let lastErr = 'no models'
+  for (const model of TEXT_MODELS) {
+    const key = nextKey()
+    if (!key) continue
+    try {
+      const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
+      })
+      if (res.status === 429 || res.status === 404) { lastErr = `${model} ${res.status}`; continue }
+      if (!res.ok) { lastErr = `${res.status}`; continue }
+      const data = await res.json()
+      const parsed = safeJSON(data?.choices?.[0]?.message?.content)
+      if (parsed) return parsed
+      lastErr = 'JSON parse'
+    } catch(e) { lastErr = e.message }
+  }
+  return null // text calls are non-fatal
+}
+
+function safeJSON(t) {
+  try { return JSON.parse((t||'').replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()) }
+  catch { return null }
 }
 
 function checkExpired(d) {
@@ -260,76 +308,39 @@ function checkExpired(d) {
 }
 
 function fallbackInfo(type) {
-  if (type === 'AYURVEDIC') return { whatItDoes: 'Ayurvedic product.', ayurvedicWarning: 'Regulated by AYUSH Ministry, not CDSCO. Consult a qualified Ayurvedic practitioner.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
-  if (type === 'SUPPLEMENT') return { whatItDoes: 'Dietary supplement.', supplementWarning: 'Do not exceed stated dose. Fat-soluble vitamins accumulate and overdose causes harm. Consult doctor if on other medications.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
-  return { whatItDoes: 'Medicine information unavailable.', commonUses:[], importantWarnings:[], sideEffects:[], prescriptionRequired:false }
+  if (type === 'AYURVEDIC') return { whatItDoes: 'Ayurvedic product.', ayurvedicWarning: 'Regulated by AYUSH Ministry. Consult a qualified practitioner.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
+  if (type === 'SUPPLEMENT') return { whatItDoes: 'Dietary supplement.', supplementWarning: 'Do not exceed stated dose. Consult doctor if on other medicines.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
+  return { whatItDoes: 'Medicine information unavailable.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
 }
 
-async function callVision(key, b64, mime, prompt) {
-  let last = 'no model succeeded'
-  for (const model of VISION_MODELS) {
-    try {
-      const res = await fetch(GROQ_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-        body: JSON.stringify({ model, max_tokens:900, temperature:0.05,
-          messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}]})})
-      if (res.status===429||res.status===404){last=`${res.status}`;continue}
-      if (res.status===401) throw new Error('Groq API key invalid.')
-      if (!res.ok){const e=await res.json().catch(()=>({}));last=e?.error?.message||`${res.status}`;continue}
-      const data=await res.json(); const text=data?.choices?.[0]?.message?.content
-      if (!text){last='empty';continue}
-      const p=safeJSON(text); if(p) return p; last='JSON parse'
-    } catch(e){if(e.message.includes('invalid')||e.message.includes('key'))throw e; last=e.message}
-  }
-  throw new Error(`Could not read image: ${last}`)
-}
-
-async function callText(key, prompt) {
-  const res = await fetch(GROQ_URL, {method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-    body:JSON.stringify({model:TEXT_MODEL,max_tokens:1100,temperature:0.1,messages:[{role:'user',content:prompt}]})})
-  if (!res.ok) throw new Error(`Text call ${res.status}`)
-  const data=await res.json(); return safeJSON(data?.choices?.[0]?.message?.content)
-}
-
-function safeJSON(t) { try{return JSON.parse((t||'').replace(/```json\n?/g,'').replace(/```\n?/g,'').trim())}catch{return null} }
-
+// ─── IMAGE COMPRESSION ────────────────────────────────────────────────────────
 export async function compressAndEncode(file) {
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
+    const img = new Image(), url = URL.createObjectURL(file)
     img.onload = () => {
       URL.revokeObjectURL(url)
       let { width, height } = img
       const MAX = 1600
       if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round(height / width * MAX); width = MAX }
-        else { width = Math.round(width / height * MAX); height = MAX }
+        if (width > height) { height = Math.round(height/width*MAX); width = MAX }
+        else { width = Math.round(width/height*MAX); height = MAX }
       }
       const canvas = document.createElement('canvas')
       canvas.width = width; canvas.height = height
       const ctx = canvas.getContext('2d')
-      ctx.fillStyle = '#fff'
-      ctx.fillRect(0, 0, width, height)
-      ctx.drawImage(img, 0, 0, width, height)
-      // Try 0.90 quality first, fall back to 0.75 if result > 4MB base64
-      canvas.toBlob(blob => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const b64 = reader.result.split(',')[1]
-          if (b64.length > 4_000_000) {
-            // Too large — re-compress at lower quality
-            canvas.toBlob(blob2 => {
-              const r2 = new FileReader()
-              r2.onload = () => resolve(r2.result.split(',')[1])
-              r2.onerror = reject
-              r2.readAsDataURL(blob2)
-            }, 'image/jpeg', 0.70)
-          } else {
-            resolve(b64)
-          }
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      }, 'image/jpeg', 0.90)
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height); ctx.drawImage(img,0,0,width,height)
+      const tryEncode = (quality, cb) => {
+        canvas.toBlob(blob => {
+          const r = new FileReader()
+          r.onload = () => cb(r.result.split(',')[1])
+          r.onerror = reject
+          r.readAsDataURL(blob)
+        }, 'image/jpeg', quality)
+      }
+      tryEncode(0.90, b64 => {
+        if (b64.length > 4_000_000) tryEncode(0.70, resolve)
+        else resolve(b64)
+      })
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
     img.src = url

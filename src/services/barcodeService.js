@@ -1,160 +1,149 @@
 /**
- * barcodeService.js — Agada Barcode / QR Reader
+ * barcodeService.js v2 — Agada Barcode / QR Reader
  *
- * Uses @zxing/library (loaded from CDN via dynamic import)
- * Reads QR codes and barcodes from medicine packaging
- * Indian medicine QR codes follow GS1 standard:
- *   01 = GTIN/product code
- *   10 = Batch number
- *   17 = Expiry date (YYMMDD)
- *   21 = Serial number
+ * Reads Indian pharma QR codes (MoHFW Track & Trace + manufacturer formats)
+ * GS1 AIs: 01=GTIN, 10=Batch, 17=Expiry, 21=Serial, 240=Product description
+ * Plain text: "Brand:X|Salt:Y|Batch:Z|Exp:MM/YYYY|MRP:N"
+ *
+ * saltFromQR = GROUND TRUTH when present — overrides AI vision reading
  */
 
 let ZXing = null
 
 async function getZXing() {
   if (ZXing) return ZXing
-  // Dynamically import from CDN — only loaded when needed
-  const module = await import('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/+esm')
-  ZXing = module
+  const m = await import('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/+esm')
+  ZXing = m
   return ZXing
 }
 
-/**
- * Attempt to read a barcode or QR code from an image file.
- * Returns null if nothing found — gracefully degrades, never throws to caller.
- *
- * @param {File} file - image file
- * @returns {Promise<BarcodeResult|null>}
- */
 export async function readBarcode(file) {
   try {
     const { BrowserMultiFormatReader } = await getZXing()
     const reader = new BrowserMultiFormatReader()
-
-    const imageUrl = URL.createObjectURL(file)
+    const url = URL.createObjectURL(file)
     try {
-      const result = await reader.decodeFromImageUrl(imageUrl)
-      URL.revokeObjectURL(imageUrl)
-
+      const result = await reader.decodeFromImageUrl(url)
       if (!result?.text) return null
-
-      const raw = result.text
-      const parsed = parseGS1(raw) || parseQRText(raw)
-
-      return {
-        raw,
-        format: result.getBarcodeFormat?.() || 'UNKNOWN',
-        ...parsed,
-      }
+      return parseAll(result.text.trim())
     } finally {
-      URL.revokeObjectURL(imageUrl)
+      URL.revokeObjectURL(url)
     }
-  } catch {
-    // Barcode not found or library failed — silent, not an error
-    return null
-  }
+  } catch { return null }
 }
 
-/**
- * Parse GS1 application identifiers from a QR/barcode string
- * GS1 format: (01)12345678901234(10)BATCH(17)260312(21)SERIAL
- * or without parens: 0112345678901234 10BATCH 17260312
- */
-function parseGS1(raw) {
+function parseAll(raw) {
   if (!raw) return null
-
-  const result = {}
-
-  // Try parenthesized GS1 format: (01)...(10)...(17)...
-  const parenFormat = raw.match(/\((\d{2})\)([^(]+)/g)
-  if (parenFormat) {
-    for (const chunk of parenFormat) {
-      const m = chunk.match(/\((\d{2})\)(.+)/)
-      if (!m) continue
-      const [, ai, val] = m
-      applyAI(result, ai, val.trim())
-    }
-    if (Object.keys(result).length > 0) return result
+  const parsed = parseGS1(raw) || parsePipeText(raw) || parseKVText(raw) || parseURLQR(raw)
+  if (!parsed || !Object.keys(parsed).length) return null
+  if (parsed.expiryDate) parsed.isExpired = isExpired(parsed.expiryDate)
+  if (parsed.saltFromQR) {
+    parsed.saltFromQR = parsed.saltFromQR.replace(/\s+/g, ' ').trim()
+      .replace(/\b\w/g, c => c.toUpperCase())
   }
+  return { raw, ...parsed }
+}
 
-  // Try raw GS1 numeric format
+// ─── GS1 ─────────────────────────────────────────────────────────────────────
+function parseGS1(raw) {
+  const result = {}
+  const parenMatches = [...raw.matchAll(/\((\d{2,3})\)([^(]+)/g)]
+  if (parenMatches.length) {
+    for (const [, ai, val] of parenMatches) applyAI(result, ai, val.trim())
+    if (Object.keys(result).length) return result
+  }
   const raw01 = raw.match(/^01(\d{14})/)
   if (raw01) {
     result.gtin = raw01[1]
     const rest = raw.slice(16)
-    const batch = rest.match(/10([A-Z0-9]{1,20})/)
-    if (batch) result.batchNumber = batch[1]
-    const expiry = rest.match(/17(\d{6})/)
-    if (expiry) result.expiryDate = formatExpiry(expiry[1])
-    return result
+    const b = rest.match(/10([A-Z0-9\-]{1,20})/); if (b) result.batchNumber = b[1]
+    const e = rest.match(/17(\d{6})/); if (e) result.expiryDate = fmt6(e[1])
+    const d = rest.match(/240(.{4,60})/); if (d) { result.productDescription = d[1].trim(); extractSalt(d[1].trim(), result) }
+    return Object.keys(result).length ? result : null
   }
-
   return null
 }
 
 function applyAI(result, ai, val) {
-  switch (ai) {
-    case '01': result.gtin = val; break
-    case '10': result.batchNumber = val; break
-    case '17': result.expiryDate = formatExpiry(val); break
-    case '21': result.serialNumber = val; break
-    case '11': result.manufacturingDate = formatExpiry(val); break
-    case '310': case '311': case '312': result.netWeight = val; break
-  }
+  if (ai === '01')  result.gtin = val
+  if (ai === '10')  result.batchNumber = val
+  if (ai === '17')  result.expiryDate = fmt6(val)
+  if (ai === '21')  result.serialNumber = val
+  if (ai === '11')  result.manufacturingDate = fmt6(val)
+  if (ai === '240') { result.productDescription = val; extractSalt(val, result) }
 }
 
-function formatExpiry(yymmdd) {
-  if (!yymmdd || yymmdd.length < 6) return yymmdd
-  const yy = yymmdd.slice(0, 2)
-  const mm = yymmdd.slice(2, 4)
-  const dd = yymmdd.slice(4, 6)
-  const year = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`
-  return `${dd}/${mm}/${year}`
+// GS1 AI 240 contains e.g. "PARACETAMOL 500MG TABLETS IP" or "Crocin (Paracetamol 500mg)"
+function extractSalt(desc, result) {
+  const branded = desc.match(/^(.+?)\s*\((.+?)\)/)
+  if (branded) { result.brandFromQR = branded[1].trim(); result.saltFromQR = branded[2].trim(); return }
+  const clean = desc.replace(/\b(tablets?|capsules?|injection|syrup|oral|suspension|drops?|solution|infusion|cream|ip|bp|usp|sr|er)\b/gi, '').replace(/\s+/g, ' ').trim()
+  if (clean.length > 3) result.saltFromQR = clean
 }
 
-/**
- * Fallback: try to extract useful info from plain text QR codes
- * Some Indian medicine QR codes are plain text with key:value pairs
- */
-function parseQRText(raw) {
-  if (!raw) return null
+// ─── PIPE / SEMICOLON TEXT ───────────────────────────────────────────────────
+function parsePipeText(raw) {
+  if (!raw.includes('|') && !raw.includes(';')) return null
   const result = {}
-
-  // Try key:value format
-  const kvPairs = raw.split(/[;\n|,]/)
-  for (const pair of kvPairs) {
-    const [k, v] = pair.split(':').map(s => s.trim())
-    if (!k || !v) continue
-    const kl = k.toLowerCase()
-    if (kl.includes('batch') || kl.includes('lot'))  result.batchNumber = v
-    if (kl.includes('expir') || kl.includes('exp'))  result.expiryDate  = v
-    if (kl.includes('mfg') || kl.includes('manuf'))  result.manufacturer = v
-    if (kl.includes('drug') || kl.includes('brand') || kl.includes('product')) result.brandFromQR = v
-    if (kl.includes('mrp') || kl.includes('price'))  result.mrpFromQR   = parseFloat(v)
-    if (kl.includes('serial') || kl.includes('sr'))  result.serialNumber = v
+  for (const part of raw.split(/[|;]/)) {
+    const ci = part.indexOf(':'); if (ci < 0) continue
+    const k = part.slice(0, ci).trim().toLowerCase()
+    const v = part.slice(ci + 1).trim()
+    if (!v) continue
+    if (['brand','product','name'].includes(k))           result.brandFromQR = v
+    if (['salt','composition','ingredient'].includes(k))  result.saltFromQR  = v
+    if (['batch','lot'].includes(k))                      result.batchNumber = v
+    if (['exp','expiry','expires'].includes(k))           result.expiryDate  = v
+    if (['mrp','price'].includes(k))                      result.mrpFromQR   = parseFloat(v) || null
+    if (['mfg','manufacturer'].includes(k))               result.manufacturer = v
+    if (['pack','size','units'].includes(k))              result.unitSize    = v
   }
-
-  // Check if expiry has passed
-  if (result.expiryDate) {
-    result.isExpired = isExpired(result.expiryDate)
-  }
-
-  return Object.keys(result).length > 0 ? result : null
+  return Object.keys(result).length ? result : null
 }
 
-function isExpired(dateStr) {
+// ─── KEY:VALUE LINES ─────────────────────────────────────────────────────────
+function parseKVText(raw) {
+  const result = {}
+  for (const line of raw.split(/\n/)) {
+    const m = line.match(/^([A-Za-z\s]+?)\s*[:\-]\s*(.+)$/)
+    if (!m) continue
+    const [, k, v] = m; const kl = k.trim().toLowerCase()
+    if (kl.includes('batch') || kl.includes('lot')) result.batchNumber = v.trim()
+    if (kl.includes('exp'))                         result.expiryDate  = v.trim()
+    if (kl.includes('mrp') || kl.includes('price')) result.mrpFromQR  = parseFloat(v) || null
+    if (kl.includes('salt') || kl.includes('comp')) result.saltFromQR = v.trim()
+    if (kl.includes('brand'))                       result.brandFromQR = v.trim()
+  }
+  // First line with dosage = likely product name/salt
+  const first = raw.split('\n')[0]?.trim()
+  if (!result.saltFromQR && first && /\d+\s*(mg|mcg|g|ml)/i.test(first)) extractSalt(first, result)
+  return Object.keys(result).length ? result : null
+}
+
+// ─── URL QR ──────────────────────────────────────────────────────────────────
+function parseURLQR(raw) {
+  if (!raw.startsWith('http')) return null
   try {
-    // Handle DD/MM/YYYY or MM/YYYY
-    const parts = dateStr.split('/')
-    if (parts.length === 3) {
-      const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
-      return d < new Date()
-    }
-    if (parts.length === 2) {
-      const d = new Date(`${parts[1]}-${parts[0]}-01`)
-      return d < new Date()
-    }
-  } catch { }
-  return false
+    const path = new URL(raw).pathname.replace(/[\/\-_]/g, ' ').trim()
+    const result = { productUrl: raw }
+    if (/\d+(mg|mcg|g)/i.test(path)) extractSalt(path, result)
+    return Object.keys(result).length > 1 ? result : null
+  } catch { return null }
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function fmt6(s) {
+  if (!s || s.length < 6) return s
+  const yy = s.slice(0,2), mm = s.slice(2,4), dd = s.slice(4,6)
+  const year = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`
+  return dd === '00' ? `${mm}/${year}` : `${dd}/${mm}/${year}`
+}
+
+function isExpired(d) {
+  try {
+    const p = d.split('/')
+    const dt = p.length === 3 ? new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`)
+             : p.length === 2 ? new Date(`${p[1]}-${p[0].padStart(2,'0')}-01`) : null
+    return dt ? dt < new Date() : false
+  } catch { return false }
 }

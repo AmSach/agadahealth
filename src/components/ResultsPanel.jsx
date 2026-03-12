@@ -80,12 +80,17 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
   const otherAlts = (alts.topAlternatives || []).filter(a => !a.isJanAushadhi)
 
   // Real savings % — computed from actual DB data, not hardcoded
-  const brandedMrp = results?.mrp ? parseFloat(results.mrp) : null
+  const brandedMrp    = results?.mrp ? parseFloat(results.mrp) : null
+  const brandedUnitSz = results?.unitSize || null
+  const brandedPerUnit = brandedMrp && brandedUnitSz
+    ? (() => { const n = brandedUnitSz.match(/(\d+)/); return n ? Math.round(brandedMrp / parseInt(n[1]) * 100) / 100 : brandedMrp / 10 })()
+    : brandedMrp ? brandedMrp / 10 : null
+
   const cheapestAlt = alts.topAlternatives?.[0]
-  const savingsPct = (brandedMrp && cheapestAlt?.mrp)
-    ? Math.round((1 - cheapestAlt.mrp / brandedMrp) * 100)
+  const savingsPct = (brandedPerUnit && cheapestAlt?.perUnit)
+    ? Math.round((1 - cheapestAlt.perUnit / brandedPerUnit) * 100)
     : null
-  const isCheapest = alts.topAlternatives?.length === 0 || (brandedMrp && cheapestAlt?.mrp && cheapestAlt.mrp >= brandedMrp)
+  const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
@@ -100,6 +105,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{results.brandName || 'Medicine'}</div>
           <div style={{ fontSize: 11, color: 'var(--textlt)', marginTop: 1 }}>{results.saltComposition || results.productType}</div>
           <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
+            {results.saltSource === 'QR_BARCODE' && <span style={badge('green')}>✓ QR VERIFIED</span>}
             {results.dataSource?.cdscoFound && <span style={badge('green')}>✓ CDSCO</span>}
             <span style={badge('blue')}>BPPI DB</span>
             {results.batchNumber && <span style={badge('gray')}>Batch: {results.batchNumber}</span>}
@@ -131,7 +137,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
       {/* Cards */}
       {card === 0 && <AuthCard auth={auth} results={results} t={t} reported={reported} setReported={setReported} />}
       {card === 1 && <InfoCard info={info} results={results} translating={translating} />}
-      {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedMrp={brandedMrp} />}
+      {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} />}
 
       {/* Scan again */}
       <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 13, color: '#fff', fontSize: 14, fontWeight: 600, marginTop: 4 }}>
@@ -213,20 +219,21 @@ function AuthCard({ auth, results, t, reported, setReported }) {
           ))}
         </div>
 
-        {/* CDSCO detail toggle */}
+        {/* CDSCO fact — clean, no conflicting drug name */}
         {auth.cdscoBadge && (
-          <>
-            <button onClick={() => setExpanded(e => !e)} style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, textAlign: 'left', padding: '4px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span>{expanded ? '▲' : '▼'}</span> CDSCO registry detail
-            </button>
-            {expanded && (
-              <div style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.8)', borderRadius: 9, fontSize: 12, color: 'var(--textmd)', lineHeight: 1.6, border: '1px solid rgba(0,0,0,0.06)' }}>
-                {auth.cdscoBadge}
-                {auth.cdscoApprovalDate && <span style={{ display: 'block', marginTop: 4, color: 'var(--textlt)' }}>Approval date: {auth.cdscoApprovalDate}</span>}
-                <em style={{ display: 'block', marginTop: 6, fontSize: 11, color: 'var(--textlt)' }}>Note: Live CDSCO batch-level lookup coming in v2.</em>
+          <div style={{ padding: '10px 13px', background: auth.cdscoFound ? '#F0FDF4' : 'var(--bgsoft)', border: `1px solid ${auth.cdscoFound ? '#86EFAC' : 'var(--border)'}`, borderRadius: 9 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: auth.cdscoFound ? '#15803D' : 'var(--textlt)', marginBottom: auth.cdscoIndication ? 4 : 0 }}>
+              {auth.cdscoBadge}
+            </div>
+            {auth.cdscoIndication && (
+              <div style={{ fontSize: 12, color: 'var(--textmd)', lineHeight: 1.5 }}>
+                Approved use: {auth.cdscoIndication}
               </div>
             )}
-          </>
+            {auth.approvalDate && (
+              <div style={{ fontSize: 11, color: 'var(--textlt)', marginTop: 3 }}>Since: {auth.approvalDate}</div>
+            )}
+          </div>
         )}
 
         {/* Expired */}
@@ -350,7 +357,7 @@ function InfoCard({ info, results, translating }) {
 }
 
 // ─── CARD 3: ALTERNATIVES ─────────────────────────────────────────────────────
-function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }) {
+function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
   const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
 
   return (
@@ -392,25 +399,36 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
           </div>
         )}
 
-        {/* Tier 1: Jan Aushadhi */}
+        {/* Jan Aushadhi */}
         {jaAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
               🏛 Tier 1 — Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt-run stores · Cheapest option · ~14,000 locations across India</div>
-            {jaAlts.map((med, i) => <AltRow key={i} med={med} brandedMrp={brandedMrp} highlight />)}
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt stores · Cheapest option · ~14,000 locations</div>
+            {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
           </div>
         )}
 
-        {/* Tier 2: Branded generics at any chemist */}
+        {/* Branded generics at any chemist */}
         {otherAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏪 Tier 2 — At any chemist <span style={badge('blue')}>AI ESTIMATED</span>
+              🏪 Tier 2 — Any chemist <span style={badge('blue')}>AI ESTIMATED</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Same molecule · Available everywhere · Prices approximate</div>
-            {otherAlts.map((med, i) => <AltRow key={i} med={med} brandedMrp={brandedMrp} />)}
+            {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
+          </div>
+        )}
+
+        {/* Dose-mismatch alternatives — shown separately with explicit warning */}
+        {alts.doseMismatchAlts?.length > 0 && (
+          <div>
+            <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose — ask your doctor first</div>
+              <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
+            </div>
+            {alts.doseMismatchAlts.map((med, i) => <AltRow key={i} med={med} dimmed />)}
           </div>
         )}
 
@@ -430,6 +448,24 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
           <span style={{ marginLeft: 'auto', color: 'var(--green)', fontSize: 16 }}>›</span>
         </a>
 
+        {/* Live prices on pharmacy sites */}
+        {alts.pharmacyLinks?.length > 0 && (
+          <div>
+            <div style={sectionLabel('gray')}>🔍 Check live prices</div>
+            <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Opens pharmacy site with real-time prices for this salt</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {alts.pharmacyLinks.map(link => (
+                <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 10, textDecoration: 'none', color: 'var(--navy)' }}>
+                  <span style={{ fontSize: 16 }}>{link.logo}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{link.name}</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--textlt)', fontSize: 12 }}>›</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
           ⚠ Jan Aushadhi prices are from the official BPPI database. Branded generic prices are AI-estimated and may vary. Always verify at the chemist counter. Only buy from licensed pharmacies.
@@ -439,35 +475,33 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
   )
 }
 
-function AltRow({ med, highlight, brandedMrp }) {
-  const savings = (brandedMrp && med.mrp) ? Math.round((1 - med.mrp / brandedMrp) * 100)
-    : (brandedMrp && med.estimatedMrp) ? Math.round((1 - med.estimatedMrp / brandedMrp) * 100)
-    : null
+function AltRow({ med, highlight, dimmed }) {
   const displayMrp = med.mrp || med.estimatedMrp
-
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 12px', background: highlight ? 'var(--greenlt)' : med.aiEstimated ? '#F0F9FF' : 'var(--bgsoft)', borderRadius: 10, marginBottom: 7, border: `1.5px solid ${highlight ? '#A7D9CA' : med.aiEstimated ? '#BFDBFE' : 'var(--border)'}` }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 12px', opacity: dimmed ? 0.7 : 1,
+      background: highlight ? 'var(--greenlt)' : med.aiEstimated ? '#F0F9FF' : 'var(--bgsoft)',
+      borderRadius: 10, marginBottom: 7,
+      border: `1.5px solid ${highlight ? '#A7D9CA' : med.aiEstimated ? '#BFDBFE' : 'var(--border)'}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>{med.name}</span>
           {med.isJanAushadhi && <span style={badge('green')}>JAN AUSHADHI</span>}
-          {med.aiEstimated && <span style={badge('blue')}>AI EST.</span>}
+          {med.aiEstimated   && <span style={badge('blue')}>AI EST.</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
           {med.brand && med.brand !== 'BPPI' && <span>{med.brand} · </span>}
-          {med.unitSize || med.packSize || med.form || ''}
+          {med.unitSize || med.packSize || ''}
         </div>
-        {med.availableAt && (
-          <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
-        )}
-        {med.savingsNote && (
-          <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 1 }}>{med.savingsNote}</div>
-        )}
+        {med.availableAt && <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
         {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
-        {(med.perUnit || med.perUnitCost) && <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit || med.perUnitCost}/unit</div>}
-        {savings > 0 && <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{savings}% cheaper</div>}
+        {med.perUnit && <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/tablet</div>}
+        {/* savings string already computed per-unit in dbService */}
+        {med.savings && med.savings !== 'Jan Aushadhi price' && (
+          <div style={{ fontSize: 11, color: med.savings.includes('pricier') ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>{med.savings}</div>
+        )}
+        {med.savingsNote && <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 1 }}>{med.savingsNote}</div>}
       </div>
     </div>
   )
