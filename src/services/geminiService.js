@@ -83,6 +83,38 @@ Do NOT suggest brands or alternatives. General drug class info only. Return ONLY
 }`
 }
 
+// Separate prompt for generic branded alternatives — runs only when JA DB has < 3 results
+function genericsPrompt(salt, jaCount) {
+  return `You are a pharmacist assistant for Indian patients at an emergency.
+The patient needs: ${salt}
+Jan Aushadhi database found ${jaCount} result(s). Supplement with real branded generics available at ANY Indian chemist.
+
+Rules:
+- Only suggest medicines with the EXACT same active salt as: ${salt}
+- Include real Indian manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott, Torrent, Glenmark, Wockhardt, Pfizer India, Micro Labs, Macleods, FDC, Aristo, Cadila
+- Estimate MRP conservatively — err on the low side. These are approximations.
+- Do NOT make up medicines. Only suggest if you are confident this brand+salt exists.
+- Sort by estimated MRP ascending.
+- Mark isJanAushadhi as false for all of these.
+
+Return ONLY JSON array, no markdown:
+[
+  {
+    "name": "brand name and strength",
+    "brand": "manufacturer name",
+    "salt": "${salt}",
+    "form": "tablet or capsule or syrup",
+    "packSize": "e.g. 10 tablets",
+    "estimatedMrp": 25,
+    "perUnit": 2.5,
+    "savingsNote": "e.g. 60% cheaper than Crocin",
+    "isJanAushadhi": false,
+    "aiEstimated": true,
+    "availableAt": "Any chemist"
+  }
+]`
+}
+
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
   if (API_KEYS.length === 0) throw new Error('No API key. Add VITE_GROQ_KEY in Vercel → Environment Variables. Free key at console.groq.com')
 
@@ -113,11 +145,30 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const jaResults   = lookupJanAushadhi(img.saltComposition, img.mrp ? parseFloat(img.mrp) : null)
   const cdscoResult = lookupCDSCO(img.saltComposition, img.brandName)
 
-  // Phase 3: description (text only — faster, no vision needed)
+  // Phase 3: description + generic branded alternatives (run in parallel)
   let info = null
+  let aiGenerics = []
   if (img.saltComposition || img.brandName) {
-    info = await callText(key, descriptionPrompt(img.brandName, img.saltComposition, img.productType)).catch(() => null)
+    const [infoResult, genericsResult] = await Promise.allSettled([
+      callText(key, descriptionPrompt(img.brandName, img.saltComposition, img.productType)),
+      // Only call AI for generics if JA DB found fewer than 3 results
+      jaResults.length < 3 && img.saltComposition
+        ? callText(key, genericsPrompt(img.saltComposition, jaResults.length))
+        : Promise.resolve(null),
+    ])
+    info = infoResult.status === 'fulfilled' ? infoResult.value : null
+    if (genericsResult.status === 'fulfilled' && Array.isArray(genericsResult.value)) {
+      aiGenerics = genericsResult.value.slice(0, 5)
+    }
   }
+
+  // Merge: JA DB results (verified) + AI generics (estimated), deduplicated by salt similarity
+  const allAlternatives = [
+    ...jaResults,
+    ...aiGenerics.filter(ag =>
+      !jaResults.some(ja => ja.name?.toLowerCase().includes(ag.name?.toLowerCase().slice(0, 8)))
+    )
+  ]
 
   const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData)
   if ((img.confidence || 0) < 50) {
@@ -142,13 +193,15 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     authenticity,
     medicineInfo:    info || fallbackInfo(img.productType),
     alternatives: {
-      hasGenerics:          jaResults.length > 0,
+      hasGenerics:          allAlternatives.length > 0,
       janAushadhiAvailable: jaResults.some(r => r.isJanAushadhi),
-      topAlternatives:      jaResults,
-      savingsSummary:       buildSavingsSummary(jaResults, img.mrp ? parseFloat(img.mrp) : null),
+      topAlternatives:      allAlternatives,
+      jaCount:              jaResults.length,
+      aiGenericsCount:      aiGenerics.length,
+      savingsSummary:       buildSavingsSummary(allAlternatives, img.mrp ? parseFloat(img.mrp) : null),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080 (free)',
       disclaimer:           'Only buy generics from Jan Aushadhi Kendras or licensed pharmacies. Agada cannot verify online pharmacy quality.',
-      dataSource:           'BPPI Jan Aushadhi Official Product List',
+      dataSource:           'BPPI Jan Aushadhi Official Product List + AI-estimated branded generics',
     },
     dataSource: {
       imageRead:    'Groq AI Vision',

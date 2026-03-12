@@ -351,11 +351,13 @@ function InfoCard({ info, results, translating }) {
 
 // ─── CARD 3: ALTERNATIVES ─────────────────────────────────────────────────────
 function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }) {
+  const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
+
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>💸 Cheaper alternatives</div>
-        <span style={badge('green')}>BPPI Official</span>
+        <span style={badge('green')}>BPPI + AI</span>
       </div>
 
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -365,48 +367,61 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
           <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontSize: 30 }}>🏆</span>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--greendk)', marginBottom: 2 }}>This is the cheapest available!</div>
-              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found for this medicine. You're already paying a fair price.</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--greendk)', marginBottom: 2 }}>This is already the cheapest available</div>
+              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found. You're already paying a fair price.</div>
             </div>
           </div>
         ) : savingsPct && savingsPct > 0 ? (
           <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 14, alignItems: 'center' }}>
             <div style={{ fontWeight: 800, fontSize: 38, color: 'var(--green)', lineHeight: 1, flexShrink: 0 }}>{savingsPct}%</div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)', marginBottom: 3 }}>Average savings available</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)', marginBottom: 3 }}>Savings available</div>
               <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>{alts.savingsSummary}</div>
             </div>
           </div>
         ) : (
           <div style={{ padding: '12px 14px', background: 'var(--bgsoft)', borderRadius: 10, fontSize: 13, color: 'var(--textlt)' }}>
-            {alts.savingsSummary || 'Jan Aushadhi alternatives listed below.'}
+            {alts.savingsSummary || 'Cheaper alternatives listed below.'}
           </div>
         )}
 
-        {/* Jan Aushadhi */}
+        {/* Ask your chemist callout */}
+        {alts.topAlternatives?.length > 0 && (
+          <div style={{ padding: '10px 13px', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 12.5, color: '#1E40AF', lineHeight: 1.6 }}>
+            💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?" — any brand with the same salt is legally equivalent.
+          </div>
+        )}
+
+        {/* Tier 1: Jan Aushadhi */}
         {jaAlts.length > 0 && (
           <div>
-            <div style={sectionLabel('green')}>🏛 Jan Aushadhi (Government)</div>
+            <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
+              🏛 Tier 1 — Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt-run stores · Cheapest option · ~14,000 locations across India</div>
             {jaAlts.map((med, i) => <AltRow key={i} med={med} brandedMrp={brandedMrp} highlight />)}
           </div>
         )}
 
-        {/* Other alternatives */}
+        {/* Tier 2: Branded generics at any chemist */}
         {otherAlts.length > 0 && (
           <div>
-            <div style={sectionLabel('gray')}>Other cheaper brands</div>
+            <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
+              🏪 Tier 2 — At any chemist <span style={badge('blue')}>AI ESTIMATED</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Same molecule · Available everywhere · Prices approximate</div>
             {otherAlts.map((med, i) => <AltRow key={i} med={med} brandedMrp={brandedMrp} />)}
           </div>
         )}
 
         {!alts.hasGenerics && !isCheapest && (
           <div style={{ padding: '10px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.5 }}>
-            No Jan Aushadhi generic found for this medicine. Ask your doctor if a generic alternative is available.
+            No cheaper alternatives found. Ask your doctor if a generic is available for this medicine.
           </div>
         )}
 
-        {/* Find store */}
-        <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12 }}>
+        {/* Find Jan Aushadhi store */}
+        <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, textDecoration: 'none' }}>
           <span style={{ fontSize: 20 }}>📍</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)' }}>Find Jan Aushadhi near me</div>
@@ -417,7 +432,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Only buy generics from Jan Aushadhi Kendras or licensed pharmacies. Agada cannot verify online pharmacy quality.
+          ⚠ Jan Aushadhi prices are from the official BPPI database. Branded generic prices are AI-estimated and may vary. Always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -425,19 +440,33 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedMrp }
 }
 
 function AltRow({ med, highlight, brandedMrp }) {
-  const savings = (brandedMrp && med.mrp) ? Math.round((1 - med.mrp / brandedMrp) * 100) : null
+  const savings = (brandedMrp && med.mrp) ? Math.round((1 - med.mrp / brandedMrp) * 100)
+    : (brandedMrp && med.estimatedMrp) ? Math.round((1 - med.estimatedMrp / brandedMrp) * 100)
+    : null
+  const displayMrp = med.mrp || med.estimatedMrp
+
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 12px', background: highlight ? 'var(--greenlt)' : 'var(--bgsoft)', borderRadius: 10, marginBottom: 7, border: `1.5px solid ${highlight ? '#A7D9CA' : 'var(--border)'}` }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 12px', background: highlight ? 'var(--greenlt)' : med.aiEstimated ? '#F0F9FF' : 'var(--bgsoft)', borderRadius: 10, marginBottom: 7, border: `1.5px solid ${highlight ? '#A7D9CA' : med.aiEstimated ? '#BFDBFE' : 'var(--border)'}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>{med.name}</span>
           {med.isJanAushadhi && <span style={badge('green')}>JAN AUSHADHI</span>}
+          {med.aiEstimated && <span style={badge('blue')}>AI EST.</span>}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--textlt)' }}>{med.unitSize || med.salt}</span>
+        <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
+          {med.brand && med.brand !== 'BPPI' && <span>{med.brand} · </span>}
+          {med.unitSize || med.packSize || med.form || ''}
+        </div>
+        {med.availableAt && (
+          <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
+        )}
+        {med.savingsNote && (
+          <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 1 }}>{med.savingsNote}</div>
+        )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{med.mrp}</div>
-        {med.perUnit && <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/unit</div>}
+        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
+        {(med.perUnit || med.perUnitCost) && <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit || med.perUnitCost}/unit</div>}
         {savings > 0 && <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{savings}% cheaper</div>}
       </div>
     </div>
@@ -458,6 +487,6 @@ function badge(color) {
 }
 
 function sectionLabel(color) {
-  const colors = { green: '#166534', red: '#991B1B', gray: '#6B7280' }
+  const colors = { green: '#166534', red: '#991B1B', gray: '#6B7280', blue: '#1E40AF' }
   return { fontSize: 10.5, fontWeight: 700, color: colors[color] || '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7, display: 'block' }
 }
