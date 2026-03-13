@@ -50,21 +50,33 @@ const nextKey = () => {
   return k
 }
 
-// ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
-const IMAGE_READ_PROMPT = `You are a medicine label OCR reader. Extract ONLY what is physically printed on the label. Never infer, guess, or complete missing information.
+// ─── VISION PROMPT ───────────────────────────────────────────────────────────
+// saltName and doseStr are ALWAYS separate. Dose is mandatory — no dose = cannotRead.
+const IMAGE_READ_PROMPT = `You are a medicine label OCR system for Indian medicines. Extract ONLY text physically printed on the label. Never infer, assume, or complete missing text.
 
-━━━ CRITICAL RULES ━━━
-SALT NAME: Copy the active ingredient name(s) exactly as printed. Never substitute (Bilastine≠Cetirizine, Pantoprazole≠Omeprazole).
-DOSE: Copy the strength/dose exactly as printed (e.g. "500mg", "500mg + 125mg", "10mg/5ml"). This is SEPARATE from the salt name.
-BOTH fields are required. If EITHER saltName OR doseStr is not clearly visible → confidence MUST be below 50.
-TORN/DAMAGED: Read only what is visible. Do not fill in missing parts.
-BOTTLES/ANGLES: Read what you can see. Set cannotRead=true only if zero text is legible.
+RULE 1 — SALT NAME (saltName field):
+Copy active ingredient name(s) exactly as printed. For combos separate with " + ".
+Examples: "Paracetamol" | "Amoxycillin + Potassium Clavulanate" | "Metformin + Glimepiride"
+NEVER substitute one drug for another. Bilastine≠Cetirizine. Pantoprazole≠Omeprazole.
 
-Genuine signals (only if SEEN): hologram, QR/barcode, MRP sticker, tamper seal, batch number, expiry date, full manufacturer address with PIN, licence number
-Fake signals (only if SEEN): pixelated/blurred printing on otherwise clear label, mismatched fonts, missing batch/expiry on intact label
+RULE 2 — DOSE (doseStr field) — THIS IS MANDATORY:
+Copy the strength/dose number(s) exactly as printed with units. For combos separate with " + ".
+Examples: "500mg" | "500mg + 125mg" | "10mg + 1mg" | "5mg/5ml"
+If the dose/strength is NOT clearly visible anywhere on the label → doseStr MUST be null.
+NEVER guess or assume a dose. A common dose is not a printed dose.
 
-JSON only, no markdown:
-{"productType":"MEDICINE|AYURVEDIC|SUPPLEMENT|DROPS","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
+RULE 3 — IF doseStr IS NULL:
+Set cannotRead=true and cannotReadReason="Dose not visible on label"
+The app cannot function without dose — do not set cannotRead=false if dose is missing.
+
+RULE 4 — DAMAGED/PARTIAL LABELS:
+Read only what is actually visible. Do not complete partial words. Do not fill gaps.
+
+Genuine signals (list ONLY if you can see them): hologram, QR code, government MRP sticker, tamper-evident seal, batch number, expiry date, manufacturer address with PIN code, drug licence number
+Fake signals (list ONLY if you can see them): pixelated/blurred printing on otherwise sharp image, inconsistent fonts, missing MRP on intact sealed pack, no batch/expiry on intact pack
+
+JSON only. No markdown. No explanation. Exactly this structure:
+{"productType":"MEDICINE","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
 
 // ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
 const mkDescPrompt = (brand, salt, type) =>
@@ -74,13 +86,18 @@ No brand suggestions. General drug class only. JSON only:
 
 // ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
 const mkGenericsPrompt = (salt) =>
-`You are an Indian pharmacist. Patient needs: ${salt}
-List EXACTLY 3 real branded generics with the EXACT SAME salt AND dose as above.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
-Only real products you are certain exist. Do not fabricate brands or prices.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
-JSON array only, no markdown, exactly 3 items:
-[{"name":"Full Brand Name with Strength e.g. Augmentin 625mg","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+`You are an Indian pharmacist. A patient has a medicine with EXACT composition: ${salt}
+
+List EXACTLY 3 real branded generic medicines available at Indian chemists.
+STRICT RULES:
+1. EXACT SAME salt AND EXACT SAME dose as: ${salt}
+   A 250mg medicine is NOT an alternative to a 500mg medicine. Dose must match exactly.
+2. Only real products you are CERTAIN exist. Do not fabricate.
+3. Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference for realistic MRP.
+4. Only these manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
+
+JSON array only. No markdown. Exactly 3 items:
+[{"name":"Full Brand Name with Dose e.g. Augmentin 625mg","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
 // Full salt+dose in query so user lands on the right strength, not just the salt
@@ -95,20 +112,21 @@ export function pharmacyLinks(saltComposition) {
   ]
 }
 
-// ─── SALT+DOSE RECONSTRUCTION ─────────────────────────────────────────────────
-// Merges separate saltName + doseStr fields into a full composition string.
-// "Amoxycillin and Potassium Clavulanate" + "500mg + 125mg"
+// ─── SALT+DOSE RECONSTRUCTION ────────────────────────────────────────────────
+// "Amoxycillin + Potassium Clavulanate" + "500mg + 125mg"
 //   → "Amoxycillin 500mg and Potassium Clavulanate 125mg"
+// If counts mismatch (e.g. 2 salts, 1 dose) → null → triggers dose gate
 function mergeSaltDose(saltName, doseStr) {
   if (!saltName) return null
-  if (!doseStr)  return saltName  // caller must check if dose is required
+  if (!doseStr)  return saltName  // dose gate below handles the null-dose case
   const salts = saltName.split(/\band\b|\+/i).map(s => s.trim()).filter(Boolean)
-  const doses = doseStr.split(/\+|,|\band\b/i).map(d => d.trim()).filter(Boolean)
+  const doses  = doseStr.split(/\+|,|\band\b/i).map(d => d.trim()).filter(Boolean)
   if (salts.length === doses.length) {
     return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
   }
   if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
-  return `${saltName} ${doseStr}` // fallback if counts mismatch
+  // Count mismatch — cannot safely assign doses to salts → null triggers cannotRead
+  return null
 }
 
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
@@ -128,25 +146,28 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   // ── Phase 1: Vision AI reads label ───────────────────────────────────────
   const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
 
-  // ── DOSE GATE — hard stop if no dose visible and no QR barcode ───────────
-  // doseStr present = explicit dose from new prompt format
-  // qrSalt = QR barcode already has full composition including dose
-  // saltComposition with number = old prompt format that already embeds dose (backward compat)
+  // Reconstruct full salt+dose string from the separated fields
+  // mergeSaltDose returns null if counts mismatch (e.g. 2 salts, 1 dose = ambiguous)
+  const visionSalt = img.saltName
+    ? mergeSaltDose(img.saltName, img.doseStr)
+    : img.saltComposition || null  // backward compat if AI returns old format
+
+  // ── DOSE GATE — hard stop. No dose = no alternatives. No exceptions. ──────
+  // Valid dose sources (in priority order):
+  //  1. QR barcode (always has full composition with dose)
+  //  2. visionSalt with dose number embedded (successful mergeSaltDose)
+  //  3. img.saltComposition with dose number (old AI format)
   const hasDose = (
-    !!img.doseStr ||
     !!qrSalt ||
+    (!!visionSalt && /\d+\s*(mg|mcg|g|iu)/i.test(visionSalt)) ||
     (!!img.saltComposition && /\d+\s*(mg|mcg|g|iu)/i.test(img.saltComposition))
   )
   if (!hasDose) {
-    img.confidence = Math.min(img.confidence || 0, 40)
-    img.cannotRead = true
-    img.cannotReadReason = img.cannotReadReason || 'Dose/strength not visible on label. Cannot safely recommend alternatives without confirmed dose.'
+    img.confidence    = Math.min(img.confidence || 0, 40)
+    img.cannotRead    = true
+    img.cannotReadReason = img.cannotReadReason ||
+      'Dose/strength not visible on label. Cannot safely recommend alternatives without confirmed dose.'
   }
-
-  // Reconstruct full saltComposition from separated fields
-  const visionSalt = img.saltName
-    ? mergeSaltDose(img.saltName, img.doseStr)
-    : img.saltComposition || null  // fallback for old response format
 
   // QR overrides vision
   const finalSalt   = qrSalt   || visionSalt
