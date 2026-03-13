@@ -95,12 +95,16 @@ const mkGenericsPrompt = (salt, productType) => {
     ? 'ONLY topical forms (gel/cream/ointment/lotion). NEVER oral or injectable forms.'
     : 'ONLY oral solid forms (tablets/capsules). NEVER injections or topicals.'
   return `You are an Indian pharmacist. Patient needs: ${salt}
-List up to 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
-${routeRule}
-EACH FROM A DIFFERENT MANUFACTURER. If fewer than 3 exist with certainty, return 1 or 2.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
-Only real products from real manufacturers. Do not fabricate.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
+List up to 3 real branded generics sold at Indian chemists.
+
+CRITICAL RULES — no exceptions:
+1. Salt must be EXACTLY "${salt}" — same molecule, same dose. Do NOT substitute prodrugs, metabolites, or related drugs. Fosphenytoin ≠ Phenytoin. Enalapril ≠ Lisinopril. If you are not 100% certain a product exists with this exact salt, omit it.
+2. ${routeRule}
+3. EACH FROM A DIFFERENT MANUFACTURER.
+4. If fewer than 3 real products exist with certainty, return only 1 or 2. Never fabricate.
+5. PREFER low-cost manufacturers. Check Zeelabs Pharma FIRST — they are a budget-focused Indian manufacturer. Then check Micro Labs, Mankind, Alkem, Macleods, Aristo, Ipca, Cadila, Hetero, Alembic, Intas, Glenmark, FDC, Lupin, Torrent, Zydus, Dr Reddy's, Sun Pharma, Cipla, Abbott India.
+
+Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
 JSON array, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
