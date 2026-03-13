@@ -51,18 +51,30 @@ const nextKey = () => {
 }
 
 // ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
-const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
+const IMAGE_READ_PROMPT = `You are reading an Indian medicine label. Extract ONLY what is physically printed. Never infer or guess.
 
-SALT: Copy EXACTLY. Never infer. Bilastine≠Cetirizine. Pantoprazole≠Omeprazole.
-If unreadable: saltComposition=null, confidence<50.
-TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
-Damaged areas: ignore for fake signals.
+RULE 1 — saltName: Copy active ingredient name(s) exactly. For combos use " + ".
+Examples: "Paracetamol" | "Amoxycillin + Potassium Clavulanate" | "Metformin + Glimepiride"
+NEVER substitute drugs. Fosphenytoin≠Phenytoin. Bilastine≠Cetirizine. Pantoprazole≠Omeprazole.
 
-Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
-Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
+RULE 2 — doseStr: Copy the strength EXACTLY as printed, with units. For combos use " + ".
+Examples: "500mg" | "500mg + 125mg" | "75mg/ml" | "10mg + 1mg"
+If dose is NOT clearly visible → doseStr must be null. Never guess a common dose.
+
+RULE 3 — productType:
+  INJECTION if label says injection/infusion/IV/solution for injection
+  LIQUID if oral syrup/suspension/drops/solution
+  TOPICAL if gel/cream/ointment/lotion
+  MEDICINE for oral tablets/capsules (default)
+  AYURVEDIC or SUPPLEMENT if stated
+
+RULE 4 — If doseStr is null: set cannotRead:true, cannotReadReason:"Dose not visible on label"
+
+Genuine signals (only if SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
+Fake signals (only if SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on intact label
 
 JSON only, no markdown:
-{"productType":"MEDICINE|AYURVEDIC|SUPPLEMENT|DROPS","brandName":null,"saltComposition":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
+{"productType":"MEDICINE","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
 
 // ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
 const mkDescPrompt = (brand, salt, type) =>
@@ -71,15 +83,30 @@ No brand suggestions. General drug class only. JSON only:
 {"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
 
 // ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
-const mkGenericsPrompt = (salt) =>
-`You are an Indian pharmacist. Patient needs: ${salt}
-List EXACTLY 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
-Only real products from real manufacturers. Do not fabricate.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
-JSON array, no markdown, exactly 3 items:
-[{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
-
+const mkGenericsPrompt = (salt, productType) => {
+  const isInjection = /injection/i.test(productType || '')
+  const isLiquid    = /liquid|syrup|suspension/i.test(productType || '')
+  const isTopical   = /topical/i.test(productType || '')
+  const routeLabel  = isInjection ? 'injection or IV solution'
+    : isLiquid ? 'oral syrup or suspension'
+    : isTopical ? 'topical gel/cream/ointment'
+    : 'oral tablet or capsule'
+  const routeRule   = isInjection
+    ? 'ONLY injectable forms. NEVER tablets, capsules, or syrups.'
+    : isLiquid ? 'ONLY oral liquids. NEVER tablets or injections.'
+    : isTopical ? 'ONLY topical forms. NEVER oral or injectable.'
+    : 'ONLY oral solid forms (tablets/capsules). NEVER injections or syrups.'
+  return `You are an Indian pharmacist. Patient needs: ${salt} as a ${routeLabel}.
+${routeRule}
+EXACT SAME salt AND EXACT SAME dose. A 250mg is NOT an alternative to 500mg.
+List up to 3 real branded generics. EACH FROM A DIFFERENT MANUFACTURER.
+If fewer than 3 exist for this exact dose and route, return only those that exist (1 or 2 is fine).
+Do NOT fabricate. Only include products you are certain exist in India.
+Manufacturers: Zeelabs Pharmacy, Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
+Use Netmeds, Apollo Pharmacy, 1mg, DavaIndia for realistic MRP.
+JSON array only, no markdown:
+[{"name":"Full Brand Name with Dose","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+}
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
 // Full salt+dose in query so user lands on the right strength, not just the salt
 export function pharmacyLinks(saltComposition) {
@@ -141,14 +168,33 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   if (finalSalt || finalBrand) {
     const [infoRes, genRes] = await Promise.allSettled([
       callText(mkDescPrompt(finalBrand, finalSalt, img.productType)),
-      finalSalt ? callText(mkGenericsPrompt(finalSalt)) : Promise.resolve(null),
+      finalSalt ? callText(mkGenericsPrompt(finalSalt, img.productType)) : Promise.resolve(null),
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      aiGenerics = genRes.value.slice(0, 3)
+        const seen = new Set()
+        aiGenerics = genRes.value
+          .filter(g => g && g.name && g.brand)
+          .filter(g => {
+            const key = (g.brand || '').toLowerCase()
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          .slice(0, 3)
     }
   }
-
+  function mergeSaltDose(saltName, doseStr) {
+    if (!saltName) return null
+    if (!doseStr) return saltName
+    const salts = saltName.split(/\band\b|\+/i).map(s => s.trim()).filter(Boolean)
+    const doses  = doseStr.split(/\+|,|\band\b/i).map(d => d.trim()).filter(Boolean)
+    if (salts.length === doses.length) {
+      return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
+    }
+    if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
+    return null  // count mismatch — dose gate will catch this
+  }
   // 1 JA verified + up to 3 AI-estimated branded generics
   const allAlts = [
     ...(jaBest ? [jaBest] : []),
