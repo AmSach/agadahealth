@@ -411,7 +411,8 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
         )}
 
         {/* Branded generics at any chemist */}
-        {otherAlts.length > 0 && (\n          <div>
+        {otherAlts.length > 0 && (
+          <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
               🏪 Tier 2 — Any chemist
               <span style={badgeHighConf()}>✓ DAVAINDIA</span>
