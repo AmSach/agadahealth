@@ -1,11 +1,14 @@
 /**
- * dbService.js — Agada Database Service v3
+ * dbService.js v5 — Agada Database Service
  *
- * Fixes:
- * 1. Combo queries (A+B) ONLY return products with BOTH salts at matching doses
- * 2. Single queries NEVER return combo products (no extra active ingredients)
- * 3. Per-unit price always used for savings %, not raw MRP
- * 4. CDSCO returns clean single-line badge, no conflicting drug name shown
+ * Matching logic:
+ * 1. Word-boundary match — 'cetirizine' never matches 'levocetirizine'
+ * 2. Extra-salt block — combo products never shown for single-salt queries
+ * 3. Form ranking — tablets > liquids > injections (unless query specifies)
+ * 4. Isomer deprioritisation — plain form preferred over S(-)/Levo- variants
+ * 5. Release-type depriotisation — immediate release preferred over SR/ER
+ *    unless query explicitly asks for SR/ER
+ * 6. Single best result returned — no lists, no confusion
  */
 
 let jaDB    = null
@@ -21,13 +24,10 @@ function parseCSV(text) {
   return lines.slice(1).map(line => {
     const vals = parseCSVLine(line)
     const row = {}
-    headers.forEach((h, i) => {
-      row[h.trim().replace(/"/g, '')] = (vals[i] || '').trim().replace(/"/g, '')
-    })
+    headers.forEach((h, i) => { row[h.trim().replace(/"/g, '')] = (vals[i] || '').trim().replace(/"/g, '') })
     return row
   }).filter(r => Object.values(r).some(v => v))
 }
-
 function parseCSVLine(line) {
   const out = []; let cur = ''; let inQ = false
   for (const ch of line) {
@@ -35,8 +35,7 @@ function parseCSVLine(line) {
     else if (ch === ',' && !inQ) { out.push(cur); cur = '' }
     else cur += ch
   }
-  out.push(cur)
-  return out
+  out.push(cur); return out
 }
 
 export async function ensureLoaded() {
@@ -49,81 +48,106 @@ export async function ensureLoaded() {
 }
 
 // ─── SALT PARSER ──────────────────────────────────────────────────────────────
-// "Metformin Hydrochloride 500mg and Glimepiride 1mg Tablets IP"
-// → [{name:'metformin', dose:500}, {name:'glimepiride', dose:1}]
-const REMOVE_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|suspension|drops?|infusion|solution|cream|ointment|gel|spray|paediatric|prolonged|sustained|modified|extended|gastro|resistant|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|hcl|sodium|potassium|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate)\b/gi
+const STRIP = /\b(tablets?|capsules?|injection|syrup|oral|suspension|drops?|infusion|solution|cream|ointment|gel|spray|paediatric|prolonged|sustained|modified|extended|gastro|resistant|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sodium|potassium|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|per)\b/gi
 
 export function parseSalts(text) {
   if (!text) return []
-  return text.split(/\band\b|,/i).map(part => {
-    const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/i)
-    const dose = dm ? parseFloat(dm[1]) : null
-    const name = part
-      .replace(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/gi, '')
-      .replace(REMOVE_WORDS, '')
-      .replace(/[()[\]]/g, '')
-      .replace(/[^a-zA-Z\s]/g, ' ')
-      .replace(/\s+/g, ' ').trim().toLowerCase()
-    return name.length > 2 ? { name, dose } : null
-  }).filter(Boolean)
+  return text
+    .replace(/\([^)]*\)/g, ' ')
+    .split(/\band\b|,|\+/i)
+    .map(part => {
+      const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/i)
+      const dose = dm ? parseFloat(dm[1]) : null
+      const name = part
+        .replace(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/gi, '')
+        .replace(STRIP, '')
+        .replace(/[^a-zA-Z\s]/g, ' ')
+        .replace(/\s+/g, ' ').trim().toLowerCase()
+      return name.length > 2 ? { name, dose } : null
+    }).filter(Boolean)
 }
 
-// ─── MATCH QUALITY ───────────────────────────────────────────────────────────
-// Returns: 'exact' | 'dose_mismatch' | 'blocked' (extra active salts = dangerous)
-function matchQuality(qSalts, pSalts) {
+// ─── WORD-BOUNDARY NAME MATCH ─────────────────────────────────────────────────
+// 'cetirizine' does NOT match 'levocetirizine'
+// 'flunarizine' DOES match 'flunarizine dihydrochloride' (after stripping)
+function saltNameMatch(a, b) {
+  if (a === b) return true
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp('\\b' + esc(a) + '\\b', 'i').test(b) ||
+         new RegExp('\\b' + esc(b) + '\\b', 'i').test(a)
+}
+
+// ─── MATCH QUALITY ─────────────────────────────────────────────────────────
+export function matchQuality(qSalts, pSalts) {
   if (!qSalts.length || !pSalts.length) return 'blocked'
 
-  // Every query salt must appear in the product
+  // All query salts must be in product
   for (const qs of qSalts) {
-    const found = pSalts.some(ps => ps.name.includes(qs.name) || qs.name.includes(ps.name))
-    if (!found) return 'blocked'
+    if (!pSalts.some(ps => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
-
-  // Product must not have EXTRA active salts not in the query
-  // This is the safety-critical rule: patient's medicine has salt A,
-  // suggested alternative must not secretly contain salt B as well
+  // Product must have NO extra active salts
   for (const ps of pSalts) {
-    const inQuery = qSalts.some(qs => ps.name.includes(qs.name) || qs.name.includes(ps.name))
-    if (!inQuery) return 'blocked'
+    if (!qSalts.some(qs => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
-
-  // Check dose match on primary salt
+  // Dose check on primary salt (±15% tolerance)
   const pq = qSalts[0]
-  const pp = pSalts.find(ps => ps.name.includes(pq.name) || pq.name.includes(ps.name))
+  const pp = pSalts.find(ps => saltNameMatch(pq.name, ps.name))
   if (pq.dose && pp?.dose) {
-    // Allow ±10% dose tolerance (e.g. 500mg vs 480mg is fine, 500mg vs 325mg is not)
     const ratio = pp.dose / pq.dose
     if (ratio < 0.85 || ratio > 1.15) return 'dose_mismatch'
   }
-
   return 'exact'
 }
 
-// ─── PER UNIT ────────────────────────────────────────────────────────────────
+// ─── FORM / ROUTE RANKING ────────────────────────────────────────────────────
+function formScore(productName, queryRaw) {
+  const p = productName.toLowerCase()
+  const q = (queryRaw || '').toLowerCase()
+
+  const wantsInjection = /\binjection\b|\binfusion\b|\biv\b/.test(q)
+  const wantsSR        = /\bsr\b|\ber\b|\bxr\b|\bprolonged\b|\bsustained\b|\bextended\b/.test(q)
+  const wantsIsomer    = /\blevo\b|\bs\s*\([-−]\)/.test(q)
+  const isInjection    = /\binjection\b|\binfusion\b/.test(p)
+  const isLiquid       = /\bsyrup\b|\bsuspension\b|\bdrops?\b|\bsolution\b/.test(p)
+  const isTopical      = /\bgel\b|\bcream\b|\bointment\b/.test(p)
+  const isSR           = /\bprolonged\b|\bsustained\b|\bextended\b|\bmodified\b/.test(p)
+  const isIsomer       = /\bs\s*\([-−]\)|\blevo\b|\bdextro\b/.test(p)
+
+  let score = 0
+  if (wantsInjection) {
+    // User explicitly wants injection — penalise non-injections
+    if (!isInjection) score += 100
+  } else {
+    // Default: prefer oral tablets
+    if (isInjection) score += 100
+    if (isLiquid)    score += 10
+    if (isTopical)   score += 20
+  }
+  if (!wantsIsomer && isIsomer) score += 50
+  if (!wantsSR && isSR)         score += 5
+
+  return score
+}
+
+// ─── PER-UNIT PRICE ─────────────────────────────────────────────────────────
 function perUnit(mrp, unitSize) {
   if (!mrp || !unitSize) return null
-  const n = unitSize.match(/(\d+)/)
-  const count = n ? parseInt(n[1]) : 10
-  // For liquids (ml), per-unit is less meaningful — skip it
-  if (/ml/i.test(unitSize)) return null
+  if (/ml|gm|g\b/i.test(unitSize)) return null
+  const n = unitSize.match(/(\d+)/); const count = n ? parseInt(n[1]) : 10
   return count > 0 ? Math.round(mrp / count * 100) / 100 : null
 }
 
 // ─── JAN AUSHADHI LOOKUP ─────────────────────────────────────────────────────
-// Returns { exact: [...], doseMismatch: [...] }
-// exact        = same salts, matching dose — safe to suggest
-// doseMismatch = same salt profile but different dose — show with warning
-export function lookupJanAushadhi(saltComposition, brandedMrpRaw, brandedUnitSize) {
-  if (!jaDB || !saltComposition) return { exact: [], doseMismatch: [] }
+// Returns { best: entry|null, doseMismatch: entry|null }
+export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) {
+  if (!jaDB || !saltComposition) return { best: null, doseMismatch: null }
 
   const qSalts = parseSalts(saltComposition)
-  if (!qSalts.length) return { exact: [], doseMismatch: [] }
+  if (!qSalts.length) return { best: null, doseMismatch: null }
 
-  // Per-unit branded price — the correct basis for savings %
-  const brandedPerUnit = brandedMrpRaw && brandedUnitSize
-    ? perUnit(parseFloat(brandedMrpRaw), brandedUnitSize)
-    : brandedMrpRaw ? parseFloat(brandedMrpRaw) / 10  // assume 10 units if unknown
-    : null
+  const brandedPU = brandedMrp && brandedUnitSize
+    ? perUnit(parseFloat(brandedMrp), brandedUnitSize)
+    : brandedMrp ? parseFloat(brandedMrp) / 10 : null
 
   const exact = [], doseMismatch = []
 
@@ -131,17 +155,14 @@ export function lookupJanAushadhi(saltComposition, brandedMrpRaw, brandedUnitSiz
     const pSalts = parseSalts(row['Generic Name'] || '')
     const quality = matchQuality(qSalts, pSalts)
     if (quality === 'blocked') continue
+    const mrp = parseFloat(row['MRP']) || null
+    if (!mrp) continue
 
-    const mrp    = parseFloat(row['MRP']) || null
-    const pu     = perUnit(mrp, row['Unit Size'])
-    
-    // Savings always per-unit vs per-unit — never raw MRP vs raw MRP
+    const pu = perUnit(mrp, row['Unit Size'])
     let savings = null
-    if (brandedPerUnit && pu) {
-      const pct = Math.round((1 - pu / brandedPerUnit) * 100)
-      savings = pct > 5 ? `${pct}% cheaper per tablet` : pct < -5 ? `${Math.abs(pct)}% pricier` : 'Similar price'
-    } else if (mrp) {
-      savings = 'Jan Aushadhi price'
+    if (brandedPU && pu) {
+      const pct = Math.round((1 - pu / brandedPU) * 100)
+      savings = pct > 5 ? `${pct}% cheaper per tablet` : pct < -5 ? null : 'Similar price'
     }
 
     const entry = {
@@ -150,81 +171,58 @@ export function lookupJanAushadhi(saltComposition, brandedMrpRaw, brandedUnitSiz
       unitSize: row['Unit Size'],
       mrp,
       perUnit: pu,
-      group: row['Group Name'],
       savings,
+      formScore: formScore(row['Generic Name'], saltComposition),
       isJanAushadhi: true,
       aiEstimated: false,
-      brand: 'BPPI',
-      availableAt: 'Jan Aushadhi Kendra only',
+      brand: 'BPPI Jan Aushadhi',
+      availableAt: 'Jan Aushadhi Kendra',
     }
 
     if (quality === 'exact') exact.push(entry)
-    else doseMismatch.push(entry)
+    else if (quality === 'dose_mismatch') doseMismatch.push(entry)
   }
 
-  exact.sort((a, b) => (a.mrp || 999) - (b.mrp || 999))
-  doseMismatch.sort((a, b) => (a.mrp || 999) - (b.mrp || 999))
+  // Sort: form preference first, then cheapest
+  exact.sort((a, b) => a.formScore - b.formScore || a.mrp - b.mrp)
+  doseMismatch.sort((a, b) => a.formScore - b.formScore || a.mrp - b.mrp)
 
-  return { exact: exact.slice(0, 5), doseMismatch: doseMismatch.slice(0, 3) }
+  // Return single best of each — no lists, no confusion
+  const best = exact[0] ? { ...exact[0] } : null
+  const dmBest = doseMismatch[0] ? { ...doseMismatch[0] } : null
+  if (best) delete best.formScore
+  if (dmBest) delete dmBest.formScore
+
+  return { best, doseMismatch: dmBest }
 }
 
 // ─── CDSCO LOOKUP ─────────────────────────────────────────────────────────────
-// Returns a single clean fact: is this salt class approved by CDSCO?
-// Does NOT show drug name or strength (avoids the "Bilayer 1000mg" conflict)
 export function lookupCDSCO(saltComposition) {
   if (!cdscoDb || !saltComposition) return { found: false, badge: null, indication: null }
-
   const qSalts = parseSalts(saltComposition)
   if (!qSalts.length) return { found: false, badge: null, indication: null }
-
-  const primaryName = qSalts[0].name  // e.g. 'paracetamol'
-
+  const primary = qSalts[0].name
   const matches = cdscoDb.filter(row =>
-    primaryName.length > 4 && (row['Drug Name'] || '').toLowerCase().includes(primaryName)
+    primary.length > 4 && (row['Drug Name'] || '').toLowerCase().includes(primary)
   )
-
   if (!matches.length) return { found: false, badge: null, indication: null }
-
-  // Pick entry with cleanest indication — skip "Additional strength/dosage form" entries
-  const meaningful = matches.filter(r =>
-    r['Indication'] &&
-    !/^additional\s*(strength|indication|dosage|higher)/i.test(r['Indication'])
-  )
-  const best = meaningful[0] || matches[0]
-
-  // Sanitize indication — remove verbose legal language
+  const best = matches.find(r => r['Indication'] && !/^additional/i.test(r['Indication'])) || matches[0]
   let indication = (best['Indication'] || '')
-    .replace(/^(for\s+)?the\s+(treatment|management)\s+of\s+/i, '')
-    .replace(/^as\s+an?\s+/i, '')
-    .trim()
+    .replace(/^(for\s+)?(the\s+)?(treatment|management)\s+of\s+/i, '')
+    .replace(/^as\s+an?\s+/i, '').trim()
   if (indication.length > 80) indication = indication.slice(0, 80) + '...'
-
-  // Badge is just the salt name + approved status — NO specific drug name shown
-  // This prevents "Bilayer 1000mg" appearing when patient has 500mg
-  return {
-    found: true,
-    badge: `✓ ${primaryName.charAt(0).toUpperCase() + primaryName.slice(1)} is a CDSCO-approved drug class`,
-    indication: indication || null,
-    approvalDate: best['Date of Approval'] || null,
-    totalVariants: matches.length,
-  }
+  const displayName = primary.charAt(0).toUpperCase() + primary.slice(1)
+  return { found: true, badge: `✓ ${displayName} is CDSCO-approved`, indication: indication || null, approvalDate: best['Date of Approval'] || null }
 }
 
-// ─── SAVINGS SUMMARY TEXT ─────────────────────────────────────────────────────
-export function buildSavingsSummary(jaExact, brandedMrp, brandedUnitSize) {
-  if (!jaExact.length) return null
-  const cheapest = jaExact[0]
-  if (!cheapest.mrp) return null
-
+// ─── SAVINGS SUMMARY ─────────────────────────────────────────────────────────
+export function buildSavingsSummary(best, brandedMrp, brandedUnitSize) {
+  if (!best?.mrp) return null
   const brandedPU = brandedMrp && brandedUnitSize ? perUnit(parseFloat(brandedMrp), brandedUnitSize) : null
-  const jaPU = cheapest.perUnit
-
-  if (brandedPU && jaPU) {
+  const jaPU = best.perUnit
+  if (brandedPU && jaPU && brandedPU > jaPU) {
     const pct = Math.round((1 - jaPU / brandedPU) * 100)
-    if (pct > 5)  return `₹${jaPU}/tablet at Jan Aushadhi vs ₹${brandedPU}/tablet branded — ${pct}% cheaper.`
-    if (pct < -5) return `Jan Aushadhi option at ₹${cheapest.mrp} for ${cheapest.unitSize}.`
-    return `Jan Aushadhi option at similar price — ₹${cheapest.mrp} for ${cheapest.unitSize}.`
+    return pct > 5 ? `₹${jaPU}/tablet vs ₹${brandedPU}/tablet branded — ${pct}% cheaper.` : null
   }
-
-  return `Available at Jan Aushadhi for ₹${cheapest.mrp} (${cheapest.unitSize}).`
+  return `Jan Aushadhi: ₹${best.mrp} for ${best.unitSize}.`
 }

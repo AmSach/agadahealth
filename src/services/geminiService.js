@@ -72,10 +72,11 @@ No brand suggestions. General drug class only. JSON only:
 // ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
 const mkGenericsPrompt = (salt) =>
 `Indian pharmacist. Patient needs: ${salt}
-List real branded generics available at ANY Indian chemist. Same exact salt only.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila.
-Only suggest if confident this brand+salt combination actually exists in India.
-JSON array only, no markdown:
+Return EXACTLY 3 real branded generics available at any Indian chemist, same exact salt.
+Use only real Indian manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila.
+Prices must be realistic Indian MRP (check your knowledge of 1mg/pharmeasy/apollo247 prices).
+Only include a brand if you are certain it exists. Do not fabricate.
+JSON array only, no markdown, exactly 3 items:
 [{"name":"Brand Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 
 // ─── PHARMACY DEEP LINKS ──────────────────────────────────────────────────────
@@ -128,32 +129,29 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
 
   await dbPromise
 
-  // ── Phase 2: DB lookups ───────────────────────────────────────────────────
+  // ── Phase 2: DB lookup — word-boundary exact, single best JA result ───────
   const jaLookup    = lookupJanAushadhi(finalSalt, finalMrp, img.unitSize)
   const cdscoResult = lookupCDSCO(finalSalt)
-  const jaExact     = jaLookup.exact
-  const jaDoseDiff  = jaLookup.doseMismatch
+  const jaBest      = jaLookup.best         // 1 exact JA match, or null
+  const jaDoseDiff  = jaLookup.doseMismatch // different dose — shown with warning
 
-  // ── Phase 3: Description + AI generics (parallel) ────────────────────────
+  // ── Phase 3: description + exactly 3 branded generics (parallel) ─────────
   let info = null, aiGenerics = []
   if (finalSalt || finalBrand) {
     const [infoRes, genRes] = await Promise.allSettled([
       callText(mkDescPrompt(finalBrand, finalSalt, img.productType)),
-      jaExact.length < 3 && finalSalt
-        ? callText(mkGenericsPrompt(finalSalt))
-        : Promise.resolve(null),
+      finalSalt ? callText(mkGenericsPrompt(finalSalt)) : Promise.resolve(null),
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      aiGenerics = genRes.value.slice(0, 5)
+      aiGenerics = genRes.value.slice(0, 3)
     }
   }
 
+  // 1 JA verified + up to 3 AI-estimated branded generics
   const allAlts = [
-    ...jaExact,
-    ...aiGenerics.filter(ag =>
-      !jaExact.some(ja => ja.name?.toLowerCase().slice(0,10) === ag.name?.toLowerCase().slice(0,10))
-    )
+    ...(jaBest ? [jaBest] : []),
+    ...aiGenerics,
   ]
 
   const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData, qrSalt)
@@ -181,11 +179,11 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     medicineInfo:    info || fallbackInfo(img.productType),
     alternatives: {
       hasGenerics:          allAlts.length > 0,
-      janAushadhiAvailable: jaExact.some(r => r.isJanAushadhi),
+      janAushadhiAvailable: !!jaBest,
       topAlternatives:      allAlts,
-      doseMismatchAlts:     jaDoseDiff,
-      jaCount:              jaExact.length,
-      savingsSummary:       buildSavingsSummary(jaExact, finalMrp, img.unitSize),
+      doseMismatchAlt:      jaDoseDiff,   // singular — one dose-mismatch at most
+      jaCount:              jaBest ? 1 : 0,
+      savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
       disclaimer:           'Jan Aushadhi prices from official BPPI database. Branded generic prices are AI-estimated. Check pharmacy sites for live prices.',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
-const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
-const REPORT_FORM_URL = 'https://cdsco.gov.in/opencms/opencms/en/About-us/contact-us/'
+const JA_STORE_URL = 'https://janaushadhi.gov.in/LocateKendra.aspx'
+const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSexample/viewform'
 
 // ─── Translation helper for AI-generated text ────────────────────────────────
 // Sends AI-generated strings through Groq for translation
@@ -422,13 +422,13 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
         )}
 
         {/* Dose-mismatch alternatives — shown separately with explicit warning */}
-        {alts.doseMismatchAlts?.length > 0 && (
+        {alts.doseMismatchAlt && (
           <div>
             <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose — ask your doctor first</div>
               <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
             </div>
-            {alts.doseMismatchAlts.map((med, i) => <AltRow key={i} med={med} dimmed />)}
+            <AltRow med={alts.doseMismatchAlt} dimmed />
           </div>
         )}
 
