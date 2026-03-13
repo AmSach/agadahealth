@@ -53,16 +53,31 @@ const nextKey = () => {
 // ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
 
-SALT: Copy EXACTLY. Never infer. Bilastine≠Cetirizine. Pantoprazole≠Omeprazole.
-If unreadable: saltComposition=null, confidence<50.
+SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
+DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). If not visible → null.
+If dose not visible: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
+If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
 Damaged areas: ignore for fake signals.
+productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids.
 
 Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
 Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
 
 JSON only, no markdown:
-{"productType":"MEDICINE|AYURVEDIC|SUPPLEMENT|DROPS","brandName":null,"saltComposition":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
+{"productType":"MEDICINE|INJECTION|LIQUID|TOPICAL|AYURVEDIC|SUPPLEMENT","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
+
+// ─── MERGE SALT + DOSE ───────────────────────────────────────────────────────
+// Recombines split saltName + doseStr fields from vision AI into "Salt Dose" string
+function mergeSaltDose(saltName, doseStr) {
+  if (!saltName) return null
+  if (!doseStr) return saltName
+  const salts = saltName.split(/\band\b|\+/i).map(s => s.trim()).filter(Boolean)
+  const doses  = doseStr.split(/\+|,|\band\b/i).map(d => d.trim()).filter(Boolean)
+  if (salts.length === doses.length) return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
+  if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
+  return null  // count mismatch — dose gate will block
+}
 
 // ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
 const mkDescPrompt = (brand, salt, type) =>
@@ -71,14 +86,24 @@ No brand suggestions. General drug class only. JSON only:
 {"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
 
 // ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
-const mkGenericsPrompt = (salt) =>
-`You are an Indian pharmacist. Patient needs: ${salt}
-List EXACTLY 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
+const mkGenericsPrompt = (salt, productType) => {
+  const routeRule = productType === 'INJECTION'
+    ? 'ONLY injectable forms (vial/ampoule/IV). NEVER tablets or oral forms.'
+    : productType === 'LIQUID'
+    ? 'ONLY oral liquid forms (syrup/suspension/drops). NEVER tablets or injections.'
+    : productType === 'TOPICAL'
+    ? 'ONLY topical forms (gel/cream/ointment/lotion). NEVER oral or injectable forms.'
+    : 'ONLY oral solid forms (tablets/capsules). NEVER injections or topicals.'
+  return `You are an Indian pharmacist. Patient needs: ${salt}
+List up to 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
+${routeRule}
+EACH FROM A DIFFERENT MANUFACTURER. If fewer than 3 exist with certainty, return 1 or 2.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
 Only real products from real manufacturers. Do not fabricate.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
-JSON array, no markdown, exactly 3 items:
+JSON array, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+}
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
 // Full salt+dose in query so user lands on the right strength, not just the salt
@@ -115,11 +140,20 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
 
   // QR data overrides vision — QR is always more reliable
-  const finalSalt   = qrSalt   || img.saltComposition
+  // Reconstruct salt from separated saltName + doseStr fields
+  const mergedSalt  = mergeSaltDose(img.saltName, img.doseStr)
+  const finalSalt   = qrSalt   || mergedSalt
   const finalBrand  = qrBrand  || img.brandName
   const finalBatch  = qrBatch  || img.batchNumber
   const finalExpiry = qrExpiry || img.expiryDate
   const finalMrp    = qrMrp    || img.mrp
+
+  // Dose gate: only run JA lookup + generics if dose is confirmed
+  const doseConfirmed = !!qrSalt || /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '')
+  if (!doseConfirmed) {
+    img.cannotRead = true
+    img.cannotReadReason = img.cannotReadReason || 'Dose not visible — cannot safely recommend alternatives. Try scanning a clearer image or check the barcode.'
+  }
 
   if (qrSalt) {
     img.genuineSignalsFound = [...(img.genuineSignalsFound || []), 'QR/barcode decoded — salt verified']
@@ -130,22 +164,32 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
 
   await dbPromise
 
-  // ── Phase 2: DB lookup — word-boundary exact, single best JA result ───────
-  const jaLookup    = lookupJanAushadhi(finalSalt, finalMrp, img.unitSize)
+  // ── Phase 2: DB lookup — only when dose is confirmed ──────────────────────
+  const jaLookup    = doseConfirmed ? lookupJanAushadhi(finalSalt, finalMrp, img.unitSize) : { best: null, doseMismatch: null, noDose: false }
   const cdscoResult = lookupCDSCO(finalSalt)
-  const jaBest      = jaLookup.best         // 1 exact JA match, or null
-  const jaDoseDiff  = jaLookup.doseMismatch // different dose — shown with warning
+  const jaBest      = jaLookup.best
+  const jaDoseDiff  = jaLookup.doseMismatch
 
-  // ── Phase 3: description + exactly 3 branded generics (parallel) ─────────
+  // ── Phase 3: description + up to 3 branded generics (parallel) ───────────
   let info = null, aiGenerics = []
   if (finalSalt || finalBrand) {
     const [infoRes, genRes] = await Promise.allSettled([
       callText(mkDescPrompt(finalBrand, finalSalt, img.productType)),
-      finalSalt ? callText(mkGenericsPrompt(finalSalt)) : Promise.resolve(null),
+      (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, img.productType)) : Promise.resolve(null),
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      aiGenerics = genRes.value.slice(0, 3)
+      // Fix 6: deduplicate by manufacturer
+      const seen = new Set()
+      aiGenerics = genRes.value
+        .filter(g => g && g.name && g.brand)
+        .filter(g => {
+          const key = (g.brand || '').toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        .slice(0, 3)
     }
   }
 
@@ -175,7 +219,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     confidence:      qrSalt ? 99 : (img.confidence || 70),
     saltSource:      qrSalt ? 'QR_BARCODE' : 'AI_VISION',
     cannotRead:      img.cannotRead || false,
-    cannotReadReason:img.cannotReadReason,
+    cannotReadReason:img.cannotReadReason || null,
     authenticity,
     medicineInfo:    info || fallbackInfo(img.productType),
     alternatives: {

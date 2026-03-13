@@ -151,6 +151,9 @@ function saltNameMatch(a, b) {
 export function matchQuality(qSalts, pSalts) {
   if (!qSalts.length || !pSalts.length) return 'blocked'
 
+  // Rule 0: every query salt must have a dose — prevents wrong-dose matches
+  if (qSalts.every(s => s.dose == null)) return 'no_dose'
+
   // Rule 1: form bucket must match exactly
   if (qSalts[0].form !== pSalts[0].form) return 'blocked'
 
@@ -168,7 +171,6 @@ export function matchQuality(qSalts, pSalts) {
 
   let hasMismatch = false
   for (const qs of qSalts) {
-    if (!qs.dose) continue
     const ps = pSalts.find(p => saltNameMatch(qs.name, p.name))
     if (!ps?.dose) continue
     const ratio = ps.dose / qs.dose
@@ -196,9 +198,14 @@ function srPenalty(productName, queryRaw) {
 
 // ─── JAN AUSHADHI LOOKUP ─────────────────────────────────────────────────────
 export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) {
-  if (!jaDB || !saltComposition) return { best: null, doseMismatch: null }
+  if (!jaDB || !saltComposition) return { best: null, doseMismatch: null, noDose: false }
   const qSalts = parseSalts(saltComposition)
-  if (!qSalts.length) return { best: null, doseMismatch: null }
+  if (!qSalts.length) return { best: null, doseMismatch: null, noDose: false }
+
+  // Gate: all salts must have a dose — otherwise any dose would match
+  if (!qSalts.every(s => s.dose != null)) {
+    return { best: null, doseMismatch: null, noDose: true }
+  }
 
   const brandedPU = brandedMrp && brandedUnitSize
     ? perUnit(parseFloat(brandedMrp), brandedUnitSize)
@@ -243,7 +250,7 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
 
   const best   = exact[0]        ? (({ srPenalty: _, ...e }) => e)(exact[0])        : null
   const dmBest = doseMismatch[0] ? (({ srPenalty: _, ...e }) => e)(doseMismatch[0]) : null
-  return { best, doseMismatch: dmBest }
+  return { best, doseMismatch: dmBest, noDose: false }
 }
 
 // ─── CDSCO LOOKUP ────────────────────────────────────────────────────────────
