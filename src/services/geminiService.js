@@ -71,24 +71,24 @@ No brand suggestions. General drug class only. JSON only:
 
 // ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
 const mkGenericsPrompt = (salt) =>
-`Indian pharmacist. Patient needs: ${salt}
-Return EXACTLY 3 real branded generics available at any Indian chemist, same exact salt.
-Use only real Indian manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila.
-Prices must be realistic Indian MRP (check your knowledge of 1mg/pharmeasy/apollo247 prices).
-Only include a brand if you are certain it exists. Do not fabricate.
-JSON array only, no markdown, exactly 3 items:
-[{"name":"Brand Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+`You are an Indian pharmacist. Patient needs: ${salt}
+List EXACTLY 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
+Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
+Only real products from real manufacturers. Do not fabricate.
+Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
+JSON array, no markdown, exactly 3 items:
+[{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 
-// ─── PHARMACY DEEP LINKS ──────────────────────────────────────────────────────
-// Opens pharmacy site search — user sees live prices directly, no CORS needed
+// ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
+// Full salt+dose in query so user lands on the right strength, not just the salt
 export function pharmacyLinks(saltComposition) {
   if (!saltComposition) return []
-  const q = encodeURIComponent(saltComposition.split(/\band\b|,/i)[0].trim())
+  const q = encodeURIComponent(saltComposition)
   return [
-    { name: '1mg',       url: `https://www.1mg.com/search/all?name=${q}`,                    logo: '💊' },
-    { name: 'PharmEasy', url: `https://pharmeasy.in/search/all?name=${q}`,                   logo: '🟢' },
-    { name: 'Apollo',    url: `https://www.apollo247.com/search?searchQuery=${q}`,            logo: '🔵' },
-    { name: 'Netmeds',   url: `https://www.netmeds.com/catalogsearch/result?q=${q}`,         logo: '🔴' },
+    { name: 'Netmeds',   url: `https://www.netmeds.com/products/?q=${q}` },
+    { name: 'Apollo',    url: `https://www.apollopharmacy.in/search-medicines/${q}` },
+    { name: '1mg',       url: `https://www.1mg.com/search/all?name=${q}` },
+    { name: 'DavaIndia', url: `https://www.davaindia.com/search/all?search=${q}` },
   ]
 }
 
