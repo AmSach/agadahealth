@@ -419,7 +419,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
               <span style={badge('blue')}>AI EST.</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
-              Same molecule · DavaIndia prices where available · Others AI-estimated
+              Same molecule · 1mg prices where available · Others AI-estimated
             </div>
             {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
           </div>
@@ -472,7 +472,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from DavaIndia. <strong>AI EST.</strong> prices are approximate — always verify at the chemist counter. Only buy from licensed pharmacies.
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate — always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -481,7 +481,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
 function AltRow({ med, highlight, dimmed }) {
   const displayMrp   = med.mrp || med.estimatedMrp
-  const isDavaIndia  = med.priceSource === 'DavaIndia' || med.highConfidence === true
+  const isDavaIndia  = med.priceSource === "DavaIndia" || med.priceSource === "1mg" || med.highConfidence === true
   const isJA         = med.isJanAushadhi
   // per-unit label: use perUnitLabel if set, else infer from packSize/unitSize, else 'tablet'
   const unitLabel    = med.perUnitLabel || inferUnitLabel(med.unitSize || med.packSize)
@@ -511,7 +511,7 @@ function AltRow({ med, highlight, dimmed }) {
           {med.unitSize || med.packSize || ''}
         </div>
         {isDavaIndia && !isJA && (
-          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · DavaIndia</div>
+          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · 1mg</div>
         )}
         {!isDavaIndia && med.aiEstimated && (
           <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>
