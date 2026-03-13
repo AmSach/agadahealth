@@ -1,18 +1,27 @@
 /**
- * dbService.js v6 — Agada Database Service
+ * dbService.js v7 — Agada  (DEFINITIVE)
  *
- * Bug fixes:
- * 1. ALL salt doses checked (not just primary) — Amox 250+Clav 125 ≠ Amox 500+Clav 125
- * 2. Synonym normalisation — clavulanate==clavulanic acid, amoxicillin==amoxycillin etc.
- * 3. Strict dose match for combos — 0% tolerance when multiple salts present
- * 4. Single best result only — no dose-mismatches bleeding into results
+ * Every match rule has a precise reason. Nothing is heuristic.
+ *
+ * BLOCKING RULES (hard, not soft):
+ *  1. Form bucket mismatch  — solid / liquid / injection / topical must match exactly
+ *  2. Drug-prefix mismatch  — levo-/s-/dextro-/nor-/des- prefix = different drug, never interchangeable
+ *  3. Extra salt in product  — combo product never shown for simpler query
+ *  4. Combipack             — always blocked (multiple drugs in one pack)
+ *  5. Every salt's dose     — ALL salts checked, combo tolerance ±5%, single ±10%
+ *
+ * RANKING (soft, after hard blocks pass):
+ *  - SR/ER/prolonged-release gets +5 penalty (prefer immediate release)
+ *  - Then cheapest per-unit price wins
+ *
+ * SYNONYMS: amoxicillin↔amoxycillin, clavulanic acid↔clavulanate, etc.
  */
 
 let jaDB    = null
 let cdscoDb = null
 let loadPromise = null
 
-// ─── CSV ──────────────────────────────────────────────────────────────────────
+// ─── CSV ─────────────────────────────────────────────────────────────────────
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (!lines.length) return []
@@ -45,136 +54,147 @@ export async function ensureLoaded() {
 }
 
 // ─── SYNONYM MAP ─────────────────────────────────────────────────────────────
-// Normalise to one canonical name before all comparisons.
-// Both forms map to the SAME canonical so matching works across naming conventions.
+// Both spellings map to the SAME canonical so matching works across DB naming.
 const SYNONYMS = {
-  // Antibiotic variants
-  'amoxicillin':            'amoxycillin',
-  'clavulanic acid':        'clavulanate',
-  'potassium clavulanate':  'clavulanate',
-  'cloxacillin sodium':     'cloxacillin',
-  // Diuretics
-  'frusemide':              'furosemide',
-  'furosemide':             'frusemide',
-  // Anaesthetics
-  'lignocaine':             'lidocaine',
-  'lidocaine':              'lignocaine',
-  // Analgesics
-  'acetaminophen':          'paracetamol',
-  // Cardiovascular
-  'adrenaline':             'epinephrine',
-  'epinephrine':            'adrenaline',
-  // Bronchodilators
-  'salbutamol':             'albuterol',
-  'albuterol':              'salbutamol',
-  // Vitamins
-  'thiamine':               'vitamin b1',
-  'vitamin b1':             'thiamine',
-  'ascorbic acid':          'vitamin c',
-  'vitamin c':              'ascorbic acid',
-  // Steroids
-  'prednisolone':           'prednisone',   // not exact but close for matching
-  // Others
-  'acetylsalicylic acid':   'aspirin',
-  'aspirin':                'acetylsalicylic acid',
+  'amoxicillin':           'amoxycillin',
+  'clavulanic acid':       'clavulanate',
+  'potassium clavulanate': 'clavulanate',
+  'cloxacillin sodium':    'cloxacillin',
+  'frusemide':             'furosemide',
+  'furosemide':            'frusemide',
+  'lignocaine':            'lidocaine',
+  'lidocaine':             'lignocaine',
+  'acetaminophen':         'paracetamol',
+  'salbutamol':            'albuterol',
+  'albuterol':             'salbutamol',
+  'acetylsalicylic acid':  'aspirin',
+  'diclofenac sodium':     'diclofenac',
+  'diclofenac potassium':  'diclofenac',
+  'diclofenac diethylamine':'diclofenac',
+  'losartan potassium':    'losartan',
+  'atorvastatin calcium':  'atorvastatin',
+  'metformin hydrochloride':'metformin',
 }
 
-function normName(name) {
-  const n = (name || '').toLowerCase().trim()
+function normName(raw) {
+  let n = (raw || '').toLowerCase().trim()
+  n = n.replace(/^\d+\s*|\s*\d+$/, '').trim()
   return SYNONYMS[n] || n
 }
 
-// ─── SALT PARSER ──────────────────────────────────────────────────────────────
-const STRIP = /\b(tablets?|capsules?|injection|syrup|oral|suspension|drops?|infusion|solution|cream|ointment|gel|spray|paediatric|prolonged|sustained|modified|extended|gastro|resistant|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sodium|potassium|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|per|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated)\b/gi
+// ─── FORM BUCKET ──────────────────────────────────────────────────────────────
+// Products from different buckets are NEVER interchangeable, period.
+function formBucket(text) {
+  const t = (text || '').toLowerCase()
+  if (/\bgel\b|\bcream\b|\bointment\b|\blotion\b|\bshampoo\b|\bsoap\b|\btopical\b/.test(t)) return 'topical'
+  if (/\binjection\b|\binfusion\b|\biv\b/.test(t))                                          return 'injection'
+  if (/\bsuspension\b|\bsyrup\b|\bdrops?\b|\bsolution\b|\boral\s+liquid\b|\bper\s+\d+\s*ml\b/.test(t)) return 'liquid'
+  return 'solid' // tablets, capsules, dispersible, ODT, strips — all equivalent for substitution
+}
+
+// ─── DRUG-MODIFYING PREFIX ────────────────────────────────────────────────────
+// If a salt name starts with a pharmacological modifier, it's a DIFFERENT drug.
+// levo-thyroxine ≠ thyroxine, s(-)-amlodipine ≠ amlodipine
+// Exception: if BOTH names share the same prefix → same drug (levofloxacin == levofloxacin)
+const DRUG_PREFIX = /^(levo|dextro|nor|des|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|iso|neo)\s*/i
+
+// ─── SALT PARSER ─────────────────────────────────────────────────────────────
+// Strips form/route/salt-type words; preserves dose numbers; expands parenthetical doses.
+const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna)\b/gi
 
 export function parseSalts(text) {
   if (!text) return []
-  return text
-    .replace(/\([^)]*\)/g, ' ')
-    .split(/\band\b|,|\+/i)
+  // Combipacks always blocked — they contain multiple separate drugs
+  if (/\bcombipack\b/i.test(text)) return []
+
+  const form = formBucket(text)
+
+  // Expand parenthetical dose content before stripping parens
+  // "(Sulphamethoxazole 800mg and Trimethoprim 160mg)" → " Sulphamethoxazole 800mg and Trimethoprim 160mg "
+  let t = text.replace(/\(([^)]*(?:mg|mcg|g|iu|%)[^)]*)\)/gi, ' $1 ')
+  t = t.replace(/\([^)]*\)/g, ' ')       // remove remaining non-dose parens
+  t = t.replace(/\b\d+%/g, ' ')          // remove % ratios (insulin 30%/70%)
+
+  return t
+    .split(/\band\b|,|\+|&/i)
     .map(part => {
-      const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/i)
+      const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu)/i)
       const dose = dm ? parseFloat(dm[1]) : null
-      const rawName = part
+      let name = part
         .replace(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/gi, '')
-        .replace(STRIP, '')
-        .replace(/[^a-zA-Z\s]/g, ' ')
+        .replace(STRIP_WORDS, '')
+        .replace(/[^a-zA-Z\s()\-]/g, ' ')
         .replace(/\s+/g, ' ').trim().toLowerCase()
-      const name = normName(rawName)
-      return name.length > 2 ? { name, dose } : null
+      name = normName(name)
+      return name.length > 2 ? { name, dose, form } : null
     }).filter(Boolean)
 }
 
-// ─── NAME MATCH — word-boundary + synonyms ───────────────────────────────────
+// ─── SALT NAME MATCH ─────────────────────────────────────────────────────────
+// Word-boundary substring match — but BLOCKED if either name has a drug-modifying prefix
+// that the other lacks. Prevents levo-thyroxine matching thyroxine.
 function saltNameMatch(a, b) {
   const na = normName(a), nb = normName(b)
   if (na === nb) return true
+
+  // If one has a drug-modifying prefix and the other doesn't → different drug
+  const aHasPrefix = DRUG_PREFIX.test(na)
+  const bHasPrefix = DRUG_PREFIX.test(nb)
+  if (aHasPrefix !== bHasPrefix) return false
+
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp('\\b' + esc(na) + '\\b', 'i').test(nb) ||
          new RegExp('\\b' + esc(nb) + '\\b', 'i').test(na)
 }
 
-// ─── MATCH QUALITY ─────────────────────────────────────────────────────────
-// Key fix: checks EVERY salt dose, not just the first one.
-// For combo drugs: ALL salt doses must match within tolerance.
-// Tolerance: ±15% for single-salt, ±5% for combo (tighter — Amox 250 ≠ Amox 500)
+// ─── MATCH QUALITY ───────────────────────────────────────────────────────────
 export function matchQuality(qSalts, pSalts) {
   if (!qSalts.length || !pSalts.length) return 'blocked'
 
-  const isCombo = qSalts.length > 1
-  const doseTolerance = isCombo ? 0.10 : 0.15  // tighter for combos
+  // Rule 1: form bucket must match exactly
+  if (qSalts[0].form !== pSalts[0].form) return 'blocked'
 
-  // All query salts must be present in product
+  // Rule 2: salt names must match both ways (no extra salts in either direction)
   for (const qs of qSalts) {
     if (!pSalts.some(ps => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
-  // Product must have no extra active salts
   for (const ps of pSalts) {
     if (!qSalts.some(qs => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
 
-  // Check EVERY salt's dose (not just primary)
-  let hasDoseMismatch = false
+  // Rule 3: ALL salt doses must match within tolerance
+  const isCombo = qSalts.length > 1
+  const tol = isCombo ? 0.05 : 0.10  // ±5% combos, ±10% single
+
+  let hasMismatch = false
   for (const qs of qSalts) {
-    if (!qs.dose) continue  // no dose in query — skip this salt's dose check
+    if (!qs.dose) continue
     const ps = pSalts.find(p => saltNameMatch(qs.name, p.name))
-    if (!ps || !ps.dose) continue  // no dose in product — can't compare
+    if (!ps?.dose) continue
     const ratio = ps.dose / qs.dose
-    if (ratio < (1 - doseTolerance) || ratio > (1 + doseTolerance)) {
-      hasDoseMismatch = true
-    }
+    if (ratio < (1 - tol) || ratio > (1 + tol)) hasMismatch = true
   }
 
-  return hasDoseMismatch ? 'dose_mismatch' : 'exact'
-}
-
-// ─── FORM / ROUTE RANKING ─────────────────────────────────────────────────────
-function formScore(productName, queryRaw) {
-  const p = productName.toLowerCase()
-  const q = (queryRaw || '').toLowerCase()
-  const wantsInj  = /\binjection\b|\binfusion\b|\biv\b/.test(q)
-  const wantsSR   = /\bsr\b|\ber\b|\bxr\b|\bprolonged\b|\bsustained\b|\bextended\b/.test(q)
-  const wantsIso  = /\blevo\b|\bs\s*\([-−]\)/.test(q)
-  let s = 0
-  if (wantsInj) { if (!/\binjection\b|\binfusion\b/.test(p)) s += 100 }
-  else          { if (/\binjection\b|\binfusion\b/.test(p))  s += 100 }
-  if (/\bsyrup\b|\bsuspension\b|\bdrops?\b/.test(p)) s += 10
-  if (/\bgel\b|\bcream\b|\bointment\b/.test(p))       s += 20
-  if (!wantsIso && /\bs\s*\([-−]\)|\blevo\b|\bdextro\b/.test(p)) s += 50
-  if (!wantsSR  && /\bprolonged\b|\bsustained\b|\bextended\b|\bmodified\b/.test(p)) s += 5
-  return s
+  return hasMismatch ? 'dose_mismatch' : 'exact'
 }
 
 // ─── PER-UNIT PRICE ──────────────────────────────────────────────────────────
 function perUnit(mrp, unitSize) {
-  if (!mrp || !unitSize) return null
-  if (/ml|gm|g\b/i.test(unitSize)) return null
+  if (!mrp || !unitSize || /ml|gm|g\b/i.test(unitSize)) return null
   const n = unitSize.match(/(\d+)/); const count = n ? parseInt(n[1]) : 10
   return count > 0 ? Math.round(mrp / count * 100) / 100 : null
 }
 
-// ─── JAN AUSHADHI LOOKUP ──────────────────────────────────────────────────────
-// Returns { best: entry|null, doseMismatch: entry|null }
+// ─── SR RANKING ──────────────────────────────────────────────────────────────
+// Prefer immediate-release unless query explicitly asks for SR/ER
+function srPenalty(productName, queryRaw) {
+  const q = (queryRaw || '').toLowerCase()
+  const wantsSR = /\bsr\b|\ber\b|\bxr\b|\bprolonged\b|\bsustained\b|\bextended\b/.test(q)
+  if (wantsSR) return 0
+  return /\bprolonged\b|\bsustained\b|\bextended\b|\bmodified\b/.test(productName.toLowerCase()) ? 1 : 0
+}
+
+// ─── JAN AUSHADHI LOOKUP ─────────────────────────────────────────────────────
 export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) {
   if (!jaDB || !saltComposition) return { best: null, doseMismatch: null }
   const qSalts = parseSalts(saltComposition)
@@ -197,48 +217,65 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
     let savings = null
     if (brandedPU && pu) {
       const pct = Math.round((1 - pu / brandedPU) * 100)
-      savings = pct > 5 ? `${pct}% cheaper per tablet` : pct < -5 ? null : 'Similar price'
+      savings = pct > 5 ? `${pct}% cheaper per tablet` : null
     }
 
     const entry = {
-      name: row['Generic Name'],
-      salt: saltComposition,
-      unitSize: row['Unit Size'],
+      name:        row['Generic Name'],
+      salt:        saltComposition,
+      unitSize:    row['Unit Size'],
       mrp, perUnit: pu, savings,
-      formScore: formScore(row['Generic Name'], saltComposition),
-      isJanAushadhi: true, aiEstimated: false,
-      brand: 'BPPI Jan Aushadhi',
-      availableAt: 'Jan Aushadhi Kendra',
+      srPenalty:   srPenalty(row['Generic Name'], saltComposition),
+      isJanAushadhi: true,
+      aiEstimated:   false,
+      brand:         'BPPI Jan Aushadhi',
+      availableAt:   'Jan Aushadhi Kendra',
+      storeLocator:  'https://janaushadhi.gov.in/near-by-kendra',
     }
+
     if (quality === 'exact') exact.push(entry)
     else doseMismatch.push(entry)
   }
 
-  exact.sort((a, b) => a.formScore - b.formScore || a.mrp - b.mrp)
-  doseMismatch.sort((a, b) => a.formScore - b.formScore || a.mrp - b.mrp)
+  // Sort: prefer immediate-release, then cheapest
+  exact.sort((a, b) => a.srPenalty - b.srPenalty || a.mrp - b.mrp)
+  doseMismatch.sort((a, b) => a.srPenalty - b.srPenalty || a.mrp - b.mrp)
 
-  const best   = exact[0]        ? { ...exact[0],        formScore: undefined } : null
-  const dmBest = doseMismatch[0] ? { ...doseMismatch[0], formScore: undefined } : null
+  const best   = exact[0]        ? (({ srPenalty: _, ...e }) => e)(exact[0])        : null
+  const dmBest = doseMismatch[0] ? (({ srPenalty: _, ...e }) => e)(doseMismatch[0]) : null
   return { best, doseMismatch: dmBest }
 }
 
-// ─── CDSCO LOOKUP ─────────────────────────────────────────────────────────────
+// ─── CDSCO LOOKUP ────────────────────────────────────────────────────────────
 export function lookupCDSCO(saltComposition) {
-  if (!cdscoDb || !saltComposition) return { found: false, badge: null, indication: null }
+  if (!cdscoDb || !saltComposition) return { found: false, badge: null }
   const qSalts = parseSalts(saltComposition)
-  if (!qSalts.length) return { found: false, badge: null, indication: null }
+  if (!qSalts.length) return { found: false, badge: null }
   const primary = qSalts[0].name
   const matches = cdscoDb.filter(row =>
     primary.length > 4 && (row['Drug Name'] || '').toLowerCase().includes(primary)
   )
-  if (!matches.length) return { found: false, badge: null, indication: null }
+  if (!matches.length) return { found: false, badge: null }
   const best = matches.find(r => r['Indication'] && !/^additional/i.test(r['Indication'])) || matches[0]
   let indication = (best['Indication'] || '')
     .replace(/^(for\s+)?(the\s+)?(treatment|management)\s+of\s+/i, '')
     .replace(/^as\s+an?\s+/i, '').trim()
   if (indication.length > 80) indication = indication.slice(0, 80) + '...'
   const displayName = primary.charAt(0).toUpperCase() + primary.slice(1)
-  return { found: true, badge: `✓ ${displayName} is CDSCO-approved`, indication: indication || null, approvalDate: best['Date of Approval'] || null }
+  return { found: true, badge: `✓ ${displayName} is CDSCO-approved`, indication: indication || null }
+}
+
+// ─── PHARMACY LINKS ───────────────────────────────────────────────────────────
+// Full salt+dose in URL so user lands on the correct product strength directly
+export function pharmacyLinks(saltComposition) {
+  if (!saltComposition) return []
+  const q = encodeURIComponent(saltComposition)
+  return [
+    { name: 'Netmeds',   url: `https://www.netmeds.com/products/?q=${q}` },
+    { name: 'Apollo',    url: `https://www.apollopharmacy.in/search-medicines/${q}` },
+    { name: '1mg',       url: `https://www.1mg.com/search/all?name=${q}` },
+    { name: 'DavaIndia', url: `https://www.davaindia.com/search/all?search=${q}` },
+  ]
 }
 
 // ─── SAVINGS SUMMARY ─────────────────────────────────────────────────────────

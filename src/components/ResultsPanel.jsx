@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-const JA_STORE_URL = 'https://janaushadhi.gov.in/LocateKendra.aspx'
+const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
 const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSexample/viewform'
 
 // ─── Translation helper for AI-generated text ────────────────────────────────

@@ -11,6 +11,7 @@
  */
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
+import { logAIResponse } from './debugLog.js'
 
 // ─── KEY ROTATION ─────────────────────────────────────────────────────────────
 // Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
@@ -239,6 +240,7 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
 // ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
 async function callVision(b64, mime, prompt) {
   let lastErr = 'no models available'
+  const t0 = Date.now()
   for (const model of VISION_MODELS) {
     const key = nextKey()
     if (!key) continue
@@ -258,7 +260,9 @@ async function callVision(b64, mime, prompt) {
       if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
       if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; continue }
       const data = await res.json()
-      const parsed = safeJSON(data?.choices?.[0]?.message?.content)
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
       if (parsed) return parsed
       lastErr = 'JSON parse fail'
     } catch(e) {
@@ -271,6 +275,8 @@ async function callVision(b64, mime, prompt) {
 
 async function callText(prompt) {
   let lastErr = 'no models'
+  const t0 = Date.now()
+  const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
   for (const model of TEXT_MODELS) {
     const key = nextKey()
     if (!key) continue
@@ -283,7 +289,9 @@ async function callText(prompt) {
       if (res.status === 429 || res.status === 404) { lastErr = `${model} ${res.status}`; continue }
       if (!res.ok) { lastErr = `${res.status}`; continue }
       const data = await res.json()
-      const parsed = safeJSON(data?.choices?.[0]?.message?.content)
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
       if (parsed) return parsed
       lastErr = 'JSON parse'
     } catch(e) { lastErr = e.message }
