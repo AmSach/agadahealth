@@ -1,26 +1,62 @@
 /**
- * debugLog.js — Server-side AI response logger
+ * debugLog.js — Agada AI Response Logger
  *
- * POSTs every AI response to /api/log (Vercel serverless function).
- * Logs appear in: Vercel dashboard → your project → Functions → Logs
- * Users never see this. Nothing stored in browser.
+ * Stores every raw AI JSON response in localStorage keyed by timestamp.
+ * Access at any time via: window.__agadaLogs()
+ * Or open the in-app debug panel at /?debug=1
  *
- * Fire-and-forget — never blocks the scan flow.
+ * Storage: localStorage['agada_logs'] — survives page refresh, cleared manually.
+ * Limit: keeps last 100 entries (auto-trims oldest).
  */
 
+const STORAGE_KEY = 'agada_logs'
+const MAX_ENTRIES = 100
+
 export function logAIResponse({ phase, prompt, rawResponse, parsed, salt, brand, durationMs }) {
-  // Fire and forget — do not await, do not let errors affect scan
-  fetch('/api/log', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      phase,
-      salt:        salt        || null,
-      brand:       brand       || null,
-      durationMs:  durationMs  || null,
+  try {
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const entry = {
+      id:          Date.now(),
+      ts:          new Date().toISOString(),
+      phase,           // 'vision' | 'description' | 'generics'
+      salt:        salt || null,
+      brand:       brand || null,
+      durationMs:  durationMs || null,
+      prompt:      prompt || null,
       rawResponse: rawResponse || null,
-      parsed:      parsed      || null,
+      parsed:      parsed || null,
       ok:          !!parsed,
-    }),
-  }).catch(() => {}) // swallow all errors silently
+    }
+    existing.push(entry)
+    // Trim to MAX_ENTRIES
+    const trimmed = existing.slice(-MAX_ENTRIES)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+  } catch (e) {
+    console.warn('[Agada] Log write failed:', e)
+  }
+}
+
+export function getLogs() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+}
+
+export function clearLogs() {
+  localStorage.removeItem(STORAGE_KEY)
+  console.log('[Agada] Logs cleared.')
+}
+
+export function exportLogsJSON() {
+  const logs = getLogs()
+  const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url
+  a.download = `agada_logs_${new Date().toISOString().slice(0,10)}.json`
+  a.click(); URL.revokeObjectURL(url)
+}
+
+// Global helpers accessible from browser console
+if (typeof window !== 'undefined') {
+  window.__agadaLogs   = getLogs
+  window.__agadaClear  = clearLogs
+  window.__agadaExport = exportLogsJSON
 }
