@@ -96,7 +96,7 @@ function formBucket(text) {
 // If a salt name starts with a pharmacological modifier, it's a DIFFERENT drug.
 // levo-thyroxine ≠ thyroxine, s(-)-amlodipine ≠ amlodipine
 // Exception: if BOTH names share the same prefix → same drug (levofloxacin == levofloxacin)
-const DRUG_PREFIX = /^(levo|dextro|nor|des|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|iso|neo)\s*/i
+const DRUG_PREFIX = /^(levo|dextro|nor|des|fos|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|iso|neo)\s*/i
 
 // ─── SALT PARSER ─────────────────────────────────────────────────────────────
 // Strips form/route/salt-type words; preserves dose numbers; expands parenthetical doses.

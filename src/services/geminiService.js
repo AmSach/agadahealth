@@ -100,7 +100,7 @@ ${routeRule}
 EACH FROM A DIFFERENT MANUFACTURER. If fewer than 3 exist with certainty, return 1 or 2.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
 Only real products from real manufacturers. Do not fabricate.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
+Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
 JSON array, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
