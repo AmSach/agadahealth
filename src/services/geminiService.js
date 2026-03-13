@@ -12,6 +12,7 @@
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
 import { logAIResponse } from './debugLog.js'
+import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
 // ─── KEY ROTATION ─────────────────────────────────────────────────────────────
 // Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
@@ -95,16 +96,12 @@ const mkGenericsPrompt = (salt, productType) => {
     ? 'ONLY topical forms (gel/cream/ointment/lotion). NEVER oral or injectable forms.'
     : 'ONLY oral solid forms (tablets/capsules). NEVER injections or topicals.'
   return `You are an Indian pharmacist. Patient needs: ${salt}
-List up to 3 real branded generics sold at Indian chemists.
-
-CRITICAL RULES — no exceptions:
-1. Salt must be EXACTLY "${salt}" — same molecule, same dose. Do NOT substitute prodrugs, metabolites, or related drugs. Fosphenytoin ≠ Phenytoin. Enalapril ≠ Lisinopril. If you are not 100% certain a product exists with this exact salt, omit it.
-2. ${routeRule}
-3. EACH FROM A DIFFERENT MANUFACTURER.
-4. If fewer than 3 real products exist with certainty, return only 1 or 2. Never fabricate.
-5. PREFER low-cost manufacturers. Check Zeelabs Pharma FIRST — they are a budget-focused Indian manufacturer. Then check Micro Labs, Mankind, Alkem, Macleods, Aristo, Ipca, Cadila, Hetero, Alembic, Intas, Glenmark, FDC, Lupin, Torrent, Zydus, Dr Reddy's, Sun Pharma, Cipla, Abbott India.
-
-Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
+List up to 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
+${routeRule}
+EACH FROM A DIFFERENT MANUFACTURER. If fewer than 3 exist with certainty, return 1 or 2.
+Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
+Only real products from real manufacturers. Do not fabricate.
+Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
 JSON array, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
@@ -198,10 +195,41 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   }
 
   // 1 JA verified + up to 3 AI-estimated branded generics
-  const allAlts = [
+  let allAlts = [
     ...(jaBest ? [jaBest] : []),
     ...aiGenerics,
   ]
+
+  // ── DavaIndia live price enrichment ──────────────────────────────────────
+  // Fetch real prices from DavaIndia for each alternative in parallel.
+  // If a price comes back, it replaces the AI-estimated price and marks the
+  // entry as highConfidence=true with priceSource='DavaIndia'.
+  // Gracefully degrades — if proxy is down, allAlts stay as-is.
+  if (allAlts.length > 0) {
+    try {
+      const davaMap = await batchFetchDavaIndiaPrices(allAlts)
+      allAlts = allAlts.map(alt => {
+        const key = alt.salt || alt.name
+        const dava = davaMap.get(key)
+        if (!dava) return alt  // no DavaIndia result — keep AI estimate as-is
+        return {
+          ...alt,
+          // Override price fields with DavaIndia live data
+          mrp:           dava.mrp,
+          estimatedMrp:  dava.mrp,
+          packSize:      dava.packSize || alt.packSize,
+          perUnit:       dava.perUnit  ?? alt.perUnit,
+          // Source & confidence flags
+          priceSource:   'DavaIndia',
+          highConfidence: true,
+          aiEstimated:   false,  // it's a real price now, not AI estimated
+          davaIndiaName: dava.name,  // actual product name on DavaIndia
+        }
+      })
+    } catch {
+      // batchFetch should never throw, but belt-and-suspenders
+    }
+  }
 
   const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData, qrSalt)
   if ((img.confidence || 0) < 50 && !qrSalt) {
@@ -235,7 +263,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. Branded generic prices are AI-estimated. Check pharmacy sites for live prices.',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate — verify at the chemist.',
     },
     dataSource: {
       salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',

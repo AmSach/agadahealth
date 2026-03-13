@@ -411,12 +411,15 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
         )}
 
         {/* Branded generics at any chemist */}
-        {otherAlts.length > 0 && (
-          <div>
+        {otherAlts.length > 0 && (\n          <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏪 Tier 2 — Any chemist <span style={badge('blue')}>AI ESTIMATED</span>
+              🏪 Tier 2 — Any chemist
+              <span style={badgeHighConf()}>✓ DAVAINDIA</span>
+              <span style={badge('blue')}>AI EST.</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Same molecule · Available everywhere · Prices approximate</div>
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
+              Same molecule · DavaIndia prices where available · Others AI-estimated
+            </div>
             {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
           </div>
         )}
@@ -468,7 +471,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices are from the official BPPI database. Branded generic prices are AI-estimated and may vary. Always verify at the chemist counter. Only buy from licensed pharmacies.
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from DavaIndia. <strong>AI EST.</strong> prices are approximate — always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -476,28 +479,51 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 }
 
 function AltRow({ med, highlight, dimmed }) {
-  const displayMrp = med.mrp || med.estimatedMrp
+  const displayMrp   = med.mrp || med.estimatedMrp
+  const isDavaIndia  = med.priceSource === 'DavaIndia' || med.highConfidence === true
+  const isJA         = med.isJanAushadhi
+  // per-unit label: use perUnitLabel if set, else infer from packSize/unitSize, else 'tablet'
+  const unitLabel    = med.perUnitLabel || inferUnitLabel(med.unitSize || med.packSize)
+
+  const bgColor     = (highlight || isJA) ? 'var(--greenlt)'
+                    : isDavaIndia          ? '#EBF9F6'
+                    : med.aiEstimated      ? '#F0F9FF'
+                    : 'var(--bgsoft)'
+  const borderColor = (highlight || isJA) ? '#A7D9CA'
+                    : isDavaIndia          ? '#5EEAD4'
+                    : med.aiEstimated      ? '#BFDBFE'
+                    : 'var(--border)'
+
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 12px', opacity: dimmed ? 0.7 : 1,
-      background: highlight ? 'var(--greenlt)' : med.aiEstimated ? '#F0F9FF' : 'var(--bgsoft)',
-      borderRadius: 10, marginBottom: 7,
-      border: `1.5px solid ${highlight ? '#A7D9CA' : med.aiEstimated ? '#BFDBFE' : 'var(--border)'}` }}>
+      background: bgColor, borderRadius: 10, marginBottom: 7,
+      border: `1.5px solid ${borderColor}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>{med.name}</span>
-          {med.isJanAushadhi && <span style={badge('green')}>JAN AUSHADHI</span>}
-          {med.aiEstimated   && <span style={badge('blue')}>AI EST.</span>}
+          {isJA        && <span style={badge('green')}>JAN AUSHADHI</span>}
+          {isDavaIndia && !isJA && <span style={badgeHighConf()}>✓ HIGH CONFIDENCE</span>}
+          {!isDavaIndia && !isJA && med.aiEstimated && <span style={badge('blue')}>AI EST.</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
           {med.brand && med.brand !== 'BPPI' && <span>{med.brand} · </span>}
           {med.unitSize || med.packSize || ''}
         </div>
-        {med.availableAt && <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>}
+        {isDavaIndia && !isJA && (
+          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · DavaIndia</div>
+        )}
+        {!isDavaIndia && med.aiEstimated && (
+          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>
+        )}
+        {med.availableAt && !isDavaIndia && (
+          <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
+        )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
         {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
-        {med.perUnit && <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/tablet</div>}
-        {/* savings string already computed per-unit in dbService */}
+        {med.perUnit != null && (
+          <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
+        )}
         {med.savings && med.savings !== 'Jan Aushadhi price' && (
           <div style={{ fontSize: 11, color: med.savings.includes('pricier') ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>{med.savings}</div>
         )}
@@ -508,6 +534,19 @@ function AltRow({ med, highlight, dimmed }) {
 }
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
+
+// Infer a readable unit label from pack description (e.g. "10 capsules" → "capsule")
+function inferUnitLabel(packStr) {
+  if (!packStr) return 'tablet'
+  const s = packStr.toLowerCase()
+  if (/capsule/.test(s)) return 'capsule'
+  if (/sachet/.test(s))  return 'sachet'
+  if (/patch/.test(s))   return 'patch'
+  if (/vial|ampoule/.test(s)) return 'vial'
+  if (/ml|gm|g\b/.test(s))   return null   // non-countable — skip per-unit display
+  return 'tablet'
+}
+
 function badge(color) {
   const configs = {
     green: { bg: '#DCFCE7', color: '#166534' },
@@ -518,6 +557,10 @@ function badge(color) {
   }
   const cfg = configs[color] || configs.gray
   return { fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cfg.bg, color: cfg.color, letterSpacing: '0.04em', display: 'inline-block' }
+}
+
+function badgeHighConf() {
+  return { fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#CCFBF1', color: '#0F766E', letterSpacing: '0.04em', display: 'inline-block' }
 }
 
 function sectionLabel(color) {
