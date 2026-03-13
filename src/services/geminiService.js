@@ -96,13 +96,17 @@ const mkGenericsPrompt = (salt, productType) => {
     ? 'ONLY topical forms (gel/cream/ointment/lotion). NEVER oral or injectable forms.'
     : 'ONLY oral solid forms (tablets/capsules). NEVER injections or topicals.'
   return `You are an Indian pharmacist. Patient needs: ${salt}
-List up to 3 real branded generics sold at Indian chemists with the EXACT SAME salt composition and dose.
+List up to 3 real branded generics sold at Indian chemists containing EXACTLY this salt at EXACTLY this dose. Nothing else.
 ${routeRule}
-EACH FROM A DIFFERENT MANUFACTURER. If fewer than 3 exist with certainty, return 1 or 2.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, and DavaIndia as your reference.
-Only real products from real manufacturers. Do not fabricate.
+STRICT RULES — violating any rule means the product must be excluded:
+1. The "salt" field in your response MUST be exactly: ${salt}
+2. NEVER include a product unless you are certain it contains ${salt} as its ONLY active ingredient(s).
+3. If a brand name sounds similar but contains a different salt — EXCLUDE IT.
+4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
+5. EACH item must be from a DIFFERENT manufacturer.
+Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
-JSON array, no markdown, 1-3 items:
+JSON array only, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
@@ -180,10 +184,30 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      // Fix 6: deduplicate by manufacturer
+      // Extract primary drug names from the query salt for validation
+      // e.g. "Flunarizine 10mg" → ["flunarizine"]
+      const queryDrugNames = (finalSalt || '')
+        .toLowerCase()
+        .split(/\band\b|\+|,/i)
+        .map(s => s.replace(/\d+\s*(mg|mcg|g|iu|ml)/gi, '').trim())
+        .filter(s => s.length > 3)
+
       const seen = new Set()
       aiGenerics = genRes.value
         .filter(g => g && g.name && g.brand)
+        // Salt validation: the returned salt field must contain all primary drug names
+        // This catches hallucinations like "Flumark" (different salt) for "Flunarizine"
+        .filter(g => {
+          if (!queryDrugNames.length) return true
+          const returnedSalt = (g.salt || '').toLowerCase()
+          const returnedName = (g.name || '').toLowerCase()
+          // Every query drug name must appear in EITHER the salt field or the product name
+          // If salt field is wrong/missing, check name as fallback
+          return queryDrugNames.every(drug =>
+            returnedSalt.includes(drug) || returnedName.includes(drug)
+          )
+        })
+        // Deduplicate by manufacturer
         .filter(g => {
           const key = (g.brand || '').toLowerCase()
           if (seen.has(key)) return false
