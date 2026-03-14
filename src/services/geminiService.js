@@ -62,6 +62,7 @@ If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotR
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
 Damaged areas: ignore for fake signals.
 productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids.
+Set productType=NOT_MEDICINE if the item is clearly NOT a medicine — e.g. adhesives (Fevibond, Fevicol), cosmetics, sanitizers, food products, household chemicals, stationery, industrial products. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
 
 Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
 Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
@@ -145,7 +146,33 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   // But we cap tokens lower since less work needed
   const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
 
-  // QR data overrides vision — QR is always more reliable
+  // ── Hard block: not a medicine ───────────────────────────────────────────
+  // If the AI identifies this as a non-medicine product (adhesive, cosmetic,
+  // food, household chemical etc.) — stop immediately, return a clear rejection.
+  if (img.productType === 'NOT_MEDICINE') {
+    return {
+      productType:     'NOT_MEDICINE',
+      brandName:       img.brandName || null,
+      saltComposition: null,
+      manufacturer:    img.manufacturer || null,
+      mrp:             null,
+      unitSize:        null,
+      batchNumber:     null,
+      expiryDate:      null,
+      isExpired:       false,
+      licenceNumber:   null,
+      confidence:      img.confidence || 90,
+      saltSource:      'AI_VISION',
+      cannotRead:      true,
+      cannotReadReason: 'This does not appear to be a medicine. Agada only works with pharmaceutical products.',
+      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: null },
+      medicineInfo:    null,
+      alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
+      dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
+    }
+  }
+
+
   // Reconstruct salt from separated saltName + doseStr fields
   const mergedSalt  = mergeSaltDose(img.saltName, img.doseStr)
   const finalSalt   = qrSalt   || mergedSalt
