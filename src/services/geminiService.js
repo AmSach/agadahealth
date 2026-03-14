@@ -56,7 +56,8 @@ const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. 
 
 SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
 DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). If not visible → null.
-If dose not visible: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
+If dose not visible on a MEDICINE or INJECTION label: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
+For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design — set doseStr=null but do NOT set cannotRead=true just because dose is missing.
 If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
 Damaged areas: ignore for fake signals.
@@ -153,8 +154,14 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const finalExpiry = qrExpiry || img.expiryDate
   const finalMrp    = qrMrp    || img.mrp
 
-  // Dose gate: only run JA lookup + generics if dose is confirmed
-  const doseConfirmed = !!qrSalt || /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '')
+  // Dose gate: behaviour depends on product type
+  // MEDICINE/INJECTION — dose is safety-critical, must be confirmed before showing alternatives
+  // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT — dose is often absent by design (e.g. "apply as needed"),
+  //   so we allow lookup without a dose number but flag it so the UI can show a softer warning
+  const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
+  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '')
+  const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose
+
   if (!doseConfirmed) {
     img.cannotRead = true
     img.cannotReadReason = img.cannotReadReason || 'Dose not visible — cannot safely recommend alternatives. Try scanning a clearer image or check the barcode.'
