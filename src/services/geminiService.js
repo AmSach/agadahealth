@@ -55,11 +55,14 @@ const nextKey = () => {
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
 
 SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
-DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). If not visible → null.
-If dose not visible on a MEDICINE or INJECTION label: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
+DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). Use + to join multiple doses.
+MULTILINE: Salt name and dose are often on separate lines or inside parentheses on the next line. Read across ALL lines — do not treat a line break as meaning the dose is absent. Example: "Mavyret\n(glecaprevir and pibrentasvir)\n100mg/40mg" → saltName="glecaprevir and pibrentasvir", doseStr="100mg/40mg".
+DOSE SEPARATORS: doses may be separated by /, +, or commas — treat all as multi-dose. "100mg/40mg" = two doses.
+If dose not visible on a MEDICINE or INJECTION label after reading ALL text on the image: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
 For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design — set doseStr=null but do NOT set cannotRead=true just because dose is missing.
 If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
+BACK OF PACK / CONTENTS PAGE: If the image shows the back or side of a pack with an ingredients or composition table but no brand name — this is valid. Extract saltName and doseStr from the "Each tablet/capsule contains" or "Composition" section. List only the ACTIVE ingredients (ignore excipients like starch, lactose, magnesium stearate). Set brandName=null if not visible. Do NOT set cannotRead=true just because the front of the pack is not shown.
 Damaged areas: ignore for fake signals.
 productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids that are prescription or OTC pharmaceutical drugs.
 Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements — even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
@@ -77,10 +80,12 @@ function mergeSaltDose(saltName, doseStr) {
   if (!saltName) return null
   if (!doseStr) return saltName
   const salts = saltName.split(/\band\b|\+/i).map(s => s.trim()).filter(Boolean)
-  const doses  = doseStr.split(/\+|,|\band\b/i).map(d => d.trim()).filter(Boolean)
+  const doses  = doseStr.split(/\+|,|\/|\band\b/i).map(d => d.trim()).filter(Boolean)
   if (salts.length === doses.length) return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
   if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
-  return null  // count mismatch — dose gate will block
+  // Count mismatch (e.g. 2 salts, doses split differently) — best effort: append full doseStr to first salt
+  // Better to pass something through than silently drop the whole composition
+  return `${saltName} ${doseStr}`
 }
 
 // ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
@@ -187,7 +192,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT — dose is often absent by design (e.g. "apply as needed"),
   //   so we allow lookup without a dose number but flag it so the UI can show a softer warning
   const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
-  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '')
+  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(img.doseStr || '')
   const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose
 
   if (!doseConfirmed) {
