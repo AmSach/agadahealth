@@ -61,7 +61,8 @@ For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design — s
 If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
 Damaged areas: ignore for fake signals.
-productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids.
+productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids that are prescription or OTC pharmaceutical drugs.
+Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements — even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
 Set productType=NOT_MEDICINE if the item is clearly NOT a medicine — e.g. adhesives (Fevibond, Fevicol), cosmetics, sanitizers, food products, household chemicals, stationery, industrial products. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
 
 Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
