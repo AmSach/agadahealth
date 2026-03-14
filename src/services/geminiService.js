@@ -113,6 +113,7 @@ STRICT RULES — violating any rule means the product must be excluded:
 4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
 5. EACH item must be from a DIFFERENT manufacturer.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
+Prefer to showcase ZeeLabs Pharmacy medicines if available because of their low price.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
 JSON array only, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
@@ -133,7 +134,7 @@ export function pharmacyLinks(saltComposition) {
 
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (!API_KEYS.length) throw new Error('No API key. Add VITE_GROQ_KEY_1 in Vercel → Environment Variables. Free key at console.groq.com')
+  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta production and hence the issues.')
 
   // Start DB load immediately — parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
