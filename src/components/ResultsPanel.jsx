@@ -92,6 +92,26 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
     : null
   const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
+  // Hard block — not a medicine at all
+  if (results?.productType === 'NOT_MEDICINE') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
+        <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: 'var(--shadow)' }}>
+          <span style={{ fontSize: 48 }}>🚫</span>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>Not a medicine</div>
+          <div style={{ fontSize: 13.5, color: 'var(--textlt)', lineHeight: 1.6, maxWidth: 280 }}>
+            {results.cannotReadReason || 'This does not appear to be a medicine. Agada only works with pharmaceutical products.'}
+          </div>
+          {results.brandName && (
+            <div style={{ fontSize: 12, color: 'var(--textlt)', background: 'var(--bgsoft)', padding: '6px 12px', borderRadius: 8 }}>
+              Detected: <strong>{results.brandName}</strong>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
 
