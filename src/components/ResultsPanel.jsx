@@ -93,6 +93,37 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
   const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
   // Hard block — not a medicine at all
+  // ── Hard block: HAZARDOUS substance — show danger warning ─────────────────
+  if (results?.productType === 'HAZARDOUS') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
+        <div style={{ background: '#fff3f3', border: '2.5px solid #e53935', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: '0 4px 18px rgba(229,57,53,0.15)' }}>
+          <span style={{ fontSize: 56 }}>☠️</span>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS — DO NOT CONSUME</div>
+          <div style={{ fontSize: 13.5, color: '#c62828', lineHeight: 1.7, maxWidth: 300, fontWeight: 500 }}>
+            This appears to be a <strong>dangerous chemical</strong>, not a medicine.
+            Do <strong>not</strong> ingest, inhale, or allow contact with skin or eyes.
+          </div>
+          {results.brandName && (
+            <div style={{ fontSize: 12, color: '#b71c1c', background: '#ffebee', padding: '6px 14px', borderRadius: 8, fontWeight: 600 }}>
+              Detected: {results.brandName}
+            </div>
+          )}
+          <div style={{ background: '#ffebee', border: '1.5px solid #ef9a9a', borderRadius: 10, padding: '12px 16px', width: '100%', maxWidth: 300 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#b71c1c', marginBottom: 6 }}>🚨 Emergency / Poison Control</div>
+            <div style={{ fontSize: 13, color: '#c62828', fontWeight: 600 }}>India Poison Control: <a href="tel:18001116117" style={{ color: '#b71c1c' }}>1800-116-117</a></div>
+            <div style={{ fontSize: 11, color: '#c62828', marginTop: 3 }}>Free · 24×7 · All India</div>
+          </div>
+          <div style={{ fontSize: 11, color: '#e57373', lineHeight: 1.5 }}>
+            In case of accidental ingestion, call Poison Control immediately.{'
+'}Do not induce vomiting unless instructed by a medical professional.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Hard block: not a medicine at all ──────────────────────────────────────
   if (results?.productType === 'NOT_MEDICINE') {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>

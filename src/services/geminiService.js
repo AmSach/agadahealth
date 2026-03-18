@@ -66,7 +66,8 @@ BACK OF PACK / CONTENTS PAGE: If the image shows the back or side of a pack with
 Damaged areas: ignore for fake signals.
 productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids that are prescription or OTC pharmaceutical drugs.
 Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements — even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
-Set productType=NOT_MEDICINE if the item is clearly NOT a medicine — e.g. adhesives (Fevibond, Fevicol), cosmetics, sanitizers, food products, household chemicals, stationery, industrial products. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
+Set productType=HAZARDOUS if the item is a dangerous non-medicine that should NOT be consumed — e.g. acids (hydrochloric acid, sulphuric acid, acetic acid), hydrogen peroxide (H2O2), bleach, caustic soda, industrial solvents, disinfectants, pesticides, drain cleaners. These are harmful if ingested or misused.
+Set productType=NOT_MEDICINE if the item is clearly NOT a medicine and NOT hazardous — e.g. adhesives (Fevibond, Fevicol), cosmetics, food products, stationery, household items. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
 
 Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
 Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
@@ -113,8 +114,7 @@ STRICT RULES — violating any rule means the product must be excluded:
 4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
 5. EACH item must be from a DIFFERENT manufacturer.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
-Prefer to showcase ZeeLabs Pharmacy medicines if available because of their low price.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca, Zeelabs Pharma.
+Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
@@ -156,6 +156,32 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   // ── Hard block: not a medicine ───────────────────────────────────────────
   // If the AI identifies this as a non-medicine product (adhesive, cosmetic,
   // food, household chemical etc.) — stop immediately, return a clear rejection.
+  // ── Hard block: hazardous substance ──────────────────────────────────────
+  // If the AI identifies this as a dangerous chemical (acid, H2O2, bleach etc.)
+  // — stop immediately with a DANGER warning. Never show medicine info for these.
+  if (img.productType === 'HAZARDOUS') {
+    return {
+      productType:     'HAZARDOUS',
+      brandName:       img.brandName || null,
+      saltComposition: null,
+      manufacturer:    img.manufacturer || null,
+      mrp:             null,
+      unitSize:        null,
+      batchNumber:     null,
+      expiryDate:      null,
+      isExpired:       false,
+      licenceNumber:   null,
+      confidence:      img.confidence || 90,
+      saltSource:      'AI_VISION',
+      cannotRead:      true,
+      cannotReadReason: '⚠️ DANGER: This appears to be a hazardous chemical — NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
+      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance — not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '⚠️ HAZARDOUS SUBSTANCE — NOT FOR CONSUMPTION' },
+      medicineInfo:    null,
+      alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
+      dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
+    }
+  }
+
   if (img.productType === 'NOT_MEDICINE') {
     return {
       productType:     'NOT_MEDICINE',
@@ -379,63 +405,75 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
 }
 
 // ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
+// For each model, ALL keys are tried before moving to the next model.
+// This ensures a decommissioned/rate-limited model doesn't silently kill the
+// cascade — every backup model gets a fair shot with every available key.
+
 async function callVision(b64, mime, prompt) {
+  if (!API_KEYS.length) throw new Error('No API keys configured.')
   let lastErr = 'no models available'
   const t0 = Date.now()
   for (const model of VISION_MODELS) {
-    const key = nextKey()
-    if (!key) continue
-    try {
-      const res = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({
-          model, max_tokens: 600, temperature: 0.05,
-          messages: [{ role: 'user', content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
-          ]}]
+    // Try every key for this model before giving up on it
+    for (let ki = 0; ki < API_KEYS.length; ki++) {
+      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
+      try {
+        const res = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          body: JSON.stringify({
+            model, max_tokens: 600, temperature: 0.05,
+            messages: [{ role: 'user', content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+            ]}]
+          })
         })
-      })
-      if (res.status === 429 || res.status === 404) { lastErr = `${model} ${res.status}`; continue }
-      if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
-      if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; continue }
-      const data = await res.json()
-      const rawResponse = data?.choices?.[0]?.message?.content
-      const parsed = safeJSON(rawResponse)
-      logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-      if (parsed) return parsed
-      lastErr = 'JSON parse fail'
-    } catch(e) {
-      if (e.message.includes('Invalid API')) throw e
-      lastErr = e.message
+        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
+        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
+        if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
+        if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; break }
+        const data = await res.json()
+        const rawResponse = data?.choices?.[0]?.message?.content
+        const parsed = safeJSON(rawResponse)
+        logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
+        lastErr = 'JSON parse fail'; break
+      } catch(e) {
+        if (e.message.includes('Invalid API')) throw e
+        lastErr = e.message; break
+      }
     }
   }
   throw new Error(`Could not read image: ${lastErr}`)
 }
 
 async function callText(prompt) {
+  if (!API_KEYS.length) return null
   let lastErr = 'no models'
   const t0 = Date.now()
   const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
   for (const model of TEXT_MODELS) {
-    const key = nextKey()
-    if (!key) continue
-    try {
-      const res = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
-      })
-      if (res.status === 429 || res.status === 404) { lastErr = `${model} ${res.status}`; continue }
-      if (!res.ok) { lastErr = `${res.status}`; continue }
-      const data = await res.json()
-      const rawResponse = data?.choices?.[0]?.message?.content
-      const parsed = safeJSON(rawResponse)
-      logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-      if (parsed) return parsed
-      lastErr = 'JSON parse'
-    } catch(e) { lastErr = e.message }
+    // Try every key for this model before giving up on it
+    for (let ki = 0; ki < API_KEYS.length; ki++) {
+      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
+      try {
+        const res = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
+        })
+        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
+        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
+        if (!res.ok) { lastErr = `${res.status}`; break }
+        const data = await res.json()
+        const rawResponse = data?.choices?.[0]?.message?.content
+        const parsed = safeJSON(rawResponse)
+        logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
+        lastErr = 'JSON parse'; break
+      } catch(e) { lastErr = e.message; break }
+    }
   }
   return null // text calls are non-fatal
 }
