@@ -115,8 +115,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
             <div style={{ fontSize: 11, color: '#c62828', marginTop: 3 }}>Free · 24×7 · All India</div>
           </div>
           <div style={{ fontSize: 11, color: '#e57373', lineHeight: 1.5 }}>
-            In case of accidental ingestion, call Poison Control immediately.{'
-'}Do not induce vomiting unless instructed by a medical professional.
+            In case of accidental ingestion, call Poison Control immediately.<br/>Do not induce vomiting unless instructed by a medical professional.
           </div>
         </div>
       </div>
