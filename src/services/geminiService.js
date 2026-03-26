@@ -225,6 +225,13 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   if (!doseConfirmed) {
     img.cannotRead = true
     img.cannotReadReason = img.cannotReadReason || 'Dose not visible — cannot safely recommend alternatives. Try scanning a clearer image or check the barcode.'
+  } else {
+    // Dose is confirmed (or not required for this product type) — clear any
+    // erroneous "dose not visible" flags the vision AI may have set
+    if (img.cannotRead && img.cannotReadReason && img.cannotReadReason.toLowerCase().includes('dose')) {
+      img.cannotRead = false
+      img.cannotReadReason = null
+    }
   }
 
   if (qrSalt) {
