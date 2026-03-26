@@ -175,7 +175,18 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
         </div>
       )}
 
-      {/* Tab nav */}
+      {/* Dose unconfirmed warning — salt readable but dose not on front of pack */}
+      {results.doseUnconfirmed && (
+        <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <strong>Dose not confirmed</strong> — the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
+            <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only — verify the strength with your pharmacist.
+          </div>
+        </div>
+      )}
+
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, animation: 'fadeUp 0.3s ease 0.1s both' }}>
         {[['🏛', 'Authentic.'], ['💡', 'Medicine'], ['💸', 'Save']].map(([icon, label], i) => (
           <button key={i} onClick={() => setCard(i)} style={{ padding: '9px 4px', borderRadius: 10, border: `1.5px solid ${card === i ? 'var(--green)' : 'var(--border)'}`, background: card === i ? 'var(--greenlt)' : '#fff', color: card === i ? 'var(--greendk)' : 'var(--textlt)', fontSize: 12, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, transition: 'all 0.2s' }}>
