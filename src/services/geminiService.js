@@ -215,20 +215,28 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const finalMrp    = qrMrp    || img.mrp
 
   // Dose gate: behaviour depends on product type
-  // MEDICINE/INJECTION — dose is safety-critical, must be confirmed before showing alternatives
+  // MEDICINE/INJECTION — dose is safety-critical for alternatives, but many Indian packs
+  //   only print the dose on the back panel. If salt is clearly readable we proceed —
+  //   alternatives lookup uses salt-only which is still valid and safe.
   // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT — dose is often absent by design (e.g. "apply as needed"),
-  //   so we allow lookup without a dose number but flag it so the UI can show a softer warning
+  //   so we always allow lookup without a dose number.
   const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
   const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(img.doseStr || '')
-  const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose
+  const hasSalt       = !!(finalSalt && finalSalt.trim().length > 3)
+  // doseConfirmed = true when:
+  //   - QR gave us the salt (ground truth), OR
+  //   - dose number is visible in the extracted text, OR
+  //   - product type doesn't need a dose (topical/supplement/etc.), OR
+  //   - salt is clearly readable (front-of-pack; dose may be on back — still scannable)
+  const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose || hasSalt
 
-  if (!doseConfirmed) {
+  // Only block if we have NO salt AND no dose — truly unreadable label
+  if (!doseConfirmed && !hasSalt) {
     img.cannotRead = true
-    img.cannotReadReason = img.cannotReadReason || 'Dose not visible — cannot safely recommend alternatives. Try scanning a clearer image or check the barcode.'
+    img.cannotReadReason = img.cannotReadReason || 'Could not read medicine name or dose. Try scanning a clearer image or the barcode.'
   } else {
-    // Dose is confirmed (or not required for this product type) — clear any
-    // erroneous "dose not visible" flags the vision AI may have set
-    if (img.cannotRead && img.cannotReadReason && img.cannotReadReason.toLowerCase().includes('dose')) {
+    // Salt is readable — clear any erroneous "dose not visible" block the AI may have set
+    if (img.cannotRead && img.cannotReadReason && /dose/i.test(img.cannotReadReason)) {
       img.cannotRead = false
       img.cannotReadReason = null
     }
@@ -335,6 +343,9 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     authenticity.warning = ((authenticity.warning || '') + ' Low confidence — verify with pharmacist.').trim()
   }
 
+  // Flag when salt is readable but dose is absent (e.g. dose printed on back of pack only)
+  const doseUnconfirmed = hasSalt && !hasDoseNumber && !qrSalt && typeNeedsDose
+
   return {
     productType:     img.productType || 'MEDICINE',
     brandName:       finalBrand,
@@ -348,6 +359,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     licenceNumber:   img.licenceNumber,
     confidence:      qrSalt ? 99 : (img.confidence || 70),
     saltSource:      qrSalt ? 'QR_BARCODE' : 'AI_VISION',
+    doseUnconfirmed,
     cannotRead:      img.cannotRead || false,
     cannotReadReason:img.cannotReadReason || null,
     authenticity,
