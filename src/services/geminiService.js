@@ -89,9 +89,69 @@ function mergeSaltDose(saltName, doseStr) {
   return `${saltName} ${doseStr}`
 }
 
+// ─── SCHEDULE H/H1/X OVERRIDE MAP ────────────────────────────────────────────
+// Drugs that are commonly misclassified by AI. Ground truth from Indian drug schedules.
+// Schedule H, H1, X = prescription required. OTC = false.
+// This overrides whatever the AI says — not exhaustive, catches the most common errors.
+const SCHEDULE_RX = new Set([
+  // Schedule X (narcotics/psychotropics — always Rx)
+  'alprazolam','clonazepam','diazepam','lorazepam','nitrazepam','triazolam',
+  'midazolam','zolpidem','zopiclone','buprenorphine','tramadol','codeine',
+  'morphine','oxycodone','fentanyl','pethidine','pentazocine','phenobarbitone',
+  'phenobarbital','methylphenidate','modafinil',
+  // Schedule H1 (high risk — always Rx)
+  'amoxycillin','amoxicillin','azithromycin','ciprofloxacin','levofloxacin',
+  'norfloxacin','ofloxacin','metronidazole','tinidazole','doxycycline',
+  'clindamycin','cephalexin','cefixime','cefpodoxime','ceftriaxone','cefuroxime',
+  'meropenem','piperacillin','vancomycin','rifampicin','isoniazid','ethambutol',
+  'pyrazinamide','fluconazole','itraconazole','voriconazole','acyclovir',
+  'oseltamivir','chloroquine','hydroxychloroquine','artemether','lumefantrine',
+  'atorvastatin','rosuvastatin','simvastatin','metformin','glibenclamide',
+  'glimepiride','sitagliptin','insulin','metoprolol','atenolol','amlodipine',
+  'ramipril','enalapril','losartan','telmisartan','hydrochlorothiazide','furosemide',
+  'frusemide','spironolactone','digoxin','warfarin','clopidogrel','aspirin',
+  'atorvastatin','omeprazole','pantoprazole','rabeprazole','esomeprazole',
+  'ondansetron','domperidone','metoclopramide','prednisolone','dexamethasone',
+  'betamethasone','methylprednisolone','hydrocortisone','levothyroxine',
+  'carbimazole','propylthiouracil','phenytoin','carbamazepine','valproate',
+  'levetiracetam','gabapentin','pregabalin','amitriptyline','nortriptyline',
+  'imipramine','fluoxetine','sertraline','escitalopram','paroxetine','venlafaxine',
+  'duloxetine','mirtazapine','quetiapine','olanzapine','risperidone','haloperidol',
+  'lithium','methotrexate','cyclophosphamide','imatinib','tamoxifen','letrozole',
+  'norgestrel','ethinyloestradiol','ethinylestradiol','levonorgestrel','progesterone',
+  'testosterone','sildenafil','tadalafil','vardenafil','finasteride','dutasteride',
+  'allopurinol','colchicine','isotretinoin','acitretin','tacrolimus','cyclosporine',
+  'mycophenolate','azathioprine','hydroxychloroquine','sulfasalazine','leflunomide',
+])
+const SCHEDULE_OTC = new Set([
+  'paracetamol','ibuprofen','diclofenac','cetirizine','loratadine','fexofenadine',
+  'levocetirizine','chlorpheniramine','diphenhydramine','antacid','ranitidine',
+  'famotidine','dextromethorphan','guaifenesin','zinc','vitamin c','ascorbic acid',
+  'vitamin d3','cholecalciferol','calcium','iron','folic acid','vitamin b12',
+  'cyanocobalamin','vitamin b complex','multivitamin','magnesium','potassium',
+  'oral rehydration','ors','povidone iodine','hydrogen peroxide','clotrimazole',
+  'miconazole','terbinafine','permethrin','betadine','savlon',
+])
+
+function resolveRx(saltComposition, aiSaid) {
+  if (!saltComposition) return aiSaid
+  const s = saltComposition.toLowerCase()
+  // Check Rx list first — if any known Rx salt appears, it's prescription
+  for (const drug of SCHEDULE_RX) {
+    if (s.includes(drug)) return true
+  }
+  // Check OTC list — if matches an OTC drug, it's not prescription
+  for (const drug of SCHEDULE_OTC) {
+    if (s.includes(drug)) return false
+  }
+  // Fall back to AI answer
+  return aiSaid
+}
+
 // ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
 const mkDescPrompt = (brand, salt, type) =>
 `Indian patient medicine info. Medicine: ${brand||'Unknown'} (${salt||'Unknown'}). Type: ${type||'MEDICINE'}.
+PRESCRIPTION RULE: Set prescriptionRequired=true if this drug is Schedule H, H1, or X under Indian drug law (requires a doctor's prescription). Set false ONLY for genuinely OTC drugs (paracetamol, antacids, antihistamines, vitamins, minerals). When in doubt, set true.
 No brand suggestions. General drug class only. JSON only:
 {"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
 
@@ -265,6 +325,8 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, img.productType)) : Promise.resolve(null),
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
+    // Override AI's prescriptionRequired with ground truth from schedule map
+    if (info) info.prescriptionRequired = resolveRx(finalSalt, info.prescriptionRequired)
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
       // Extract primary drug names from the query salt for validation
       // e.g. "Flunarizine 10mg" → ["flunarizine"]
