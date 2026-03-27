@@ -6,7 +6,11 @@
     },
     "api/davaindia.js": {
       "memory": 256,
-      "maxDuration": 10
+      "maxDuration": 15
+    },
+    "api/prices.js": {
+      "memory": 256,
+      "maxDuration": 15
     }
   }
 }

@@ -502,11 +502,11 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
           <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
               🏪 Tier 2 — Any chemist
-              <span style={badgeHighConf()}>✓ DAVAINDIA</span>
+              <span style={badgeHighConf()}>✓ LIVE PRICES</span>
               <span style={badge('blue')}>AI EST.</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
-              Same molecule · 1mg prices where available · Others AI-estimated
+              Same molecule · Live prices from DavaIndia/PharmEasy/NetMeds/Apollo/1mg · Unmatched are AI-estimated
             </div>
             {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
           </div>
@@ -559,7 +559,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg / DavaIndia / PharmEasy / NetMeds / Apollo. <strong>AI EST.</strong> entries show no price — click "See live prices" to check current rates. Real prices only — no AI guesses. Only buy from licensed pharmacies.
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>LIVE PRICES</strong> are scraped in real-time from DavaIndia, PharmEasy, NetMeds, Apollo & 1mg. <strong>AI EST.</strong> = no live match found, price approximated — always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -598,17 +598,17 @@ function AltRow({ med, highlight, dimmed }) {
           {med.unitSize || med.packSize || ''}
         </div>
         {isDavaIndia && !isJA && (
-          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · {med.priceSource || 'Pharmacy'}</div>
+          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live · {med.priceSource || 'Pharmacy'}{med.allSources?.length > 1 ? ` · ${med.allSources.length} sources checked` : ''}</div>
         )}
         {!isDavaIndia && med.aiEstimated && (
-          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>
+          <div style={{ fontSize: 10.5, color: '#F59E0B', marginTop: 2, fontWeight: 500 }}>⚠ No live match — AI-estimated, verify at chemist</div>
         )}
         {med.availableAt && !isDavaIndia && (
           <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        {displayMrp ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div> : null}
+        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
         {med.perUnit != null && (
           <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
         )}

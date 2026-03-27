@@ -175,10 +175,10 @@ STRICT RULES — violating any rule means the product must be excluded:
 5. EACH item must be from a DIFFERENT manufacturer.
 6. "brand" field = manufacturer name ONLY. e.g. "Cipla" or "Sun Pharma". No explanations, no parentheses, no extra text.
 7. "name" field = brand name + strength ONLY. e.g. "Calpol 500mg". Nothing else.
-PRICING: Provide your best estimated Indian MRP in "estimatedMrp" and "perUnit" based on typical market prices. These are fallback estimates only — the live pharmacy API will overwrite them with real prices when available. A rough estimate is better than 0.
+8. "estimatedMrp" and "perUnit" MUST be null. DO NOT guess prices — prices will be fetched live from pharmacy APIs.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
-[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":null,"perUnit":null,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
@@ -384,22 +384,34 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
+
+      // Second pass: for any alt that got no price, retry with brand name
+      const missedAlts = allAlts.filter(alt => {
+        const key = alt.salt || alt.name
+        return !davaMap.has(key) && alt.name
+      })
+      if (missedAlts.length > 0) {
+        const brandMap = await batchFetchDavaIndiaPrices(missedAlts.map(a => ({ ...a, salt: a.name })))
+        brandMap.forEach((v, k) => { if (!davaMap.has(k)) davaMap.set(k, v) })
+      }
+
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
-        const dava = davaMap.get(key)
-        if (!dava) return alt  // no DavaIndia result — keep AI estimate as-is
+        const dava = davaMap.get(key) || davaMap.get(alt.name)
+        if (!dava) return alt  // no live result — keep as aiEstimated
         return {
           ...alt,
-          // Override price fields with DavaIndia live data
+          // Override price fields with live pharmacy data
           mrp:           dava.mrp,
           estimatedMrp:  dava.mrp,
           packSize:      dava.packSize || alt.packSize,
           perUnit:       dava.perUnit  ?? alt.perUnit,
+          allSources:    dava.allSources || [],
           // Source & confidence flags
-          priceSource:   'DavaIndia',
+          priceSource:   dava.priceSource || 'Live',
           highConfidence: true,
-          aiEstimated:   false,  // it's a real price now, not AI estimated
-          davaIndiaName: dava.name,  // actual product name on DavaIndia
+          aiEstimated:   false,
+          davaIndiaName: dava.name,
         }
       })
     } catch {
@@ -443,7 +455,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from 1mg/DavaIndia/PharmEasy/NetMeds/Apollo. AI ESTIMATED entries show NO price — check live pharmacy links for real prices.',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate — verify at the chemist.',
     },
     dataSource: {
       salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',
@@ -712,11 +724,17 @@ JSON only, no markdown:
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
+      // Retry missed ones by brand name
+      const missedAlts2 = allAlts.filter(alt => !davaMap.has(alt.salt || alt.name) && alt.name)
+      if (missedAlts2.length > 0) {
+        const brandMap2 = await batchFetchDavaIndiaPrices(missedAlts2.map(a => ({ ...a, salt: a.name })))
+        brandMap2.forEach((v, k) => { if (!davaMap.has(k)) davaMap.set(k, v) })
+      }
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
-        const dava = davaMap.get(key)
+        const dava = davaMap.get(key) || davaMap.get(alt.name)
         if (!dava) return alt
-        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, priceSource: 'DavaIndia', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
+        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, allSources: dava.allSources || [], priceSource: dava.priceSource || 'Live', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
       })
     } catch { /* graceful degrade */ }
   }
@@ -759,7 +777,7 @@ JSON only, no markdown:
       savingsSummary:       buildSavingsSummary(jaBest, null, null),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED entries show NO price — check live pharmacy links for real prices. Never trust AI for medicine pricing.',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED prices are approximate — verify at the chemist.',
     },
     dataSource: {
       salt:       'Prescription OCR (AI identified)',
@@ -784,3 +802,4 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
     data: img
   }
 }
+
