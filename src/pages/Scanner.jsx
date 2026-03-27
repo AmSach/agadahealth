@@ -1,778 +1,240 @@
-/**
- * geminiService.js v4 — Agada AI Service
- *
- * Key changes:
- * - 5 API key rotation (VITE_GROQ_KEY_1..5)
- * - Full model cascade — 6 models tried before giving up
- * - QR saltFromQR = ground truth, skips vision call entirely for that field
- * - Strict: if QR has salt, DB lookup uses ONLY that. Vision AI = fallback only.
- * - Parallel: vision + DB preload in parallel from start
- * - Pharmacy deep links for live prices (no CORS issues)
- */
+import React, { useState, useRef, useCallback } from 'react'
+import { scanMedicine, scanPrescription, searchMedicineByName, compressAndEncode } from '../services/geminiService.js'
+import { readBarcode } from '../services/barcodeService.js'
+import ResultsPanel from '../components/ResultsPanel.jsx'
+import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
+import HamMenu from '../components/HamMenu.jsx'
+import { useLang } from '../App.jsx'
+import { useT } from '../i18n/translations.js'
 
-import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
-import { logAIResponse } from './debugLog.js'
-import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
+const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error' }
 
-// ─── KEY ROTATION ─────────────────────────────────────────────────────────────
-// Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
-const API_KEYS = [
-  import.meta.env.VITE_GROQ_KEY_1,
-  import.meta.env.VITE_GROQ_KEY_2,
-  import.meta.env.VITE_GROQ_KEY_3,
-  import.meta.env.VITE_GROQ_KEY_4,
-  import.meta.env.VITE_GROQ_KEY_5,
-  import.meta.env.VITE_GROQ_KEY, // legacy single key fallback
-].filter(Boolean)
+export default function Scanner() {
+  const { lang, setLang } = useLang()
+  const t = useT(lang)
+  const [view, setView]           = useState(VIEWS.HOME)
+  const [results, setResults]     = useState(null)
+  const [prescriptionResults, setPrescriptionResults] = useState(null) // saved so we can go back to it
+  const [error, setError]         = useState(null)
+  const [preview, setPreview]     = useState(null)
+  const [step, setStep]           = useState(0)
+  const [barcodeHit, setBarcodeHit] = useState(false)
+  const [hamOpen, setHamOpen]     = useState(false)
+  const [scanMode, setScanMode]   = useState('medicine')
+  const cameraRef = useRef(null)
+  const uploadRef = useRef(null)
 
-// ─── MODEL CASCADE ────────────────────────────────────────────────────────────
-// Vision models — tried in order, skip on 429/404
-const VISION_MODELS = [
-  'meta-llama/llama-4-scout-17b-16e-instruct',  // fastest, best for OCR
-  'meta-llama/llama-4-maverick-17b-128e-instruct', // larger, better for complex labels
-  'llama-3.2-90b-vision-preview',               // fallback, slower
-  'llama-3.2-11b-vision-preview',               // last resort vision
-]
-// Text-only models — for description + generics (no image)
-const TEXT_MODELS = [
-  'llama-3.3-70b-versatile',   // best quality
-  'llama-3.1-70b-versatile',   // fallback
-  'llama-3.1-8b-instant',      // fast fallback if others rate-limited
-  'gemma2-9b-it',              // last resort
-]
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-
-// Round-robin key selector — distributes load across all keys
-let keyIndex = 0
-const nextKey = () => {
-  if (!API_KEYS.length) return null
-  const k = API_KEYS[keyIndex % API_KEYS.length]
-  keyIndex++
-  return k
-}
-
-// ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
-const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
-
-SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
-DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). Use + to join multiple doses.
-MULTILINE: Salt name and dose are often on separate lines or inside parentheses on the next line. Read across ALL lines — do not treat a line break as meaning the dose is absent. Example: "Mavyret\n(glecaprevir and pibrentasvir)\n100mg/40mg" → saltName="glecaprevir and pibrentasvir", doseStr="100mg/40mg".
-DOSE SEPARATORS: doses may be separated by /, +, or commas — treat all as multi-dose. "100mg/40mg" = two doses.
-If dose not visible on a MEDICINE or INJECTION label after reading ALL text on the image: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
-For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design — set doseStr=null but do NOT set cannotRead=true just because dose is missing.
-If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
-TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
-BACK OF PACK / CONTENTS PAGE: If the image shows the back or side of a pack with an ingredients or composition table but no brand name — this is valid. Extract saltName and doseStr from the "Each tablet/capsule contains" or "Composition" section. List only the ACTIVE ingredients (ignore excipients like starch, lactose, magnesium stearate). Set brandName=null if not visible. Do NOT set cannotRead=true just because the front of the pack is not shown.
-Damaged areas: ignore for fake signals.
-productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids that are prescription or OTC pharmaceutical drugs.
-Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements — even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
-Set productType=HAZARDOUS if the item is a dangerous non-medicine that should NOT be consumed — e.g. acids (hydrochloric acid, sulphuric acid, acetic acid), hydrogen peroxide (H2O2), bleach, caustic soda, industrial solvents, disinfectants, pesticides, drain cleaners. These are harmful if ingested or misused.
-Set productType=NOT_MEDICINE if the item is clearly NOT a medicine and NOT hazardous — e.g. adhesives (Fevibond, Fevicol), cosmetics, food products, stationery, household items. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
-
-Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
-Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
-
-JSON only, no markdown:
-{"productType":"MEDICINE|INJECTION|LIQUID|TOPICAL|AYURVEDIC|SUPPLEMENT","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
-
-// ─── MERGE SALT + DOSE ───────────────────────────────────────────────────────
-// Recombines split saltName + doseStr fields from vision AI into "Salt Dose" string
-function mergeSaltDose(saltName, doseStr) {
-  if (!saltName) return null
-  if (!doseStr) return saltName
-  const salts = saltName.split(/\band\b|\+/i).map(s => s.trim()).filter(Boolean)
-  const doses  = doseStr.split(/\+|,|\/|\band\b/i).map(d => d.trim()).filter(Boolean)
-  if (salts.length === doses.length) return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
-  if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
-  // Count mismatch (e.g. 2 salts, doses split differently) — best effort: append full doseStr to first salt
-  // Better to pass something through than silently drop the whole composition
-  return `${saltName} ${doseStr}`
-}
-
-// ─── SCHEDULE H/H1/X OVERRIDE MAP ────────────────────────────────────────────
-// Drugs that are commonly misclassified by AI. Ground truth from Indian drug schedules.
-// Schedule H, H1, X = prescription required. OTC = false.
-// This overrides whatever the AI says — not exhaustive, catches the most common errors.
-const SCHEDULE_RX = new Set([
-  // Schedule X (narcotics/psychotropics — always Rx)
-  'alprazolam','clonazepam','diazepam','lorazepam','nitrazepam','triazolam',
-  'midazolam','zolpidem','zopiclone','buprenorphine','tramadol','codeine',
-  'morphine','oxycodone','fentanyl','pethidine','pentazocine','phenobarbitone',
-  'phenobarbital','methylphenidate','modafinil',
-  // Schedule H1 (high risk — always Rx)
-  'amoxycillin','amoxicillin','azithromycin','ciprofloxacin','levofloxacin',
-  'norfloxacin','ofloxacin','metronidazole','tinidazole','doxycycline',
-  'clindamycin','cephalexin','cefixime','cefpodoxime','ceftriaxone','cefuroxime',
-  'meropenem','piperacillin','vancomycin','rifampicin','isoniazid','ethambutol',
-  'pyrazinamide','fluconazole','itraconazole','voriconazole','acyclovir',
-  'oseltamivir','chloroquine','hydroxychloroquine','artemether','lumefantrine',
-  'atorvastatin','rosuvastatin','simvastatin','metformin','glibenclamide',
-  'glimepiride','sitagliptin','insulin','metoprolol','atenolol','amlodipine',
-  'ramipril','enalapril','losartan','telmisartan','hydrochlorothiazide','furosemide',
-  'frusemide','spironolactone','digoxin','warfarin','clopidogrel','aspirin',
-  'atorvastatin','omeprazole','pantoprazole','rabeprazole','esomeprazole',
-  'ondansetron','domperidone','metoclopramide','prednisolone','dexamethasone',
-  'betamethasone','methylprednisolone','hydrocortisone','levothyroxine',
-  'carbimazole','propylthiouracil','phenytoin','carbamazepine','valproate',
-  'levetiracetam','gabapentin','pregabalin','amitriptyline','nortriptyline',
-  'imipramine','fluoxetine','sertraline','escitalopram','paroxetine','venlafaxine',
-  'duloxetine','mirtazapine','quetiapine','olanzapine','risperidone','haloperidol',
-  'lithium','methotrexate','cyclophosphamide','imatinib','tamoxifen','letrozole',
-  'norgestrel','ethinyloestradiol','ethinylestradiol','levonorgestrel','progesterone',
-  'testosterone','sildenafil','tadalafil','vardenafil','finasteride','dutasteride',
-  'allopurinol','colchicine','isotretinoin','acitretin','tacrolimus','cyclosporine',
-  'mycophenolate','azathioprine','hydroxychloroquine','sulfasalazine','leflunomide',
-])
-const SCHEDULE_OTC = new Set([
-  'paracetamol','ibuprofen','diclofenac','cetirizine','loratadine','fexofenadine',
-  'levocetirizine','chlorpheniramine','diphenhydramine','antacid','ranitidine',
-  'famotidine','dextromethorphan','guaifenesin','zinc','vitamin c','ascorbic acid',
-  'vitamin d3','cholecalciferol','calcium','iron','folic acid','vitamin b12',
-  'cyanocobalamin','vitamin b complex','multivitamin','magnesium','potassium',
-  'oral rehydration','ors','povidone iodine','hydrogen peroxide','clotrimazole',
-  'miconazole','terbinafine','permethrin','betadine','savlon',
-])
-
-function resolveRx(saltComposition, aiSaid) {
-  if (!saltComposition) return aiSaid
-  const s = saltComposition.toLowerCase()
-  // Check Rx list first — if any known Rx salt appears, it's prescription
-  for (const drug of SCHEDULE_RX) {
-    if (s.includes(drug)) return true
-  }
-  // Check OTC list — if matches an OTC drug, it's not prescription
-  for (const drug of SCHEDULE_OTC) {
-    if (s.includes(drug)) return false
-  }
-  // Fall back to AI answer
-  return aiSaid
-}
-
-// ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
-const mkDescPrompt = (brand, salt, type) =>
-`Indian patient medicine info. Medicine: ${brand||'Unknown'} (${salt||'Unknown'}). Type: ${type||'MEDICINE'}.
-PRESCRIPTION RULE: Set prescriptionRequired=true if this drug is Schedule H, H1, or X under Indian drug law (requires a doctor's prescription). Set false ONLY for genuinely OTC drugs (paracetamol, antacids, antihistamines, vitamins, minerals). When in doubt, set true.
-No brand suggestions. General drug class only. JSON only:
-{"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
-
-// ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
-const mkGenericsPrompt = (salt, productType) => {
-  const routeRule = productType === 'INJECTION'
-    ? 'ONLY injectable forms (vial/ampoule/IV). NEVER tablets or oral forms.'
-    : productType === 'LIQUID'
-    ? 'ONLY oral liquid forms (syrup/suspension/drops). NEVER tablets or injections.'
-    : productType === 'TOPICAL'
-    ? 'ONLY topical forms (gel/cream/ointment/lotion). NEVER oral or injectable forms.'
-    : 'ONLY oral solid forms (tablets/capsules). NEVER injections or topicals.'
-  return `You are an Indian pharmacist. Patient needs: ${salt}
-List up to 3 real branded generics sold at Indian chemists containing EXACTLY this salt at EXACTLY this dose. Nothing else.
-${routeRule}
-STRICT RULES — violating any rule means the product must be excluded:
-1. The "salt" field in your response MUST be exactly: ${salt}
-2. NEVER include a product unless you are certain it contains ${salt} as its ONLY active ingredient(s).
-3. If a brand name sounds similar but contains a different salt — EXCLUDE IT.
-4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
-5. EACH item must be from a DIFFERENT manufacturer.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
-JSON array only, no markdown, 1-3 items:
-[{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
-}
-
-// ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
-// Full salt+dose in query so user lands on the right strength, not just the salt
-export function pharmacyLinks(saltComposition) {
-  if (!saltComposition) return []
-  const q = encodeURIComponent(saltComposition)
-  return [
-    { name: 'Netmeds',   url: `https://www.netmeds.com/products/?q=${q}` },
-    { name: 'Apollo',    url: `https://www.apollopharmacy.in/search-medicines/${q}` },
-    { name: '1mg',       url: `https://www.1mg.com/search/all?name=${q}` },
-    { name: 'DavaIndia', url: `https://www.davaindia.com/search/all?search=${q}` },
-  ]
-}
-
-// ─── MAIN SCAN ────────────────────────────────────────────────────────────────
-export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta production and hence the issues.')
-
-  // Start DB load immediately — parallel with everything else
-  const dbPromise = ensureLoaded().catch(() => {})
-
-  // ── GROUND TRUTH from QR ──────────────────────────────────────────────────
-  // If QR has salt: this IS the correct composition. Vision AI cannot override it.
-  const qrSalt     = barcodeData?.saltFromQR  || null
-  const qrBrand    = barcodeData?.brandFromQR || null
-  const qrBatch    = barcodeData?.batchNumber || null
-  const qrExpiry   = barcodeData?.expiryDate  || null
-  const qrMrp      = barcodeData?.mrpFromQR   || null
-
-  // ── Phase 1: Vision AI reads label ───────────────────────────────────────
-  // If QR already gave us salt+brand, we still call vision for:
-  //   manufacturer, unitSize, mrp, batch (if not in QR), authenticity signals
-  // But we cap tokens lower since less work needed
-  const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
-
-  // ── Hard block: not a medicine ───────────────────────────────────────────
-  // If the AI identifies this as a non-medicine product (adhesive, cosmetic,
-  // food, household chemical etc.) — stop immediately, return a clear rejection.
-  // ── Hard block: hazardous substance ──────────────────────────────────────
-  // If the AI identifies this as a dangerous chemical (acid, H2O2, bleach etc.)
-  // — stop immediately with a DANGER warning. Never show medicine info for these.
-  if (img.productType === 'HAZARDOUS') {
-    return {
-      productType:     'HAZARDOUS',
-      brandName:       img.brandName || null,
-      saltComposition: null,
-      manufacturer:    img.manufacturer || null,
-      mrp:             null,
-      unitSize:        null,
-      batchNumber:     null,
-      expiryDate:      null,
-      isExpired:       false,
-      licenceNumber:   null,
-      confidence:      img.confidence || 90,
-      saltSource:      'AI_VISION',
-      cannotRead:      true,
-      cannotReadReason: '⚠️ DANGER: This appears to be a hazardous chemical — NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
-      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance — not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '⚠️ HAZARDOUS SUBSTANCE — NOT FOR CONSUMPTION' },
-      medicineInfo:    null,
-      alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
-      dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
-    }
-  }
-
-  if (img.productType === 'NOT_MEDICINE') {
-    return {
-      productType:     'NOT_MEDICINE',
-      brandName:       img.brandName || null,
-      saltComposition: null,
-      manufacturer:    img.manufacturer || null,
-      mrp:             null,
-      unitSize:        null,
-      batchNumber:     null,
-      expiryDate:      null,
-      isExpired:       false,
-      licenceNumber:   null,
-      confidence:      img.confidence || 90,
-      saltSource:      'AI_VISION',
-      cannotRead:      true,
-      cannotReadReason: 'This does not appear to be a medicine. Agada only works with pharmaceutical products.',
-      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: null },
-      medicineInfo:    null,
-      alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
-      dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
-    }
-  }
-
-
-  // Reconstruct salt from separated saltName + doseStr fields
-  const mergedSalt  = mergeSaltDose(img.saltName, img.doseStr)
-  const finalSalt   = qrSalt   || mergedSalt
-  const finalBrand  = qrBrand  || img.brandName
-  const finalBatch  = qrBatch  || img.batchNumber
-  const finalExpiry = qrExpiry || img.expiryDate
-  const finalMrp    = qrMrp    || img.mrp
-
-  // Dose gate: behaviour depends on product type
-  // MEDICINE/INJECTION — dose is safety-critical for alternatives, but many Indian packs
-  //   only print the dose on the back panel. If salt is clearly readable we proceed —
-  //   alternatives lookup uses salt-only which is still valid and safe.
-  // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT — dose is often absent by design (e.g. "apply as needed"),
-  //   so we always allow lookup without a dose number.
-  const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
-  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(img.doseStr || '')
-  const hasSalt       = !!(finalSalt && finalSalt.trim().length > 3)
-  // doseConfirmed = true when:
-  //   - QR gave us the salt (ground truth), OR
-  //   - dose number is visible in the extracted text, OR
-  //   - product type doesn't need a dose (topical/supplement/etc.), OR
-  //   - salt is clearly readable (front-of-pack; dose may be on back — still scannable)
-  const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose || hasSalt
-
-  // Only block if we have NO salt AND no dose — truly unreadable label
-  if (!doseConfirmed && !hasSalt) {
-    img.cannotRead = true
-    img.cannotReadReason = img.cannotReadReason || 'Could not read medicine name or dose. Try scanning a clearer image or the barcode.'
-  } else {
-    // Salt is readable — clear any erroneous "dose not visible" block the AI may have set
-    if (img.cannotRead && img.cannotReadReason && /dose/i.test(img.cannotReadReason)) {
-      img.cannotRead = false
-      img.cannotReadReason = null
-    }
-  }
-
-  if (qrSalt) {
-    img.genuineSignalsFound = [...(img.genuineSignalsFound || []), 'QR/barcode decoded — salt verified']
-  }
-
-  const expiryStr = finalExpiry
-  const isExpired = expiryStr ? checkExpired(expiryStr) : false
-
-  await dbPromise
-
-  // ── Phase 2: DB lookup — only when dose is confirmed ──────────────────────
-  const jaLookup    = doseConfirmed ? lookupJanAushadhi(finalSalt, finalMrp, img.unitSize) : { best: null, doseMismatch: null, noDose: false }
-  const cdscoResult = lookupCDSCO(finalSalt)
-  const jaBest      = jaLookup.best
-  const jaDoseDiff  = jaLookup.doseMismatch
-
-  // ── Phase 3: description + up to 3 branded generics (parallel) ───────────
-  let info = null, aiGenerics = []
-  if (finalSalt || finalBrand) {
-    const [infoRes, genRes] = await Promise.allSettled([
-      callText(mkDescPrompt(finalBrand, finalSalt, img.productType)),
-      (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, img.productType)) : Promise.resolve(null),
-    ])
-    info = infoRes.status === 'fulfilled' ? infoRes.value : null
-    // Override AI's prescriptionRequired with ground truth from schedule map
-    if (info) info.prescriptionRequired = resolveRx(finalSalt, info.prescriptionRequired)
-    if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      // Extract primary drug names from the query salt for validation
-      // e.g. "Flunarizine 10mg" → ["flunarizine"]
-      const queryDrugNames = (finalSalt || '')
-        .toLowerCase()
-        .split(/\band\b|\+|,/i)
-        .map(s => s.replace(/\d+\s*(mg|mcg|g|iu|ml)/gi, '').trim())
-        .filter(s => s.length > 3)
-
-      const seen = new Set()
-      aiGenerics = genRes.value
-        .filter(g => g && g.name && g.brand)
-        // Salt validation: the returned salt field must contain all primary drug names
-        // This catches hallucinations like "Flumark" (different salt) for "Flunarizine"
-        .filter(g => {
-          if (!queryDrugNames.length) return true
-          const returnedSalt = (g.salt || '').toLowerCase()
-          const returnedName = (g.name || '').toLowerCase()
-          // Every query drug name must appear in EITHER the salt field or the product name
-          // If salt field is wrong/missing, check name as fallback
-          return queryDrugNames.every(drug =>
-            returnedSalt.includes(drug) || returnedName.includes(drug)
-          )
-        })
-        // Deduplicate by manufacturer
-        .filter(g => {
-          const key = (g.brand || '').toLowerCase()
-          if (seen.has(key)) return false
-          seen.add(key)
-          return true
-        })
-        .slice(0, 3)
-    }
-  }
-
-  // 1 JA verified + up to 3 AI-estimated branded generics
-  let allAlts = [
-    ...(jaBest ? [jaBest] : []),
-    ...aiGenerics,
-  ]
-
-  // ── DavaIndia live price enrichment ──────────────────────────────────────
-  // Fetch real prices from DavaIndia for each alternative in parallel.
-  // If a price comes back, it replaces the AI-estimated price and marks the
-  // entry as highConfidence=true with priceSource='DavaIndia'.
-  // Gracefully degrades — if proxy is down, allAlts stay as-is.
-  if (allAlts.length > 0) {
+  const handleFile = useCallback(async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
+    setView(VIEWS.LOADING); setError(null); setStep(1); setBarcodeHit(false)
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(URL.createObjectURL(file))
     try {
-      const davaMap = await batchFetchDavaIndiaPrices(allAlts)
-      allAlts = allAlts.map(alt => {
-        const key = alt.salt || alt.name
-        const dava = davaMap.get(key)
-        if (!dava) return alt  // no DavaIndia result — keep AI estimate as-is
-        return {
-          ...alt,
-          // Override price fields with DavaIndia live data
-          mrp:           dava.mrp,
-          estimatedMrp:  dava.mrp,
-          packSize:      dava.packSize || alt.packSize,
-          perUnit:       dava.perUnit  ?? alt.perUnit,
-          // Source & confidence flags
-          priceSource:   'DavaIndia',
-          highConfidence: true,
-          aiEstimated:   false,  // it's a real price now, not AI estimated
-          davaIndiaName: dava.name,  // actual product name on DavaIndia
-        }
-      })
-    } catch {
-      // batchFetch should never throw, but belt-and-suspenders
-    }
-  }
-
-  const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData, qrSalt)
-  if ((img.confidence || 0) < 50 && !qrSalt) {
-    authenticity.status  = 'CANNOT_DETERMINE'
-    authenticity.warning = ((authenticity.warning || '') + ' Low confidence — verify with pharmacist.').trim()
-  }
-
-  // Flag when salt is readable but dose is absent (e.g. dose printed on back of pack only)
-  const doseUnconfirmed = hasSalt && !hasDoseNumber && !qrSalt && typeNeedsDose
-
-  return {
-    productType:     img.productType || 'MEDICINE',
-    brandName:       finalBrand,
-    saltComposition: finalSalt,
-    manufacturer:    img.manufacturer,
-    mrp:             finalMrp,
-    unitSize:        img.unitSize,
-    batchNumber:     finalBatch,
-    expiryDate:      expiryStr,
-    isExpired,
-    licenceNumber:   img.licenceNumber,
-    confidence:      qrSalt ? 99 : (img.confidence || 70),
-    saltSource:      qrSalt ? 'QR_BARCODE' : 'AI_VISION',
-    doseUnconfirmed,
-    cannotRead:      img.cannotRead || false,
-    cannotReadReason:img.cannotReadReason || null,
-    authenticity,
-    medicineInfo:    info || fallbackInfo(img.productType),
-    alternatives: {
-      hasGenerics:          allAlts.length > 0,
-      janAushadhiAvailable: !!jaBest,
-      topAlternatives:      allAlts,
-      doseMismatchAlt:      jaDoseDiff,   // singular — one dose-mismatch at most
-      jaCount:              jaBest ? 1 : 0,
-      savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
-      pharmacyLinks:        pharmacyLinks(finalSalt),
-      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate — verify at the chemist.',
-    },
-    dataSource: {
-      salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',
-      alts:       'BPPI Jan Aushadhi DB + AI',
-      cdsco:      cdscoResult.found ? 'CDSCO Drug Registry' : 'Not in CDSCO registry',
-      cdscoFound: cdscoResult.found,
-    }
-  }
-}
-
-// ─── AUTHENTICITY ─────────────────────────────────────────────────────────────
-function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
-  const genuine = img.genuineSignalsFound || []
-  const fake    = img.fakeSignalsFound    || []
-
-  if (isExpired) return {
-    status: 'CANNOT_DETERMINE',
-    reason: `Medicine appears expired (${img.expiryDate}).`,
-    genuineSignalsFound: genuine, fakeSignalsFound: [...fake, 'Expired'],
-    cdscoBadge: cdsco.badge || null, cdscoIndication: cdsco.indication || null,
-    warning: '⚠ Expired. Do not consume.',
-  }
-
-  const score = genuine.length * 18 - fake.length * 25 + (cdsco.found ? 20 : 0) + (barcode ? 15 : 0) + (qrSalt ? 20 : 0)
-  const status = fake.length >= 2 || score < -20 ? 'LIKELY_FAKE'
-    : score >= 30 || genuine.length >= 2           ? 'LIKELY_GENUINE'
-    : 'CANNOT_DETERMINE'
-
-  return {
-    status,
-    reason: [
-      genuine.length ? `Genuine signals: ${genuine.join(', ')}` : '',
-      fake.length    ? `Suspicious: ${fake.join(', ')}` : '',
-      !genuine.length && !fake.length ? 'Insufficient visual evidence.' : '',
-    ].filter(Boolean).join(' | '),
-    genuineSignalsFound: genuine,
-    fakeSignalsFound:    fake,
-    cdscoBadge:      cdsco.badge || (
-      img.productType === 'AYURVEDIC'  ? '🌿 Regulated by AYUSH, not CDSCO.' :
-      img.productType === 'SUPPLEMENT' ? 'Dietary supplement — not CDSCO scheduled.' :
-      'Salt not found in CDSCO registry.'
-    ),
-    cdscoIndication:  cdsco.indication || null,
-    cdscoFound:       cdsco.found,
-    approvalDate:     cdsco.approvalDate || null,
-    warning: fake.length ? 'Return to chemist. Report fakes: 1800-180-3024 (free).' : null,
-  }
-}
-
-// ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
-// For each model, ALL keys are tried before moving to the next model.
-// This ensures a decommissioned/rate-limited model doesn't silently kill the
-// cascade — every backup model gets a fair shot with every available key.
-
-async function callVision(b64, mime, prompt) {
-  if (!API_KEYS.length) throw new Error('No API keys configured.')
-  let lastErr = 'no models available'
-  const t0 = Date.now()
-  for (const model of VISION_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({
-            model, max_tokens: 600, temperature: 0.05,
-            messages: [{ role: 'user', content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
-            ]}]
-          })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
-        if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse fail'; break
-      } catch(e) {
-        if (e.message.includes('Invalid API')) throw e
-        lastErr = e.message; break
+      const barcodePromise = scanMode === 'medicine' ? readBarcode(file).catch(() => null) : Promise.resolve(null)
+      setStep(1)
+      await new Promise(r => setTimeout(r, 400))
+      const b64 = await compressAndEncode(file)
+      setStep(2)
+      
+      let res;
+      if (scanMode === 'prescription') {
+        await new Promise(r => setTimeout(r, 600))
+        res = await scanPrescription(b64, 'image/jpeg')
+        setStep(3)
+        await new Promise(r => setTimeout(r, 300))
+        if (res.data.cannotRead) throw new Error(res.data.cannotReadReason || 'Could not read the prescription.')
+      } else {
+        const barcodeData = await barcodePromise
+        if (barcodeData) setBarcodeHit(true)
+        await new Promise(r => setTimeout(r, 300))
+        res = await scanMedicine(b64, 'image/jpeg', barcodeData)
+        setStep(3)
+        await new Promise(r => setTimeout(r, 300))
+        if (res.cannotRead) throw new Error(res.cannotReadReason || 'Could not read the medicine. Try a clearer photo.')
       }
+      
+      setResults(res); setView(VIEWS.RESULTS)
+    } catch (err) {
+      setError(err.message); setView(VIEWS.ERROR)
     }
-  }
-  throw new Error(`Could not read image: ${lastErr}`)
-}
+  }, [preview, scanMode])
 
-async function callText(prompt) {
-  if (!API_KEYS.length) return null
-  let lastErr = 'no models'
-  const t0 = Date.now()
-  const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
-  for (const model of TEXT_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (!res.ok) { lastErr = `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse'; break
-      } catch(e) { lastErr = e.message; break }
-    }
-  }
-  return null // text calls are non-fatal
-}
+  const handleChange = useCallback((e) => {
+    const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''
+  }, [handleFile])
 
-function safeJSON(t) {
-  try { return JSON.parse((t||'').replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()) }
-  catch { return null }
-}
+  const reset = useCallback(() => {
+    setView(VIEWS.HOME); setResults(null); setPrescriptionResults(null); setError(null); setStep(0)
+    if (preview) { URL.revokeObjectURL(preview); setPreview(null) }
+  }, [preview])
 
-function checkExpired(d) {
-  try {
-    const p = d.split('/')
-    const dt = p.length === 3 ? new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`)
-             : p.length === 2 ? new Date(`${p[1]}-${p[0].padStart(2,'0')}-01`) : null
-    return dt ? dt < new Date() : false
-  } catch { return false }
-}
+  const backToPrescription = useCallback(() => {
+    setResults(prescriptionResults)
+    setView(VIEWS.RESULTS)
+  }, [prescriptionResults])
 
-function fallbackInfo(type) {
-  if (type === 'AYURVEDIC') return { whatItDoes: 'Ayurvedic product.', ayurvedicWarning: 'Regulated by AYUSH Ministry. Consult a qualified practitioner.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
-  if (type === 'SUPPLEMENT') return { whatItDoes: 'Dietary supplement.', supplementWarning: 'Do not exceed stated dose. Consult doctor if on other medicines.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
-  return { whatItDoes: 'Medicine information unavailable.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
-}
-
-// ─── IMAGE COMPRESSION ────────────────────────────────────────────────────────
-export async function compressAndEncode(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image(), url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      let { width, height } = img
-      const MAX = 1600
-      if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round(height/width*MAX); width = MAX }
-        else { width = Math.round(width/height*MAX); height = MAX }
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width; canvas.height = height
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height); ctx.drawImage(img,0,0,width,height)
-      const tryEncode = (quality, cb) => {
-        canvas.toBlob(blob => {
-          const r = new FileReader()
-          r.onload = () => cb(r.result.split(',')[1])
-          r.onerror = reject
-          r.readAsDataURL(blob)
-        }, 'image/jpeg', quality)
-      }
-      tryEncode(0.90, b64 => {
-        if (b64.length > 4_000_000) tryEncode(0.70, resolve)
-        else resolve(b64)
-      })
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
-    img.src = url
-  })
-}
-
-// ─── PRESCRIPTION SCAN ────────────────────────────────────────────────────────
-export const PRESCRIPTION_PROMPT = `Medical prescription reader. Extract ONLY patient name, doctor/hospital name, date, and the list of prescribed medicines.
-Strive to read handwriting accurately. Infer common medical abbreviations (e.g., "1-0-1" = Morning & Night, "BD" = twice a day, "PC" = after food, "OD" = once a day).
-If the image is totally unreadable or NOT a medical prescription, set cannotRead=true.
-
-JSON only, no markdown:
-{
-  "doctorName": "Dr. Name / Clinic Name",
-  "patientName": "Patient Name",
-  "date": "Date if written",
-  "medicines": [
-    {
-      "name": "Full drug name and strength",
-      "dosage": "e.g., 1 tablet, 5ml",
-      "frequency": "e.g., 1-1-1, or Twice a day",
-      "duration": "e.g., 5 days",
-      "instructions": "e.g., After food"
-    }
-  ],
-  "confidence": 85,
-  "cannotRead": false,
-  "cannotReadReason": null
-}`
-
-// ─── TEXT-ONLY MEDICINE SEARCH (from prescription) ────────────────────────────
-// Used when user taps "Search" on a medicine in the prescription results.
-// No image — we use the medicine name + dose extracted by OCR as ground truth.
-export async function searchMedicineByName(medicineName, dosage) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
-
-  await ensureLoaded().catch(() => {})
-
-  // Ask AI to identify the salt composition from the brand/generic name
-  const identifyPrompt = `You are an Indian pharmacist. Given the medicine name "${medicineName}"${dosage ? ` at dose "${dosage}"` : ''}, identify:
-1. The generic salt name (INN name, not brand name)
-2. The dose strength
-3. Product type (MEDICINE, INJECTION, LIQUID, TOPICAL, SUPPLEMENT, AYURVEDIC)
-JSON only, no markdown:
-{"saltName":"generic salt only","doseStr":"e.g. 500mg","productType":"MEDICINE","brandName":"${medicineName}","manufacturer":null,"confidence":80}`
-
-  const identified = await callText(identifyPrompt)
-  if (!identified?.saltName) {
-    // Fallback: treat the medicine name itself as the salt
-  }
-
-  const saltName  = identified?.saltName  || medicineName
-  const doseStr   = identified?.doseStr   || dosage || null
-  const prodType  = identified?.productType || 'MEDICINE'
-  const finalSalt = mergeSaltDose(saltName, doseStr)
-
-  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(doseStr || '')
-  const typeNeedsDose = prodType === 'MEDICINE' || prodType === 'INJECTION'
-  const doseConfirmed = hasDoseNumber || !typeNeedsDose
-
-  // Parallel: description + generics
-  const [infoRes, genRes] = await Promise.allSettled([
-    callText(mkDescPrompt(medicineName, finalSalt, prodType)),
-    (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, prodType)) : Promise.resolve(null),
-  ])
-
-  let info = infoRes.status === 'fulfilled' ? infoRes.value : null
-  if (info) info.prescriptionRequired = resolveRx(finalSalt, info.prescriptionRequired)
-
-  let aiGenerics = []
-  if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-    const queryDrugNames = (finalSalt || '').toLowerCase()
-      .split(/\band\b|\+|,/i)
-      .map(s => s.replace(/\d+\s*(mg|mcg|g|iu|ml)/gi, '').trim())
-      .filter(s => s.length > 3)
-    const seen = new Set()
-    aiGenerics = genRes.value
-      .filter(g => g && g.name && g.brand)
-      .filter(g => {
-        if (!queryDrugNames.length) return true
-        const rs = (g.salt || '').toLowerCase()
-        const rn = (g.name || '').toLowerCase()
-        return queryDrugNames.every(drug => rs.includes(drug) || rn.includes(drug))
-      })
-      .filter(g => { const k = (g.brand || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
-      .slice(0, 3)
-  }
-
-  const jaLookup = doseConfirmed ? lookupJanAushadhi(finalSalt, null, null) : { best: null, doseMismatch: null, noDose: false }
-  const cdscoResult = lookupCDSCO(finalSalt)
-  const jaBest = jaLookup.best
-
-  let allAlts = [...(jaBest ? [jaBest] : []), ...aiGenerics]
-
-  if (allAlts.length > 0) {
+  const handleSearchMedicine = useCallback(async (medicineName, dosage) => {
+    setView(VIEWS.LOADING); setError(null); setStep(1)
     try {
-      const davaMap = await batchFetchDavaIndiaPrices(allAlts)
-      allAlts = allAlts.map(alt => {
-        const key = alt.salt || alt.name
-        const dava = davaMap.get(key)
-        if (!dava) return alt
-        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, priceSource: 'DavaIndia', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
-      })
-    } catch { /* graceful degrade */ }
-  }
-
-  const authenticity = {
-    status: cdscoResult.found ? 'LIKELY_GENUINE' : 'CANNOT_DETERMINE',
-    reason: cdscoResult.found ? 'Found in CDSCO drug registry.' : 'Salt not found in CDSCO registry.',
-    genuineSignalsFound: cdscoResult.found ? ['Found in CDSCO registry'] : [],
-    fakeSignalsFound: [],
-    cdscoBadge: cdscoResult.badge || (prodType === 'SUPPLEMENT' ? 'Dietary supplement — not CDSCO scheduled.' : 'Salt not found in CDSCO registry.'),
-    cdscoIndication: cdscoResult.indication || null,
-    cdscoFound: cdscoResult.found,
-    warning: null,
-  }
-
-  return {
-    productType:     prodType,
-    brandName:       medicineName,
-    saltComposition: finalSalt,
-    manufacturer:    identified?.manufacturer || null,
-    mrp:             null,
-    unitSize:        null,
-    batchNumber:     null,
-    expiryDate:      null,
-    isExpired:       false,
-    licenceNumber:   null,
-    confidence:      identified?.confidence || 75,
-    saltSource:      'PRESCRIPTION_OCR',
-    doseUnconfirmed: !doseConfirmed,
-    cannotRead:      false,
-    cannotReadReason:null,
-    authenticity,
-    medicineInfo:    info || fallbackInfo(prodType),
-    alternatives: {
-      hasGenerics:          allAlts.length > 0,
-      janAushadhiAvailable: !!jaBest,
-      topAlternatives:      allAlts,
-      doseMismatchAlt:      jaLookup.doseMismatch || null,
-      jaCount:              jaBest ? 1 : 0,
-      savingsSummary:       buildSavingsSummary(jaBest, null, null),
-      pharmacyLinks:        pharmacyLinks(finalSalt),
-      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED prices are approximate — verify at the chemist.',
-    },
-    dataSource: {
-      salt:       'Prescription OCR (AI identified)',
-      alts:       'BPPI Jan Aushadhi DB + AI',
-      cdsco:      cdscoResult.found ? 'CDSCO Drug Registry' : 'Not in CDSCO registry',
-      cdscoFound: cdscoResult.found,
+      setStep(2)
+      const res = await searchMedicineByName(medicineName, dosage)
+      setStep(3)
+      await new Promise(r => setTimeout(r, 200))
+      setResults(res); setView(VIEWS.RESULTS)
+    } catch (err) {
+      setError(err.message); setView(VIEWS.ERROR)
     }
-  }
+  }, [])
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', maxWidth: 540, margin: '0 auto' }}>
+
+      {/* Header */}
+      <header style={{ background: 'var(--navy)', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, background: 'var(--green)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 15 }}>अ</div>
+          <div>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: 17, lineHeight: 1.1 }}>Agada</div>
+            <div style={{ color: '#9CA3AF', fontSize: 10.5 }}>Know Your Medicine</div>
+          </div>
+        </div>
+        <button onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
+          {[0,1,2].map(i => <span key={i} style={{ width: 17, height: 1.5, background: hamOpen && i===1 ? 'transparent' : '#fff', borderRadius: 1, display: 'block',
+            transform: hamOpen ? (i===0 ? 'translateY(6px) rotate(45deg)' : i===2 ? 'translateY(-6px) rotate(-45deg)' : 'none') : 'none', transition: 'all 0.25s' }} />)}
+        </button>
+      </header>
+
+      <HamMenu open={hamOpen} onClose={() => setHamOpen(false)} lang={lang} setLang={setLang} t={t} onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset() }} />
+
+      {/* Beta banner */}
+      <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
+        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> — AI results may not be 100% accurate. Verify with your pharmacist.</span>
+      </div>
+
+      {view === VIEWS.HOME    && <HomeView t={t} onCamera={(mode) => { setScanMode(mode); cameraRef.current?.click() }} onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }} />}
+      {view === VIEWS.LOADING && <LoadingView t={t} step={step} preview={preview} barcodeHit={barcodeHit} />}
+      {view === VIEWS.RESULTS && (results?.isPrescription
+        ? <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} onSearchMedicine={(name, dosage) => { setPrescriptionResults(results); handleSearchMedicine(name, dosage) }} />
+        : <ResultsPanel results={results} preview={preview} onReset={prescriptionResults ? backToPrescription : reset} fromPrescription={!!prescriptionResults} t={t} lang={lang} />
+      )}
+      {view === VIEWS.ERROR   && <ErrorView error={error} onReset={prescriptionResults ? backToPrescription : reset} t={t} />}
+
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
+      <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
+    </div>
+  )
 }
 
-export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
-  
-  const img = await callVision(imageBase64, mimeType, PRESCRIPTION_PROMPT)
-  
-  if (img.cannotRead) {
-    img.cannotReadReason = img.cannotReadReason || 'Could not read the prescription clearly. Try taking a brighter, closer photo.'
-  }
-  
-  return {
-    isPrescription: true,
-    data: img
-  }
+function HomeView({ t, onCamera, onUpload }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+
+      {/* Modern Hero Section */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
+          <span style={{ fontSize: 14 }}>✨</span> Know Your Medicine
+        </div>
+
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
+          Verify.<br />
+          <span style={{ background: 'linear-gradient(90deg, var(--green), #0D9488)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Never overpay.</span>
+        </h1>
+
+        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 36px' }}>
+          Agada reads any medicine strip to find authenticity, side effects, and cheaper <strong>Jan Aushadhi</strong> alternatives instantly.
+        </p>
+
+        {/* Floating Scanner Graphic */}
+        <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
+            <span style={{ fontSize: 56 }}>💊</span>
+          </div>
+          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
+          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹40 Save</div>
+        </div>
+
+        {/* Primary Call to Action */}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
+          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <span style={{ fontSize: 22 }}>📷</span> Scan Medicine Strip
+          </button>
+          
+          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <span style={{ fontSize: 22 }}>📝</span> Scan Prescription
+          </button>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+              Upload Strip
+            </button>
+            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+              Upload Rx
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Trust Badges */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
+        {[
+          ['🏛', 'CDSCO DB', '3,300+ tracked'],
+          ['💸', 'Jan Aushadhi', 'Live mapping'],
+          ['🛡️', 'AI Assistant', 'Instant insights'],
+          ['🔒', 'Secure', 'Private scans']
+        ].map(([icon, title, sub]) => (
+          <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>{title}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function LoadingView({ t, step, preview, barcodeHit }) {
+  const steps = [
+    { label: 'Reading medicine label', tag: 'Groq AI', done: step >= 1 },
+    { label: barcodeHit ? '✓ Barcode / QR decoded' : 'Scanning barcode / QR code', tag: barcodeHit ? 'DECODED' : 'ZXing', done: step >= 2 },
+    { label: 'Looking up CDSCO + Jan Aushadhi database', tag: 'Local DB', done: step >= 3 },
+  ]
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', animation: 'fadeIn 0.3s ease' }}>
+      {preview && (
+        <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', marginBottom: 20, border: '2px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      )}
+      <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--green)', animation: 'spin 0.9s linear infinite', marginBottom: 18 }} />
+      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>Analysing...</div>
+      <div style={{ fontSize: 13, color: 'var(--textlt)', marginBottom: 28 }}>Checking three sources at once</div>
+      <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: s.done ? 'var(--greenlt)' : 'var(--bgcard)', border: `1.5px solid ${s.done ? '#A7D9CA' : 'var(--border)'}`, borderRadius: 11, transition: 'all 0.4s ease' }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: s.done ? 'var(--green)' : 'var(--bgsoft)', border: `1.5px solid ${s.done ? 'var(--green)' : 'var(--bordermd)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: s.done ? '#fff' : 'var(--textlt)', fontWeight: 700, flexShrink: 0, transition: 'all 0.4s ease' }}>{s.done ? '✓' : i+1}</div>
+            <span style={{ fontSize: 13, color: s.done ? 'var(--greendk)' : 'var(--textmd)', flex: 1, fontWeight: s.done ? 600 : 400 }}>{s.label}</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: s.done ? 'rgba(15,122,90,0.15)' : 'var(--bgsoft)', color: s.done ? 'var(--green)' : 'var(--textlt)', letterSpacing: '0.04em', transition: 'all 0.4s ease' }}>{s.tag}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ErrorView({ error, onReset }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
+      <div style={{ background: 'var(--redlt)', border: '1.5px solid #FECACA', borderRadius: 16, padding: '24px 20px', textAlign: 'center', width: '100%', maxWidth: 360 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--red)', marginBottom: 8 }}>Scan failed</div>
+        <p style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 20 }}>{error}</p>
+        <button onClick={onReset} style={{ background: 'var(--red)', color: '#fff', padding: '12px 28px', borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Try Again</button>
+      </div>
+    </div>
+  )
 }
