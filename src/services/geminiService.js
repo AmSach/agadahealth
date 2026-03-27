@@ -637,6 +637,131 @@ JSON only, no markdown:
   "cannotReadReason": null
 }`
 
+// ─── TEXT-ONLY MEDICINE SEARCH (from prescription) ────────────────────────────
+// Used when user taps "Search" on a medicine in the prescription results.
+// No image — we use the medicine name + dose extracted by OCR as ground truth.
+export async function searchMedicineByName(medicineName, dosage) {
+  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
+
+  await ensureLoaded().catch(() => {})
+
+  // Ask AI to identify the salt composition from the brand/generic name
+  const identifyPrompt = `You are an Indian pharmacist. Given the medicine name "${medicineName}"${dosage ? ` at dose "${dosage}"` : ''}, identify:
+1. The generic salt name (INN name, not brand name)
+2. The dose strength
+3. Product type (MEDICINE, INJECTION, LIQUID, TOPICAL, SUPPLEMENT, AYURVEDIC)
+JSON only, no markdown:
+{"saltName":"generic salt only","doseStr":"e.g. 500mg","productType":"MEDICINE","brandName":"${medicineName}","manufacturer":null,"confidence":80}`
+
+  const identified = await callText(identifyPrompt)
+  if (!identified?.saltName) {
+    // Fallback: treat the medicine name itself as the salt
+  }
+
+  const saltName  = identified?.saltName  || medicineName
+  const doseStr   = identified?.doseStr   || dosage || null
+  const prodType  = identified?.productType || 'MEDICINE'
+  const finalSalt = mergeSaltDose(saltName, doseStr)
+
+  const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(doseStr || '')
+  const typeNeedsDose = prodType === 'MEDICINE' || prodType === 'INJECTION'
+  const doseConfirmed = hasDoseNumber || !typeNeedsDose
+
+  // Parallel: description + generics
+  const [infoRes, genRes] = await Promise.allSettled([
+    callText(mkDescPrompt(medicineName, finalSalt, prodType)),
+    (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, prodType)) : Promise.resolve(null),
+  ])
+
+  let info = infoRes.status === 'fulfilled' ? infoRes.value : null
+  if (info) info.prescriptionRequired = resolveRx(finalSalt, info.prescriptionRequired)
+
+  let aiGenerics = []
+  if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
+    const queryDrugNames = (finalSalt || '').toLowerCase()
+      .split(/\band\b|\+|,/i)
+      .map(s => s.replace(/\d+\s*(mg|mcg|g|iu|ml)/gi, '').trim())
+      .filter(s => s.length > 3)
+    const seen = new Set()
+    aiGenerics = genRes.value
+      .filter(g => g && g.name && g.brand)
+      .filter(g => {
+        if (!queryDrugNames.length) return true
+        const rs = (g.salt || '').toLowerCase()
+        const rn = (g.name || '').toLowerCase()
+        return queryDrugNames.every(drug => rs.includes(drug) || rn.includes(drug))
+      })
+      .filter(g => { const k = (g.brand || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+      .slice(0, 3)
+  }
+
+  const jaLookup = doseConfirmed ? lookupJanAushadhi(finalSalt, null, null) : { best: null, doseMismatch: null, noDose: false }
+  const cdscoResult = lookupCDSCO(finalSalt)
+  const jaBest = jaLookup.best
+
+  let allAlts = [...(jaBest ? [jaBest] : []), ...aiGenerics]
+
+  if (allAlts.length > 0) {
+    try {
+      const davaMap = await batchFetchDavaIndiaPrices(allAlts)
+      allAlts = allAlts.map(alt => {
+        const key = alt.salt || alt.name
+        const dava = davaMap.get(key)
+        if (!dava) return alt
+        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, priceSource: 'DavaIndia', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
+      })
+    } catch { /* graceful degrade */ }
+  }
+
+  const authenticity = {
+    status: cdscoResult.found ? 'LIKELY_GENUINE' : 'CANNOT_DETERMINE',
+    reason: cdscoResult.found ? 'Found in CDSCO drug registry.' : 'Salt not found in CDSCO registry.',
+    genuineSignalsFound: cdscoResult.found ? ['Found in CDSCO registry'] : [],
+    fakeSignalsFound: [],
+    cdscoBadge: cdscoResult.badge || (prodType === 'SUPPLEMENT' ? 'Dietary supplement — not CDSCO scheduled.' : 'Salt not found in CDSCO registry.'),
+    cdscoIndication: cdscoResult.indication || null,
+    cdscoFound: cdscoResult.found,
+    warning: null,
+  }
+
+  return {
+    productType:     prodType,
+    brandName:       medicineName,
+    saltComposition: finalSalt,
+    manufacturer:    identified?.manufacturer || null,
+    mrp:             null,
+    unitSize:        null,
+    batchNumber:     null,
+    expiryDate:      null,
+    isExpired:       false,
+    licenceNumber:   null,
+    confidence:      identified?.confidence || 75,
+    saltSource:      'PRESCRIPTION_OCR',
+    doseUnconfirmed: !doseConfirmed,
+    cannotRead:      false,
+    cannotReadReason:null,
+    authenticity,
+    medicineInfo:    info || fallbackInfo(prodType),
+    alternatives: {
+      hasGenerics:          allAlts.length > 0,
+      janAushadhiAvailable: !!jaBest,
+      topAlternatives:      allAlts,
+      doseMismatchAlt:      jaLookup.doseMismatch || null,
+      jaCount:              jaBest ? 1 : 0,
+      savingsSummary:       buildSavingsSummary(jaBest, null, null),
+      pharmacyLinks:        pharmacyLinks(finalSalt),
+      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED prices are approximate — verify at the chemist.',
+    },
+    dataSource: {
+      salt:       'Prescription OCR (AI identified)',
+      alts:       'BPPI Jan Aushadhi DB + AI',
+      cdsco:      cdscoResult.found ? 'CDSCO Drug Registry' : 'Not in CDSCO registry',
+      cdscoFound: cdscoResult.found,
+    }
+  }
+}
+
 export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
   if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
   
@@ -651,4 +776,3 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
     data: img
   }
 }
-
