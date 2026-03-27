@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function PrescriptionResultsPanel({ results, preview, onReset }) {
+export default function PrescriptionResultsPanel({ results, preview, onReset, onSearchMedicine }) {
   const { data } = results
   if (!data) return null
 
@@ -89,10 +89,16 @@ export default function PrescriptionResultsPanel({ results, preview, onReset }) 
                   <span style={{ background: '#E0F2FE', color: '#0369A1', fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6 }}>⏳ {med.duration || '?'}</span>
                 </div>
                 {med.instructions && (
-                  <div style={{ background: '#F0FDF4', color: '#166534', fontSize: 12, padding: '8px 12px', borderRadius: 8, borderLeft: '3px solid #16A34A', lineHeight: 1.4 }}>
+                  <div style={{ background: '#F0FDF4', color: '#166534', fontSize: 12, padding: '8px 12px', borderRadius: 8, borderLeft: '3px solid #16A34A', lineHeight: 1.4, marginBottom: 10 }}>
                     <strong>Note:</strong> {med.instructions}
                   </div>
                 )}
+                <button
+                  onClick={() => onSearchMedicine(med.name, med.dosage)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 9, background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', color: 'var(--greendk)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, cursor: 'pointer', transition: 'background 0.2s' }}
+                >
+                  🔍 Check price & alternatives
+                </button>
               </div>
             ))}
           </div>
