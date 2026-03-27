@@ -559,7 +559,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate — always verify at the chemist counter. Only buy from licensed pharmacies.
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg / DavaIndia / PharmEasy / NetMeds / Apollo. <strong>AI EST.</strong> entries show no price — click "See live prices" to check current rates. Real prices only — no AI guesses. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -568,7 +568,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
 
 function AltRow({ med, highlight, dimmed }) {
   const displayMrp   = med.mrp || med.estimatedMrp
-  const isDavaIndia  = med.priceSource === "DavaIndia" || med.priceSource === "1mg" || med.highConfidence === true
+  const isDavaIndia  = med.highConfidence === true || ['DavaIndia','PharmEasy','NetMeds','Apollo','1mg'].includes(med.priceSource)
   const isJA         = med.isJanAushadhi
   // per-unit label: use perUnitLabel if set, else infer from packSize/unitSize, else 'tablet'
   const unitLabel    = med.perUnitLabel || inferUnitLabel(med.unitSize || med.packSize)
@@ -598,7 +598,7 @@ function AltRow({ med, highlight, dimmed }) {
           {med.unitSize || med.packSize || ''}
         </div>
         {isDavaIndia && !isJA && (
-          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · 1mg</div>
+          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · {med.priceSource || 'Pharmacy'}</div>
         )}
         {!isDavaIndia && med.aiEstimated && (
           <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>
@@ -608,8 +608,15 @@ function AltRow({ med, highlight, dimmed }) {
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
-        {med.perUnit != null && (
+        {isDavaIndia && displayMrp
+          ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>
+          : !isDavaIndia && !isJA && med.aiEstimated
+          ? <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>See live prices →</div>
+          : displayMrp
+          ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>
+          : null
+        }
+        {isDavaIndia && med.perUnit != null && (
           <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
         )}
         {med.savings && med.savings !== 'Jan Aushadhi price' && (
