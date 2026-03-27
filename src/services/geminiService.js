@@ -173,10 +173,12 @@ STRICT RULES — violating any rule means the product must be excluded:
 3. If a brand name sounds similar but contains a different salt — EXCLUDE IT.
 4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
 5. EACH item must be from a DIFFERENT manufacturer.
+6. "brand" field = manufacturer name ONLY. e.g. "Cipla" or "Sun Pharma". No explanations, no parentheses, no extra text.
+7. "name" field = brand name + strength ONLY. e.g. "Calpol 500mg". Nothing else.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
-[{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
@@ -358,6 +360,12 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
           seen.add(key)
           return true
         })
+        // Sanitize: strip any reasoning text that leaked into name/brand fields
+        .map(g => ({
+          ...g,
+          name:  (g.name  || '').replace(/\s*\(.*?\)/g, '').replace(/\s{2,}/g, ' ').trim(),
+          brand: (g.brand || '').replace(/\s*\(.*?\)/g, '').replace(/\s*,.*$/, '').replace(/\s{2,}/g, ' ').trim(),
+        }))
         .slice(0, 3)
     }
   }
