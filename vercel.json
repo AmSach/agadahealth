@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/groq.js": {
+      "memory": 256,
+      "maxDuration": 30
+    },
+    "api/davaindia.js": {
+      "memory": 256,
+      "maxDuration": 10
+    }
+  }
+}
