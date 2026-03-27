@@ -1,26 +1,19 @@
 /**
- * davaIndiaService.js — client calls /api/prices (multi-source live price proxy)
- *
- * /api/prices tries DavaIndia → PharmEasy → NetMeds → Apollo → 1mg → MedPlus
- * in PARALLEL and returns the best-matched, cheapest result with source attribution.
- *
- * Rate-limit strategy:
- *   - batchFetch: max 4 parallel requests, rest queued
- *   - 10s timeout per call
- *   - 1 retry on network error
+ * davaIndiaService.js — calls /api/prices (multi-source real-price engine)
+ * Sources: SerpAPI Google Shopping India, DavaIndia, PharmEasy, 1mg, Apollo, NetMeds
+ * Falls back to Groq with strict no-hallucination prompt.
+ * Never returns aiEstimated prices in highConfidence mode.
  */
 
-const MAX_PARALLEL = 4   // keep well under Vercel/pharmacy rate limits
-
-// ─── Single-item fetch ────────────────────────────────────────────────────────
-export async function fetchLivePrice(saltOrName, attempt = 0) {
-  if (!saltOrName) return null
+export async function fetchRealPrice(saltCompositionOrBrand) {
+  if (!saltCompositionOrBrand) return null
   try {
-    const url = `/api/prices?q=${encodeURIComponent(saltOrName)}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const res = await fetch(`/api/prices?q=${encodeURIComponent(saltCompositionOrBrand)}`, {
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!res.ok) return null
     const data = await res.json()
-    if (!data?.found) return null
+    if (!data?.found || !data.mrp) return null
     return {
       found:          true,
       name:           data.name,
@@ -28,51 +21,37 @@ export async function fetchLivePrice(saltOrName, attempt = 0) {
       packSize:       data.packSize  || null,
       perUnit:        data.perUnit   || null,
       priceSource:    data.priceSource || 'Live',
-      highConfidence: true,
+      highConfidence: data.highConfidence ?? false,
+      aiEstimated:    data.aiEstimated ?? false,
       allSources:     data.allSources || [],
     }
-  } catch (err) {
-    // One retry on transient error
-    if (attempt === 0) {
-      await new Promise(r => setTimeout(r, 400))
-      return fetchLivePrice(saltOrName, 1)
-    }
+  } catch {
     return null
   }
 }
 
-// Keep the old export name so existing code doesn't break
-export const fetchDavaIndiaPrice = fetchLivePrice
+// Legacy name — proxies to fetchRealPrice for backwards compat
+export async function fetchDavaIndiaPrice(saltComposition) {
+  return fetchRealPrice(saltComposition)
+}
 
-// ─── Batch fetch with concurrency cap ────────────────────────────────────────
 export async function batchFetchDavaIndiaPrices(alts) {
   const map = new Map()
   if (!alts?.length) return map
 
-  // Deduplicate queries by salt/name
-  const unique = []
-  const seen = new Set()
-  for (const alt of alts) {
-    const key = alt.salt || alt.name
-    if (key && !seen.has(key)) { seen.add(key); unique.push({ key, alt }) }
-  }
-
-  // Process in chunks of MAX_PARALLEL
-  for (let i = 0; i < unique.length; i += MAX_PARALLEL) {
-    const chunk = unique.slice(i, i + MAX_PARALLEL)
+  // Run in parallel, max 4 at a time to avoid flooding
+  const BATCH = 4
+  for (let i = 0; i < alts.length; i += BATCH) {
+    const chunk = alts.slice(i, i + BATCH)
     const results = await Promise.allSettled(
-      chunk.map(({ key }) => fetchLivePrice(key))
+      chunk.map(alt => fetchRealPrice(alt.salt || alt.name))
     )
-    results.forEach((result, idx) => {
+    results.forEach((result, j) => {
       if (result.status === 'fulfilled' && result.value?.found) {
-        map.set(chunk[idx].key, result.value)
+        const key = chunk[j].salt || chunk[j].name
+        map.set(key, result.value)
       }
     })
-    // Small gap between chunks to be polite to upstream APIs
-    if (i + MAX_PARALLEL < unique.length) {
-      await new Promise(r => setTimeout(r, 200))
-    }
   }
-
   return map
 }
