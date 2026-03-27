@@ -30,7 +30,7 @@ async function translateTexts(texts, targetLang) {
   } catch { return texts }
 }
 
-export default function ResultsPanel({ results, preview, onReset, t, lang }) {
+export default function ResultsPanel({ results, preview, onReset, t, lang, fromPrescription }) {
   const [card, setCard] = useState(0)
   const [reported, setReported] = useState(false)
   const [translated, setTranslated] = useState(null)
@@ -112,7 +112,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
       {/* Sticky Footer */}
       <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
-          📷 Scan Another Medicine
+          {fromPrescription ? '‹ Back to Prescription' : '📷 Scan Another Medicine'}
         </button>
       </div>
     </div>
