@@ -175,10 +175,10 @@ STRICT RULES — violating any rule means the product must be excluded:
 5. EACH item must be from a DIFFERENT manufacturer.
 6. "brand" field = manufacturer name ONLY. e.g. "Cipla" or "Sun Pharma". No explanations, no parentheses, no extra text.
 7. "name" field = brand name + strength ONLY. e.g. "Calpol 500mg". Nothing else.
-CRITICAL PRICING RULE: Set "estimatedMrp" to 0 and "perUnit" to 0 for ALL entries. DO NOT guess, invent, or recall any prices from training data — prices change constantly and your knowledge is outdated. Real prices will be fetched live from pharmacy APIs after you respond. Setting a non-zero price here would display wrong data to patients.
+PRICING: Provide your best estimated Indian MRP in "estimatedMrp" and "perUnit" based on typical market prices. These are fallback estimates only — the live pharmacy API will overwrite them with real prices when available. A rough estimate is better than 0.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
-[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":0,"perUnit":0,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
