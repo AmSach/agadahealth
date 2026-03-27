@@ -31,7 +31,7 @@ async function translateTexts(texts, targetLang) {
 }
 
 export default function ResultsPanel({ results, preview, onReset, t, lang }) {
-  const [card, setCard] = useState(0)
+  const [card, setCard]         = useState(0)
   const [reported, setReported] = useState(false)
   const [translated, setTranslated] = useState(null)
   const [translating, setTranslating] = useState(false)
@@ -92,37 +92,11 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
     : null
   const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
-  // Helper for consistent layout wrapping
-  const LayoutWrapper = ({ children }) => (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', height: '100%', overflow: 'hidden' }}>
-      {/* Sticky Header */}
-      <div style={{ padding: '14px 16px', background: '#fff', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, boxShadow: 'var(--shadow)' }}>
-        <button onClick={onReset} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--textlt)', padding: '6px 0', border: 'none', background: 'transparent', cursor: 'pointer' }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Back
-        </button>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--navy)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Scan Results</h2>
-        <div style={{ width: 60 }} /> {/* Spacer to balance absolute center */}
-      </div>
-      
-      {/* Scrollable Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {children}
-      </div>
-
-      {/* Sticky Footer */}
-      <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
-        <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
-          📷 Scan Another Medicine
-        </button>
-      </div>
-    </div>
-  )
-
   // Hard block — not a medicine at all
   // ── Hard block: HAZARDOUS substance — show danger warning ─────────────────
   if (results?.productType === 'HAZARDOUS') {
     return (
-      <LayoutWrapper>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
         <div style={{ background: '#fff3f3', border: '2.5px solid #e53935', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: '0 4px 18px rgba(229,57,53,0.15)' }}>
           <span style={{ fontSize: 56 }}>☠️</span>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS — DO NOT CONSUME</div>
@@ -144,14 +118,14 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
             In case of accidental ingestion, call Poison Control immediately.<br/>Do not induce vomiting unless instructed by a medical professional.
           </div>
         </div>
-      </LayoutWrapper>
+      </div>
     )
   }
 
   // ── Hard block: not a medicine at all ──────────────────────────────────────
   if (results?.productType === 'NOT_MEDICINE') {
     return (
-      <LayoutWrapper>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
         <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: 'var(--shadow)' }}>
           <span style={{ fontSize: 48 }}>🚫</span>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>Not a medicine</div>
@@ -164,14 +138,12 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
             </div>
           )}
         </div>
-      </LayoutWrapper>
+      </div>
     )
   }
 
-
-
   return (
-    <LayoutWrapper>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 16px 24px', gap: 12, overflowY: 'auto' }}>
 
       {/* Top banner */}
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow)', animation: 'fadeUp 0.3s ease' }}>
@@ -215,22 +187,24 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
       )}
 
 
-      {/* Modern Segmented Control */}
-      <div style={{ display: 'flex', background: 'var(--border)', padding: 4, borderRadius: 12, marginBottom: 4, animation: 'fadeUp 0.3s ease 0.1s both' }}>
-        {[['🛡️', 'Authentic'], ['💡', 'Usage'], ['💸', 'Alternatives']].map(([icon, label], i) => (
-          <button key={i} onClick={() => setCard(i)} style={{ flex: 1, padding: '10px 4px', borderRadius: 9, background: card === i ? '#fff' : 'transparent', color: card === i ? 'var(--navy)' : 'var(--textlt)', fontSize: 13, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.2s', boxShadow: card === i ? '0 2px 8px rgba(0,0,0,0.08)' : 'none', border: 'none' }}>
-            <span style={{ fontSize: 18, filter: card === i ? 'none' : 'grayscale(100%)', opacity: card === i ? 1 : 0.6 }}>{icon}</span>{label}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, animation: 'fadeUp 0.3s ease 0.1s both' }}>
+        {[['🏛', 'Authentic.'], ['💡', 'Medicine'], ['💸', 'Save']].map(([icon, label], i) => (
+          <button key={i} onClick={() => setCard(i)} style={{ padding: '9px 4px', borderRadius: 10, border: `1.5px solid ${card === i ? 'var(--green)' : 'var(--border)'}`, background: card === i ? 'var(--greenlt)' : '#fff', color: card === i ? 'var(--greendk)' : 'var(--textlt)', fontSize: 12, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, transition: 'all 0.2s' }}>
+            <span style={{ fontSize: 18 }}>{icon}</span>{label}
           </button>
         ))}
       </div>
 
-      {/* Cards Display */}
-      <div style={{ animation: 'fadeIn 0.2s ease', flex: 1 }}>
-        {card === 0 && <AuthCard auth={auth} results={results} t={t} reported={reported} setReported={setReported} />}
-        {card === 1 && <InfoCard info={info} results={results} translating={translating} />}
-        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} />}
-      </div>
-    </LayoutWrapper>
+      {/* Cards */}
+      {card === 0 && <AuthCard auth={auth} results={results} t={t} reported={reported} setReported={setReported} />}
+      {card === 1 && <InfoCard info={info} results={results} translating={translating} />}
+      {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} />}
+
+      {/* Scan again */}
+      <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 13, color: '#fff', fontSize: 14, fontWeight: 600, marginTop: 4 }}>
+        📷 &nbsp;Scan Another Medicine
+      </button>
+    </div>
   )
 }
 
@@ -242,13 +216,13 @@ function AuthCard({ auth, results, t, reported, setReported }) {
 
   const statusConfig = isGenuine ? {
     bg: '#F0FDF4', border: '#86EFAC', iconBg: '#16A34A', icon: '✓', iconColor: '#fff',
-    titleColor: '#15803D', title: 'Verification: Genuine', sub: 'Found in official CDSCO registry',
+    titleColor: '#15803D', title: 'Registered medicine', sub: 'Found in CDSCO drug registry',
   } : isFake ? {
     bg: 'var(--redlt)', border: '#FECACA', iconBg: 'var(--red)', icon: '✕', iconColor: '#fff',
-    titleColor: 'var(--red)', title: 'Verification: Suspicious', sub: 'Potential visual anomalies detected',
+    titleColor: 'var(--red)', title: 'Possible fake', sub: 'Visual anomalies detected',
   } : {
     bg: '#FFFBEB', border: '#FCD34D', iconBg: 'var(--amber)', icon: '?', iconColor: '#fff',
-    titleColor: '#92400E', title: 'Verification: Inconclusive', sub: 'Need more clear visual evidence',
+    titleColor: '#92400E', title: 'Cannot determine', sub: 'Insufficient visual evidence',
   }
 
   return (
@@ -357,7 +331,7 @@ function InfoCard({ info, results, translating }) {
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>💡 Usage & Safety</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>💡 What is this?</div>
         {translating && <span style={badge('amber')}>Translating...</span>}
       </div>
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>

@@ -1,33 +1,12 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/*.js",
-      "use": "@vercel/node"
+  "functions": {
+    "api/groq.js": {
+      "memory": 256,
+      "maxDuration": 30
     },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+    "api/davaindia.js": {
+      "memory": 256,
+      "maxDuration": 10
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "GROQ_KEY_1": "@groq_key_1",
-    "GROQ_KEY_2": "@groq_key_2",
-    "GROQ_KEY_3": "@groq_key_3",
-    "GROQ_KEY_4": "@groq_key_4",
-    "GROQ_KEY_5": "@groq_key_5"
   }
 }
