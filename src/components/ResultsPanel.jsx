@@ -608,15 +608,8 @@ function AltRow({ med, highlight, dimmed }) {
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        {isDavaIndia && displayMrp
-          ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>
-          : !isDavaIndia && !isJA && med.aiEstimated
-          ? <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>See live prices →</div>
-          : displayMrp
-          ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>
-          : null
-        }
-        {isDavaIndia && med.perUnit != null && (
+        {displayMrp ? <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div> : null}
+        {med.perUnit != null && (
           <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
         )}
         {med.savings && med.savings !== 'Jan Aushadhi price' && (
