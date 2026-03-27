@@ -178,7 +178,6 @@ export function pharmacyLinks(saltComposition) {
 
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta production and hence the issues.')
 
   // Start DB load immediately — parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
@@ -618,7 +617,6 @@ JSON only, no markdown:
 // Used when user taps "Search" on a medicine in the prescription results.
 // No image — we use the medicine name + dose extracted by OCR as ground truth.
 export async function searchMedicineByName(medicineName, dosage) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
 
   await ensureLoaded().catch(() => {})
 
@@ -740,7 +738,6 @@ JSON only, no markdown:
 }
 
 export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
   
   const img = await callVision(imageBase64, mimeType, PRESCRIPTION_PROMPT)
   
@@ -753,4 +750,3 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
     data: img
   }
 }
-
