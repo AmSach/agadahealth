@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { scanMedicine, scanPrescription, compressAndEncode } from '../services/geminiService.js'
+import { scanMedicine, compressAndEncode } from '../services/geminiService.js'
 import { readBarcode } from '../services/barcodeService.js'
 import ResultsPanel from '../components/ResultsPanel.jsx'
-import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
 import HamMenu from '../components/HamMenu.jsx'
 import { useLang } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
@@ -19,7 +18,6 @@ export default function Scanner() {
   const [step, setStep]           = useState(0)
   const [barcodeHit, setBarcodeHit] = useState(false)
   const [hamOpen, setHamOpen]     = useState(false)
-  const [scanMode, setScanMode]   = useState('medicine')
   const cameraRef = useRef(null)
   const uploadRef = useRef(null)
 
@@ -30,34 +28,23 @@ export default function Scanner() {
     if (preview) URL.revokeObjectURL(preview)
     setPreview(URL.createObjectURL(file))
     try {
-      const barcodePromise = scanMode === 'medicine' ? readBarcode(file).catch(() => null) : Promise.resolve(null)
+      const barcodePromise = readBarcode(file).catch(() => null)
       setStep(1)
       await new Promise(r => setTimeout(r, 400))
       const b64 = await compressAndEncode(file)
       setStep(2)
-      
-      let res;
-      if (scanMode === 'prescription') {
-        await new Promise(r => setTimeout(r, 600))
-        res = await scanPrescription(b64, 'image/jpeg')
-        setStep(3)
-        await new Promise(r => setTimeout(r, 300))
-        if (res.data.cannotRead) throw new Error(res.data.cannotReadReason || 'Could not read the prescription.')
-      } else {
-        const barcodeData = await barcodePromise
-        if (barcodeData) setBarcodeHit(true)
-        await new Promise(r => setTimeout(r, 300))
-        res = await scanMedicine(b64, 'image/jpeg', barcodeData)
-        setStep(3)
-        await new Promise(r => setTimeout(r, 300))
-        if (res.cannotRead) throw new Error(res.cannotReadReason || 'Could not read the medicine. Try a clearer photo.')
-      }
-      
+      const barcodeData = await barcodePromise
+      if (barcodeData) setBarcodeHit(true)
+      await new Promise(r => setTimeout(r, 300))
+      const res = await scanMedicine(b64, 'image/jpeg', barcodeData)
+      setStep(3)
+      await new Promise(r => setTimeout(r, 300))
+      if (res.cannotRead) throw new Error(res.cannotReadReason || 'Could not read the medicine. Try a clearer photo.')
       setResults(res); setView(VIEWS.RESULTS)
     } catch (err) {
       setError(err.message); setView(VIEWS.ERROR)
     }
-  }, [preview, scanMode])
+  }, [preview])
 
   const handleChange = useCallback((e) => {
     const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''
@@ -93,9 +80,9 @@ export default function Scanner() {
         <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> — AI results may not be 100% accurate. Verify with your pharmacist.</span>
       </div>
 
-      {view === VIEWS.HOME    && <HomeView t={t} onCamera={(mode) => { setScanMode(mode); cameraRef.current?.click() }} onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }} />}
+      {view === VIEWS.HOME    && <HomeView t={t} onCamera={() => cameraRef.current?.click()} onUpload={() => uploadRef.current?.click()} />}
       {view === VIEWS.LOADING && <LoadingView t={t} step={step} preview={preview} barcodeHit={barcodeHit} />}
-      {view === VIEWS.RESULTS && (results?.isPrescription ? <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} /> : <ResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} />)}
+      {view === VIEWS.RESULTS && <ResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} />}
       {view === VIEWS.ERROR   && <ErrorView error={error} onReset={reset} t={t} />}
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
@@ -106,68 +93,51 @@ export default function Scanner() {
 
 function HomeView({ t, onCamera, onUpload }) {
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+    <div style={{ flex: 1, padding: '24px 18px 32px', animation: 'fadeIn 0.3s ease' }}>
 
-      {/* Modern Hero Section */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
-          <span style={{ fontSize: 14 }}>✨</span> Know Your Medicine
-        </div>
-
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
-          Verify.<br />
-          <span style={{ background: 'linear-gradient(90deg, var(--green), #0D9488)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Never overpay.</span>
+      {/* Hero */}
+      <div style={{ textAlign: 'center', marginBottom: 28, animation: 'fadeUp 0.4s ease 0.1s both' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>India Innovates 2026</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.25, marginBottom: 10 }}>
+          Know your medicine.<br />Pay what it's worth.
         </h1>
-
-        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 36px' }}>
-          Agada reads any medicine strip to find authenticity, side effects, and cheaper <strong>Jan Aushadhi</strong> alternatives instantly.
+        <p style={{ fontSize: 14, color: 'var(--textlt)', lineHeight: 1.65 }}>
+          Scan any medicine strip. Find out if it's real,<br />what it does, and if you're overpaying.
         </p>
-
-        {/* Floating Scanner Graphic */}
-        <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
-            <span style={{ fontSize: 56 }}>💊</span>
-          </div>
-          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
-          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹40 Save</div>
-        </div>
-
-        {/* Primary Call to Action */}
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
-          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📷</span> Scan Medicine Strip
-          </button>
-          
-          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📝</span> Scan Prescription
-          </button>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
-              Upload Strip
-            </button>
-            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
-              Upload Rx
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Trust Badges */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
+      {/* Scan button */}
+      <div style={{ animation: 'fadeUp 0.4s ease 0.25s both' }}>
+        <button onClick={onCamera} style={{ width: '100%', height: 56, background: 'var(--green)', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 16px rgba(15,122,90,0.35)', marginBottom: 10 }}>
+          📷 &nbsp;Scan Medicine
+        </button>
+        <button onClick={onUpload} style={{ width: '100%', height: 44, background: 'var(--bgcard)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textlt)', fontSize: 14, fontWeight: 500 }}>
+          Upload a photo instead
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 24, animation: 'fadeUp 0.4s ease 0.4s both' }}>
+        {[['3 sec','Results'], ['₹0','Cost to you'], ['2,400+','Jan Aushadhi products']].map(([v,l]) => (
+          <div key={l} style={{ background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 8px', textAlign: 'center', boxShadow: 'var(--shadow)' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', marginBottom: 2 }}>{v}</div>
+            <div style={{ fontSize: 10, color: 'var(--textlt)', lineHeight: 1.3 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* How it works */}
+      <div style={{ marginTop: 24, background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', boxShadow: 'var(--shadow)', animation: 'fadeUp 0.4s ease 0.55s both' }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--textlt)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>How it works</div>
         {[
-          ['🏛', 'CDSCO DB', '3,300+ tracked'],
-          ['💸', 'Jan Aushadhi', 'Live mapping'],
-          ['🛡️', 'AI Assistant', 'Instant insights'],
-          ['🔒', 'Secure', 'Private scans']
-        ].map(([icon, title, sub]) => (
-          <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>{title}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{sub}</div>
-            </div>
+          ['📷', 'Photograph any medicine strip or box'],
+          ['🔍', 'AI reads the label — name, salt, batch'],
+          ['🏛', 'Cross-checks CDSCO drug registry (3,300+ drugs)'],
+          ['💊', 'Finds Jan Aushadhi generics from official BPPI database'],
+        ].map(([icon, text]) => (
+          <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
+            <span style={{ fontSize: 17, width: 26, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
+            <span style={{ fontSize: 13, color: 'var(--textmd)', lineHeight: 1.5 }}>{text}</span>
           </div>
         ))}
       </div>

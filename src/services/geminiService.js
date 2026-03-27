@@ -1,29 +1,19 @@
 /**
- * geminiService.js v4 — Agada AI Service
+ * geminiService.js v5 — Agada AI Service (Proxy Edition)
  *
- * Key changes:
- * - 5 API key rotation (VITE_GROQ_KEY_1..5)
- * - Full model cascade — 6 models tried before giving up
- * - QR saltFromQR = ground truth, skips vision call entirely for that field
- * - Strict: if QR has salt, DB lookup uses ONLY that. Vision AI = fallback only.
- * - Parallel: vision + DB preload in parallel from start
- * - Pharmacy deep links for live prices (no CORS issues)
+ * API keys are NOT in this file or the client bundle.
+ * All Groq calls go through /api/groq (Vercel serverless proxy).
+ * Keys live in Vercel env as GROQ_KEY_1..5 — server-side only.
  */
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
 import { logAIResponse } from './debugLog.js'
 import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
-// ─── KEY ROTATION ─────────────────────────────────────────────────────────────
-// Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
-const API_KEYS = [
-  import.meta.env.VITE_GROQ_KEY_1,
-  import.meta.env.VITE_GROQ_KEY_2,
-  import.meta.env.VITE_GROQ_KEY_3,
-  import.meta.env.VITE_GROQ_KEY_4,
-  import.meta.env.VITE_GROQ_KEY_5,
-  import.meta.env.VITE_GROQ_KEY, // legacy single key fallback
-].filter(Boolean)
+// ─── PROXY URL ────────────────────────────────────────────────────────────────
+// In production (Vercel + APK): VITE_API_BASE is baked in at build time.
+// For local dev: set VITE_API_BASE=https://your-app.vercel.app in .env.local
+const GROQ_PROXY = `${import.meta.env.VITE_API_BASE || ''}/api/groq`
 
 // ─── MODEL CASCADE ────────────────────────────────────────────────────────────
 // Vision models — tried in order, skip on 429/404
@@ -40,16 +30,7 @@ const TEXT_MODELS = [
   'llama-3.1-8b-instant',      // fast fallback if others rate-limited
   'gemma2-9b-it',              // last resort
 ]
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-
-// Round-robin key selector — distributes load across all keys
-let keyIndex = 0
-const nextKey = () => {
-  if (!API_KEYS.length) return null
-  const k = API_KEYS[keyIndex % API_KEYS.length]
-  keyIndex++
-  return k
-}
+// Key rotation is handled server-side in api/groq.js
 
 // ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
@@ -194,8 +175,6 @@ export function pharmacyLinks(saltComposition) {
 
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta production and hence the issues.')
-
   // Start DB load immediately — parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
 
@@ -485,76 +464,62 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
   }
 }
 
-// ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
-// For each model, ALL keys are tried before moving to the next model.
-// This ensures a decommissioned/rate-limited model doesn't silently kill the
-// cascade — every backup model gets a fair shot with every available key.
+// ─── GROQ CALLERS — via Vercel proxy ─────────────────────────────────────────
+// The proxy at /api/groq handles key rotation and 429 retries server-side.
+// These functions just send the model + messages and get back the response.
 
 async function callVision(b64, mime, prompt) {
-  if (!API_KEYS.length) throw new Error('No API keys configured.')
-  let lastErr = 'no models available'
   const t0 = Date.now()
   for (const model of VISION_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({
-            model, max_tokens: 600, temperature: 0.05,
-            messages: [{ role: 'user', content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
-            ]}]
-          })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
-        if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse fail'; break
-      } catch(e) {
-        if (e.message.includes('Invalid API')) throw e
-        lastErr = e.message; break
-      }
+    try {
+      const res = await fetch(GROQ_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, max_tokens: 600, temperature: 0.05,
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+          ]}]
+        }),
+        signal: AbortSignal.timeout(35000),
+      })
+      if (res.status === 429) continue // proxy exhausted all keys for this model
+      if (res.status === 404) continue // model decommissioned
+      if (!res.ok) { console.warn('vision proxy err', res.status); continue }
+      const data = await res.json()
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+      if (parsed) return parsed
+    } catch(e) {
+      console.warn('callVision', model, e.message)
+      continue
     }
   }
-  throw new Error(`Could not read image: ${lastErr}`)
+  throw new Error('Could not read image. All vision models failed or rate-limited.')
 }
 
 async function callText(prompt) {
-  if (!API_KEYS.length) return null
-  let lastErr = 'no models'
   const t0 = Date.now()
   const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
   for (const model of TEXT_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (!res.ok) { lastErr = `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse'; break
-      } catch(e) { lastErr = e.message; break }
-    }
+    try {
+      const res = await fetch(GROQ_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.status === 429) continue
+      if (res.status === 404) continue
+      if (!res.ok) continue
+      const data = await res.json()
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+      if (parsed) return parsed
+    } catch { continue }
   }
   return null // text calls are non-fatal
 }
@@ -612,43 +577,3 @@ export async function compressAndEncode(file) {
     img.src = url
   })
 }
-
-// ─── PRESCRIPTION SCAN ────────────────────────────────────────────────────────
-export const PRESCRIPTION_PROMPT = `Medical prescription reader. Extract ONLY patient name, doctor/hospital name, date, and the list of prescribed medicines.
-Strive to read handwriting accurately. Infer common medical abbreviations (e.g., "1-0-1" = Morning & Night, "BD" = twice a day, "PC" = after food, "OD" = once a day).
-If the image is totally unreadable or NOT a medical prescription, set cannotRead=true.
-
-JSON only, no markdown:
-{
-  "doctorName": "Dr. Name / Clinic Name",
-  "patientName": "Patient Name",
-  "date": "Date if written",
-  "medicines": [
-    {
-      "name": "Full drug name and strength",
-      "dosage": "e.g., 1 tablet, 5ml",
-      "frequency": "e.g., 1-1-1, or Twice a day",
-      "duration": "e.g., 5 days",
-      "instructions": "e.g., After food"
-    }
-  ],
-  "confidence": 85,
-  "cannotRead": false,
-  "cannotReadReason": null
-}`
-
-export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
-  
-  const img = await callVision(imageBase64, mimeType, PRESCRIPTION_PROMPT)
-  
-  if (img.cannotRead) {
-    img.cannotReadReason = img.cannotReadReason || 'Could not read the prescription clearly. Try taking a brighter, closer photo.'
-  }
-  
-  return {
-    isPrescription: true,
-    data: img
-  }
-}
-
