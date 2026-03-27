@@ -1,29 +1,22 @@
 /**
- * geminiService.js v4 — Agada AI Service
+ * geminiService.js v5 — Agada AI Service (Proxy Edition)
  *
- * Key changes:
- * - 5 API key rotation (VITE_GROQ_KEY_1..5)
- * - Full model cascade — 6 models tried before giving up
- * - QR saltFromQR = ground truth, skips vision call entirely for that field
- * - Strict: if QR has salt, DB lookup uses ONLY that. Vision AI = fallback only.
- * - Parallel: vision + DB preload in parallel from start
- * - Pharmacy deep links for live prices (no CORS issues)
+ * Key changes from v4:
+ * - API keys are NO LONGER in the client bundle.
+ * - All Groq calls now go through /api/groq (Vercel serverless proxy).
+ * - The proxy handles key rotation server-side (GROQ_KEY_1..5 in Vercel env).
+ * - Android APK calls the same proxy — zero key exposure.
  */
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
 import { logAIResponse } from './debugLog.js'
 import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
-// ─── KEY ROTATION ─────────────────────────────────────────────────────────────
-// Add up to 5 keys in Vercel: VITE_GROQ_KEY_1, VITE_GROQ_KEY_2 ... VITE_GROQ_KEY_5
-const API_KEYS = [
-  import.meta.env.VITE_GROQ_KEY_1,
-  import.meta.env.VITE_GROQ_KEY_2,
-  import.meta.env.VITE_GROQ_KEY_3,
-  import.meta.env.VITE_GROQ_KEY_4,
-  import.meta.env.VITE_GROQ_KEY_5,
-  import.meta.env.VITE_GROQ_KEY, // legacy single key fallback
-].filter(Boolean)
+// ─── PROXY URL ────────────────────────────────────────────────────────────────
+// In production (Vercel or Android WebView pointing to Vercel): relative path works.
+// For local dev: set VITE_API_BASE in .env.local to your Vercel preview URL.
+const API_BASE = import.meta.env.VITE_API_BASE || ''
+const GROQ_PROXY = `${API_BASE}/api/groq`
 
 // ─── MODEL CASCADE ────────────────────────────────────────────────────────────
 // Vision models — tried in order, skip on 429/404
@@ -40,16 +33,9 @@ const TEXT_MODELS = [
   'llama-3.1-8b-instant',      // fast fallback if others rate-limited
   'gemma2-9b-it',              // last resort
 ]
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-// Round-robin key selector — distributes load across all keys
-let keyIndex = 0
-const nextKey = () => {
-  if (!API_KEYS.length) return null
-  const k = API_KEYS[keyIndex % API_KEYS.length]
-  keyIndex++
-  return k
-}
+
+// Key rotation is handled server-side in api/groq.js — nothing needed here.
 
 // ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
@@ -175,10 +161,10 @@ STRICT RULES — violating any rule means the product must be excluded:
 5. EACH item must be from a DIFFERENT manufacturer.
 6. "brand" field = manufacturer name ONLY. e.g. "Cipla" or "Sun Pharma". No explanations, no parentheses, no extra text.
 7. "name" field = brand name + strength ONLY. e.g. "Calpol 500mg". Nothing else.
-8. "estimatedMrp" and "perUnit" MUST be null. DO NOT guess prices — prices will be fetched live from pharmacy APIs.
+Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
-[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":null,"perUnit":null,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
@@ -196,8 +182,6 @@ export function pharmacyLinks(saltComposition) {
 
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta production and hence the issues.')
-
   // Start DB load immediately — parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
 
@@ -384,34 +368,22 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
-
-      // Second pass: for any alt that got no price, retry with brand name
-      const missedAlts = allAlts.filter(alt => {
-        const key = alt.salt || alt.name
-        return !davaMap.has(key) && alt.name
-      })
-      if (missedAlts.length > 0) {
-        const brandMap = await batchFetchDavaIndiaPrices(missedAlts.map(a => ({ ...a, salt: a.name })))
-        brandMap.forEach((v, k) => { if (!davaMap.has(k)) davaMap.set(k, v) })
-      }
-
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
-        const dava = davaMap.get(key) || davaMap.get(alt.name)
-        if (!dava) return alt  // no live result — keep as aiEstimated
+        const dava = davaMap.get(key)
+        if (!dava) return alt  // no DavaIndia result — keep AI estimate as-is
         return {
           ...alt,
-          // Override price fields with live pharmacy data
+          // Override price fields with DavaIndia live data
           mrp:           dava.mrp,
           estimatedMrp:  dava.mrp,
           packSize:      dava.packSize || alt.packSize,
           perUnit:       dava.perUnit  ?? alt.perUnit,
-          allSources:    dava.allSources || [],
           // Source & confidence flags
-          priceSource:   dava.priceSource || 'Live',
+          priceSource:   'DavaIndia',
           highConfidence: true,
-          aiEstimated:   false,
-          davaIndiaName: dava.name,
+          aiEstimated:   false,  // it's a real price now, not AI estimated
+          davaIndiaName: dava.name,  // actual product name on DavaIndia
         }
       })
     } catch {
@@ -505,76 +477,61 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
   }
 }
 
-// ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
-// For each model, ALL keys are tried before moving to the next model.
-// This ensures a decommissioned/rate-limited model doesn't silently kill the
-// cascade — every backup model gets a fair shot with every available key.
+// ─── GROQ CALLERS (via Vercel proxy) ─────────────────────────────────────────
+// The proxy at /api/groq holds all keys server-side and handles rotation/429s.
 
 async function callVision(b64, mime, prompt) {
-  if (!API_KEYS.length) throw new Error('No API keys configured.')
-  let lastErr = 'no models available'
   const t0 = Date.now()
   for (const model of VISION_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({
-            model, max_tokens: 600, temperature: 0.05,
-            messages: [{ role: 'user', content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
-            ]}]
-          })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (res.status === 401) throw new Error('Invalid API key. Check VITE_GROQ_KEY_1 in Vercel.')
-        if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse fail'; break
-      } catch(e) {
-        if (e.message.includes('Invalid API')) throw e
-        lastErr = e.message; break
-      }
+    try {
+      const res = await fetch(GROQ_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, max_tokens: 600, temperature: 0.05,
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } }
+          ]}]
+        }),
+        signal: AbortSignal.timeout(35000),
+      })
+      if (res.status === 429) continue // proxy already retried all keys
+      if (res.status === 404) continue // model gone
+      if (!res.ok) { const e = await res.json().catch(()=>({})); console.warn('vision err', e); continue }
+      const data = await res.json()
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase: 'vision', prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+      if (parsed) return parsed
+    } catch(e) {
+      console.warn('callVision model error', model, e.message)
+      continue
     }
   }
-  throw new Error(`Could not read image: ${lastErr}`)
+  throw new Error('Could not read image. All vision models failed or rate-limited.')
 }
 
 async function callText(prompt) {
-  if (!API_KEYS.length) return null
-  let lastErr = 'no models'
   const t0 = Date.now()
   const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
   for (const model of TEXT_MODELS) {
-    // Try every key for this model before giving up on it
-    for (let ki = 0; ki < API_KEYS.length; ki++) {
-      const key = API_KEYS[(keyIndex + ki) % API_KEYS.length]
-      try {
-        const res = await fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-          body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
-        })
-        if (res.status === 429) { lastErr = `${model} key[${ki}] rate-limited`; continue } // try next key
-        if (res.status === 404) { lastErr = `${model} decommissioned`; break }             // model gone — try next model
-        if (!res.ok) { lastErr = `${res.status}`; break }
-        const data = await res.json()
-        const rawResponse = data?.choices?.[0]?.message?.content
-        const parsed = safeJSON(rawResponse)
-        logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
-        if (parsed) { keyIndex = (keyIndex + ki + 1) % API_KEYS.length; return parsed }
-        lastErr = 'JSON parse'; break
-      } catch(e) { lastErr = e.message; break }
-    }
+    try {
+      const res = await fetch(GROQ_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.status === 429) continue
+      if (res.status === 404) continue
+      if (!res.ok) continue
+      const data = await res.json()
+      const rawResponse = data?.choices?.[0]?.message?.content
+      const parsed = safeJSON(rawResponse)
+      logAIResponse({ phase, prompt, rawResponse, parsed, durationMs: Date.now()-t0 })
+      if (parsed) return parsed
+    } catch { continue }
   }
   return null // text calls are non-fatal
 }
@@ -661,8 +618,6 @@ JSON only, no markdown:
 // Used when user taps "Search" on a medicine in the prescription results.
 // No image — we use the medicine name + dose extracted by OCR as ground truth.
 export async function searchMedicineByName(medicineName, dosage) {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
-
   await ensureLoaded().catch(() => {})
 
   // Ask AI to identify the salt composition from the brand/generic name
@@ -724,17 +679,11 @@ JSON only, no markdown:
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
-      // Retry missed ones by brand name
-      const missedAlts2 = allAlts.filter(alt => !davaMap.has(alt.salt || alt.name) && alt.name)
-      if (missedAlts2.length > 0) {
-        const brandMap2 = await batchFetchDavaIndiaPrices(missedAlts2.map(a => ({ ...a, salt: a.name })))
-        brandMap2.forEach((v, k) => { if (!davaMap.has(k)) davaMap.set(k, v) })
-      }
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
-        const dava = davaMap.get(key) || davaMap.get(alt.name)
+        const dava = davaMap.get(key)
         if (!dava) return alt
-        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, allSources: dava.allSources || [], priceSource: dava.priceSource || 'Live', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
+        return { ...alt, mrp: dava.mrp, estimatedMrp: dava.mrp, packSize: dava.packSize || alt.packSize, perUnit: dava.perUnit ?? alt.perUnit, priceSource: 'DavaIndia', highConfidence: true, aiEstimated: false, davaIndiaName: dava.name }
       })
     } catch { /* graceful degrade */ }
   }
@@ -789,7 +738,6 @@ JSON only, no markdown:
 }
 
 export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
-  if (!API_KEYS.length) throw new Error('Server Down. Please be patient, we are in Beta.')
   
   const img = await callVision(imageBase64, mimeType, PRESCRIPTION_PROMPT)
   
