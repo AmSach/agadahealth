@@ -175,10 +175,10 @@ STRICT RULES — violating any rule means the product must be excluded:
 5. EACH item must be from a DIFFERENT manufacturer.
 6. "brand" field = manufacturer name ONLY. e.g. "Cipla" or "Sun Pharma". No explanations, no parentheses, no extra text.
 7. "name" field = brand name + strength ONLY. e.g. "Calpol 500mg". Nothing else.
-Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
+CRITICAL PRICING RULE: Set "estimatedMrp" to 0 and "perUnit" to 0 for ALL entries. DO NOT guess, invent, or recall any prices from training data — prices change constantly and your knowledge is outdated. Real prices will be fetched live from pharmacy APIs after you respond. Setting a non-zero price here would display wrong data to patients.
 Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
-[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
+[{"name":"Calpol 500mg","brand":"GSK","salt":"${salt}","packSize":"10 tablets","estimatedMrp":0,"perUnit":0,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
 // ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
@@ -443,7 +443,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate — verify at the chemist.',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from 1mg/DavaIndia/PharmEasy/NetMeds/Apollo. AI ESTIMATED entries show NO price — check live pharmacy links for real prices.',
     },
     dataSource: {
       salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',
@@ -759,7 +759,7 @@ JSON only, no markdown:
       savingsSummary:       buildSavingsSummary(jaBest, null, null),
       pharmacyLinks:        pharmacyLinks(finalSalt),
       whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED prices are approximate — verify at the chemist.',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. AI ESTIMATED entries show NO price — check live pharmacy links for real prices. Never trust AI for medicine pricing.',
     },
     dataSource: {
       salt:       'Prescription OCR (AI identified)',
@@ -784,4 +784,3 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
     data: img
   }
 }
-
