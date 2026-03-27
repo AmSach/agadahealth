@@ -7,14 +7,12 @@ const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSce6duzii7D1Sl
 // Sends AI-generated strings through Groq for translation
 async function translateTexts(texts, targetLang) {
   if (targetLang === 'en' || !texts || texts.length === 0) return texts
-  const key = import.meta.env.VITE_GROQ_KEY
-  if (!key) return texts
   const langNames = { hi: 'Hindi', bn: 'Bengali', te: 'Telugu', mr: 'Marathi', ta: 'Tamil', gu: 'Gujarati' }
   const langName = langNames[targetLang] || 'Hindi'
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('/api/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         max_tokens: 1500,
