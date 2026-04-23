@@ -1,6 +1,8 @@
 /**
  * api/groq.js — Vercel serverless proxy for Groq API calls
  * Keys from env vars: GROQ_KEY_1, GROQ_KEY_2, GROQ_KEY_3, etc.
+ * 
+ * Uses ESM (export default) because package.json has "type": "module"
  */
 
 const API_KEYS = [
@@ -57,16 +59,12 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(60000),
       })
 
-      if (upstream.status === 429) { 
-        lastError = 'Rate limited'
-        continue 
-      }
-      if (upstream.status === 401) { 
-        lastError = 'Invalid API key'
-        continue 
-      }
+      if (upstream.status === 429) { lastError = 'Rate limited'; continue }
+      if (upstream.status === 401) { lastError = 'Invalid API key'; continue }
+      if (upstream.status === 404) { lastError = 'Model decommissioned'; continue }
 
       const data = await upstream.json()
       res.status(upstream.status).json(data); return

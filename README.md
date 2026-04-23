@@ -1,6 +1,5 @@
-# Agada — अगद
+# Agada ~ अगद
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![React 18](https://img.shields.io/badge/React-18-blue?logo=react)](https://react.dev)
 [![Gemini 1.5 Flash](https://img.shields.io/badge/AI-Gemini%201.5%20Flash-purple?logo=google)](https://ai.google.dev)
 [![Supabase](https://img.shields.io/badge/DB-Supabase-green?logo=supabase)](https://supabase.com)
@@ -41,26 +40,6 @@ Three cards appear. First: is this medicine registered with CDSCO? Second: what 
 The whole thing takes under three seconds on a 4G connection.
 
 ---
-
-## How we built it
-
-### The core realisation
-
-India's government has already done most of the hard work here. The CDSCO publishes its full approved drug list as a downloadable Excel file. The Jan Aushadhi scheme publishes its product list and prices. The NPPA publishes legally mandated price ceilings for essential medicines. None of it is secret, and all of it is updated regularly. We obtained the official copies from the government's own initiative with the Right To Information Act.
-
-What doesn't exist is a consumer-facing interface to any of it.
-
-We took those three independent databases, cleaned them, and loaded them into a PostgreSQL database on Supabase. When you scan a medicine, we're not calling a government API, we're querying our own pre-loaded copy of the government's data. We did this because government APIs in India are unreliable, undocumented for public use, and not designed for someone scanning medicine strips in real time. Pre-loading means zero-latency queries and no dependency on whether a government server is up.
-
-### Why these tools
-
-**React 18 + Vite**: We needed this to work as a zero-download web app on any Android or iOS phone browser. React handles the scan flow state (idle → processing → results → reset). Vite keeps the bundle small enough to load fast on a slow connection. Android application on the works.
-
-**Google Gemini 1.5 Flash**: Reading text off a medicine strip is harder than it sounds. Strips are shiny, the text is small, the angles vary, and brand names are often printed in multiple fonts on the same label. And we added our own compression algorithm on the images  to compress them in under 100kbs to reduce latency. Gemini Vision was the only approach that consistently returned structured JSON; brand name, salt, dosage, manufacturer; from a casual phone photo. We use Flash rather than Pro because it responds in about 1.5 seconds versus 4+ for Pro, and on this specific task — extracting text fields from a label, the accuracy difference is small enough not to matter.
-
-**Supabase**: Free tier handles all three tables at our data volumes. It generates a REST API automatically, so the React app can query the database directly without us running a backend server. Row Level Security restricts the public API key to read-only, so there's no way for a user to modify the government data.
-
-**Vercel**: One command to deploy. HTTPS by default, which matters because the browser camera API only works on secure origins. Mobile browsers will block camera access on plain HTTP.
 
 ### The fuzzy matching problem
 
