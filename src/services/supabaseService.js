@@ -23,16 +23,19 @@ import { createClient } from '@supabase/supabase-js'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('[Agada] Supabase environment variables not set. Check .env.local')
+// Gracefully handle missing Supabase config
+const supabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY)
+
+if (!supabaseConfigured) {
+  console.warn('[Agada] Supabase not configured. Using fallback data.')
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    persistSession: false,       // No user sessions — Agada is fully anonymous
+    persistSession: false,
     autoRefreshToken: false,
   },
-})
+}) : null
 
 // ─────────────────────────────────────────────
 // 1. CDSCO AUTHENTICITY CHECK
@@ -55,6 +58,16 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
  * @returns {Promise<Object>} Authenticity result
  */
 export async function checkCDSCOAuthenticity(brandName, saltComposition) {
+  if (!supabase) {
+    return { 
+      status: 'NOT_CONFIGURED', 
+      confidence: 'LOW',
+      source: 'CDSCO (Database not available)',
+      data: null,
+      message: 'CDSCO database not configured. Cannot verify authenticity.'
+    }
+  }
+  
   if (!brandName && !saltComposition) {
     return { status: 'ERROR', message: 'No medicine name provided', data: null }
   }
@@ -179,6 +192,14 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
  * @returns {Promise<Object>} Alternatives result with savings data
  */
 export async function findJanAushadhiAlternatives(saltComposition, brandedMrp = null) {
+  if (!supabase) {
+    return { 
+      success: false, 
+      data: [], 
+      message: 'Jan Aushadhi database not configured.'
+    }
+  }
+  
   if (!saltComposition) {
     return { success: false, data: [], message: 'No salt composition provided' }
   }
@@ -246,6 +267,14 @@ export async function findJanAushadhiAlternatives(saltComposition, brandedMrp = 
  * @returns {Promise<Object>} NPPA ceiling price result
  */
 export async function getNPPAPriceCeiling(saltComposition) {
+  if (!supabase) {
+    return { 
+      success: false, 
+      data: null, 
+      message: 'NPPA database not configured.' 
+    }
+  }
+  
   if (!saltComposition) return { success: false, data: null }
 
   try {
