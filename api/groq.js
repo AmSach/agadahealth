@@ -49,24 +49,39 @@ module.exports = async function handler(req, res) {
 
   const payload = { model, max_tokens: max_tokens || 1000, temperature: temperature ?? 0.1, messages }
 
+  let lastError = 'Unknown error'
+  
   for (const key of API_KEYS) {
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
+      
       const upstream = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30000),
+        signal: controller.signal,
       })
+      
+      clearTimeout(timeoutId)
 
-      if (upstream.status === 429) continue
-      if (upstream.status === 401) continue
+      if (upstream.status === 429) { 
+        lastError = 'Rate limited'
+        continue 
+      }
+      if (upstream.status === 401) { 
+        lastError = 'Invalid API key'
+        continue 
+      }
 
       const data = await upstream.json()
       res.status(upstream.status).json(data); return
     } catch (err) {
-      res.status(500).json({ error: 'proxy_error', detail: err.message }); return
+      lastError = err.message
+      // Continue to next key on timeout/abort
+      if (err.name === 'AbortError') continue
     }
   }
 
-  res.status(500).json({ error: 'All keys rate-limited' })
+  res.status(500).json({ error: 'All keys failed', detail: lastError })
 }
