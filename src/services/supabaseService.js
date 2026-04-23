@@ -1,79 +1,51 @@
 /**
  * supabaseService.js
  * 
- * All Supabase (PostgreSQL) database interactions for Agada.
+ * All database interactions for Agada.
+ * Uses Supabase (PostgreSQL) when configured, falls back to local data when not.
  * 
- * Three tables are queried:
- *   1. cdsco_drugs         — CDSCO approved drug registry (authenticity)
- *   2. jan_aushadhi_generics — Jan Aushadhi scheme medicines (alternatives)
- *   3. nppa_prices          — NPPA price ceiling data (savings calculation)
- * 
- * All tables are pre-loaded from government Excel files.
- * No live government API calls are made at runtime.
- * 
- * Fuzzy matching uses ILIKE with pg_trgm for tolerant medicine name matching.
- * This handles: "Crocin" matching "CROCIN 500", spacing variations, etc.
- * 
- * The Supabase anon key is safe to expose — Row Level Security (RLS)
- * restricts all operations to SELECT only. No writes are possible.
+ * Three data sources:
+ *   1. CDSCO approved drug registry (authenticity)
+ *   2. Jan Aushadhi scheme medicines (alternatives + pricing)
+ *   3. NPPA price ceiling data (savings calculation)
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { lookupJanAushadhiLocal, calculateSavings as calcSavings } from './janAushadhiData.js'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Gracefully handle missing Supabase config
 const supabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY)
 
 if (!supabaseConfigured) {
-  console.warn('[Agada] Supabase not configured. Using fallback data.')
+  console.warn('[Agada] Supabase not configured. Using local fallback data.')
 }
 
 export const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
+  auth: { persistSession: false, autoRefreshToken: false },
 }) : null
 
 // ─────────────────────────────────────────────
 // 1. CDSCO AUTHENTICITY CHECK
 // ─────────────────────────────────────────────
 
-/**
- * Checks if a medicine's brand name exists in the CDSCO approved drug registry.
- * 
- * Returns:
- *   - status: 'VERIFIED' | 'NOT_FOUND' | 'EXPIRED' | 'ERROR'
- *   - data: the matching CDSCO record if found
- * 
- * Algorithm:
- *   1. Exact brand name match (fastest, highest confidence)
- *   2. If no exact match, fuzzy ILIKE match (catches "CROCIN 500" vs "Crocin")
- *   3. If still no match, try matching by salt composition
- * 
- * @param {string} brandName — Brand name from Gemini extraction
- * @param {string} saltComposition — Salt from Gemini (fallback search)
- * @returns {Promise<Object>} Authenticity result
- */
 export async function checkCDSCOAuthenticity(brandName, saltComposition) {
   if (!supabase) {
-    return { 
-      status: 'NOT_CONFIGURED', 
+    return {
+      status: 'NOT_CONFIGURED',
       confidence: 'LOW',
       source: 'CDSCO (Database not available)',
       data: null,
       message: 'CDSCO database not configured. Cannot verify authenticity.'
     }
   }
-  
+
   if (!brandName && !saltComposition) {
     return { status: 'ERROR', message: 'No medicine name provided', data: null }
   }
 
   try {
-    // Attempt 1: Exact brand name match
     let { data, error } = await supabase
       .from('cdsco_drugs')
       .select('brand_name, salt_composition, manufacturer, license_number, schedule, is_active, license_expiry_date, category')
@@ -83,7 +55,6 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
       .single()
 
     if (error && error.code !== 'PGRST116') {
-      // PGRST116 = "no rows returned" — not a real error for our purposes
       console.error('[Agada] CDSCO exact match error:', error)
     }
 
@@ -97,8 +68,7 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
       }
     }
 
-    // Attempt 2: Broader ILIKE — split brand name in case it includes strength
-    const brandNameBase = brandName.split(' ')[0] // e.g. "Crocin 500" → "Crocin"
+    const brandNameBase = brandName?.split(' ')[0]
     if (brandNameBase && brandNameBase !== brandName) {
       const { data: data2 } = await supabase
         .from('cdsco_drugs')
@@ -114,12 +84,11 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
           confidence: 'MEDIUM',
           source: 'CDSCO Government Registry',
           data: data2,
-          message: `Verified in CDSCO registry (partial name match).`,
+          message: 'Verified in CDSCO registry (partial name match).',
         }
       }
     }
 
-    // Attempt 3: Check if it exists but is inactive (expired/suspended)
     const { data: inactiveData } = await supabase
       .from('cdsco_drugs')
       .select('brand_name, manufacturer, license_number, is_active, license_expiry_date')
@@ -134,11 +103,10 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
         confidence: 'HIGH',
         source: 'CDSCO Government Registry',
         data: inactiveData,
-        message: `Found in CDSCO registry but licence is INACTIVE/EXPIRED. Exercise caution.`,
+        message: 'Found in CDSCO registry but licence is INACTIVE/EXPIRED. Exercise caution.',
       }
     }
 
-    // Attempt 4: Salt composition fallback
     if (saltComposition) {
       const saltBase = saltComposition.split(' ')[0]
       const { data: saltData } = await supabase
@@ -159,7 +127,6 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
       }
     }
 
-    // Not found at all
     return {
       status: 'NOT_FOUND',
       confidence: 'HIGH',
@@ -182,76 +149,77 @@ export async function checkCDSCOAuthenticity(brandName, saltComposition) {
 // 2. JAN AUSHADHI ALTERNATIVES LOOKUP
 // ─────────────────────────────────────────────
 
-/**
- * Finds Jan Aushadhi generic alternatives for a given salt composition.
- * Results are ordered by MRP ascending (cheapest first).
- * Savings percentage is calculated against the branded MRP from extraction.
- * 
- * @param {string} saltComposition — Salt from extraction (e.g., "Paracetamol 500mg")
- * @param {number|null} brandedMrp — Branded medicine MRP for savings calculation
- * @returns {Promise<Object>} Alternatives result with savings data
- */
 export async function findJanAushadhiAlternatives(saltComposition, brandedMrp = null) {
-  if (!supabase) {
-    return { 
-      success: false, 
-      data: [], 
-      message: 'Jan Aushadhi database not configured.'
-    }
-  }
-  
   if (!saltComposition) {
     return { success: false, data: [], message: 'No salt composition provided' }
   }
 
-  try {
-    // Extract just the active ingredient name (without dosage) for broader matching
-    // e.g., "Paracetamol 500mg" → "Paracetamol"
-    const saltName = saltComposition.split(' ')[0].replace(/[^a-zA-Z]/g, '')
+  const saltName = saltComposition.split(' ')[0].replace(/[^a-zA-Z]/g, '')
 
-    const { data, error } = await supabase
-      .from('jan_aushadhi_generics')
-      .select('product_name, salt_composition, mrp, pack_size, unit, product_code, therapeutic_class')
-      .ilike('salt_composition', `%${saltName}%`)
-      .order('mrp', { ascending: true })
-      .limit(6)
+  // Try Supabase first
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('jan_aushadhi_generics')
+        .select('product_name, salt_composition, mrp, pack_size, unit, product_code, therapeutic_class')
+        .ilike('salt_composition', `%${saltName}%`)
+        .order('mrp', { ascending: true })
+        .limit(6)
 
-    if (error) {
-      console.error('[Agada] Jan Aushadhi query error:', error)
-      return { success: false, data: [], message: 'Database query failed' }
-    }
+      if (!error && data && data.length > 0) {
+        const enrichedData = data.map((medicine) => {
+          const savings = brandedMrp && medicine.mrp
+            ? calculateSavings(brandedMrp, medicine.mrp, medicine.pack_size)
+            : null
 
-    if (!data || data.length === 0) {
-      return {
-        success: true,
-        data: [],
-        message: `No Jan Aushadhi generic found for ${saltName}. This medicine may not yet be in the Jan Aushadhi scheme.`,
+          return {
+            ...medicine,
+            savings,
+            isJanAushadhi: true,
+            source: 'Jan Aushadhi — BPPI',
+          }
+        })
+
+        return {
+          success: true,
+          data: enrichedData,
+          totalAlternatives: data.length,
+          source: 'Jan Aushadhi / BPPI Government Scheme',
+        }
       }
+    } catch (error) {
+      console.error('[Agada] Jan Aushadhi Supabase query failed:', error)
     }
+  }
 
-    // Annotate each result with savings data
-    const enrichedData = data.map((medicine) => {
-      const savings = brandedMrp && medicine.mrp
-        ? calculateSavings(brandedMrp, medicine.mrp, medicine.pack_size)
-        : null
+  // Fallback to local data
+  console.log('[Agada] Using local Jan Aushadhi fallback data')
+  const localData = lookupJanAushadhiLocal(saltName)
 
-      return {
-        ...medicine,
-        savings,
-        isJanAushadhi: true,
-        source: 'Jan Aushadhi — BPPI',
-      }
-    })
-
+  if (localData.length === 0) {
     return {
       success: true,
-      data: enrichedData,
-      totalAlternatives: data.length,
-      source: 'Jan Aushadhi / BPPI Government Scheme',
+      data: [],
+      message: `No Jan Aushadhi generic found for ${saltName}. This medicine may not yet be in the Jan Aushadhi scheme.`,
     }
-  } catch (error) {
-    console.error('[Agada] Jan Aushadhi lookup failed:', error)
-    return { success: false, data: [], message: 'Failed to fetch alternatives' }
+  }
+
+  const enrichedData = localData.map((medicine) => {
+    const savings = brandedMrp && medicine.mrp
+      ? calcSavings(brandedMrp, medicine.mrp)
+      : null
+
+    return {
+      ...medicine,
+      savings,
+    }
+  })
+
+  return {
+    success: true,
+    data: enrichedData,
+    totalAlternatives: localData.length,
+    source: 'Jan Aushadhi (Local Fallback)',
   }
 }
 
@@ -259,22 +227,15 @@ export async function findJanAushadhiAlternatives(saltComposition, brandedMrp = 
 // 3. NPPA PRICE CEILING LOOKUP
 // ─────────────────────────────────────────────
 
-/**
- * Looks up the legally mandated NPPA price ceiling for a medicine.
- * The ceiling price is the maximum a manufacturer can legally charge.
- * 
- * @param {string} saltComposition — Salt from extraction
- * @returns {Promise<Object>} NPPA ceiling price result
- */
 export async function getNPPAPriceCeiling(saltComposition) {
   if (!supabase) {
-    return { 
-      success: false, 
-      data: null, 
-      message: 'NPPA database not configured.' 
+    return {
+      success: false,
+      data: null,
+      message: 'NPPA database not configured.'
     }
   }
-  
+
   if (!saltComposition) return { success: false, data: null }
 
   try {
@@ -308,15 +269,6 @@ export async function getNPPAPriceCeiling(saltComposition) {
 // HELPER: Calculate savings
 // ─────────────────────────────────────────────
 
-/**
- * Calculates per-tablet savings between branded and generic.
- * Handles pack size normalization (branded: 10 tabs, generic: 30 tabs).
- * 
- * @param {number} brandedMrp — Branded medicine MRP (total)
- * @param {number} genericMrp — Generic medicine MRP (total)
- * @param {string|number} genericPackSize — Generic pack size (for per-unit calc)
- * @returns {Object} Savings breakdown
- */
 function calculateSavings(brandedMrp, genericMrp, genericPackSize) {
   if (!brandedMrp || !genericMrp) return null
 
@@ -328,8 +280,8 @@ function calculateSavings(brandedMrp, genericMrp, genericPackSize) {
     genericMrp,
     absoluteSavings: Math.max(0, savings).toFixed(2),
     percentageSaved: Math.max(0, savingsPercent),
-    isSignificant: savingsPercent >= 30,    // Flag high savings prominently
-    isMajor: savingsPercent >= 70,          // Flag exceptional savings
+    isSignificant: savingsPercent >= 30,
+    isMajor: savingsPercent >= 70,
   }
 }
 
@@ -337,13 +289,6 @@ function calculateSavings(brandedMrp, genericMrp, genericPackSize) {
 // COMBINED: runAllChecks
 // ─────────────────────────────────────────────
 
-/**
- * Runs all three database checks in parallel using Promise.all.
- * This is the main function called after Gemini extraction.
- * 
- * @param {Object} extraction — Result from Gemini extraction
- * @returns {Promise<Object>} All three check results
- */
 export async function runAllChecks(extraction) {
   const { brandName, saltComposition, mrp } = extraction
 
