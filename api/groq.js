@@ -14,7 +14,7 @@ const API_KEYS = [
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -53,17 +53,11 @@ module.exports = async function handler(req, res) {
   
   for (const key of API_KEYS) {
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000)
-      
       const upstream = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify(payload),
-        signal: controller.signal,
       })
-      
-      clearTimeout(timeoutId)
 
       if (upstream.status === 429) { 
         lastError = 'Rate limited'
@@ -78,8 +72,6 @@ module.exports = async function handler(req, res) {
       res.status(upstream.status).json(data); return
     } catch (err) {
       lastError = err.message
-      // Continue to next key on timeout/abort
-      if (err.name === 'AbortError') continue
     }
   }
 
