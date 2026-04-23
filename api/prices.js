@@ -2,11 +2,10 @@
  * api/prices.js — Agada Price Engine
  * 
  * Strategy:
- * 1. Local Jan Aushadhi database (CSV) - fastest, most reliable
- * 2. External scrapers (1mg, DavaIndia, etc.) - may be blocked
- * 3. Groq AI fallback (strict no-hallucination)
+ * 1. Local Jan Aushadhi database - fastest, most reliable
+ * 2. Groq AI fallback (strict no-hallucination)
  * 
- * IMPORTANT: Uses module.exports (CommonJS) for Vercel Node.js runtime
+ * Uses ESM (export default) because package.json has "type": "module"
  */
 
 const GROQ_KEYS = [
@@ -19,7 +18,6 @@ const GROQ_KEYS = [
 ].filter(Boolean)
 
 // ─── Local Jan Aushadhi Data ───────────────────────────────────────────────
-// Embedded for serverless - no file reads needed
 const JAN_AUSHADHI_DB = [
   { salt: 'Paracetamol 500mg', name: 'Paracetamol 500mg', mrp: 2.5, pack: '10 tablets', generic: true },
   { salt: 'Paracetamol 650mg', name: 'Paracetamol 650mg', mrp: 3.0, pack: '10 tablets', generic: true },
@@ -42,7 +40,6 @@ const JAN_AUSHADHI_DB = [
   { salt: 'ORS', name: 'Oral Rehydration Salts', mrp: 20.0, pack: '1 sachet', generic: true },
 ]
 
-// Normalize salt for matching
 function normalizeSalt(salt) {
   return salt.toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
@@ -50,7 +47,6 @@ function normalizeSalt(salt) {
     .trim()
 }
 
-// Lookup in local DB
 function lookupLocal(saltQuery) {
   const q = normalizeSalt(saltQuery)
   const qWords = q.split(' ').filter(w => w.length > 2)
@@ -85,35 +81,6 @@ function lookupLocal(saltQuery) {
     }
   }
   return null
-}
-
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  
-  if (req.method === 'OPTIONS') { res.status(200).end(); return }
-  if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
-
-  const q = (req.query.q || '').trim()
-  if (!q || q.length < 2) { res.status(400).json({ found: false, error: 'Query too short' }); return }
-
-  // 1. Try local Jan Aushadhi DB first (fastest, most reliable)
-  const local = lookupLocal(q)
-  if (local) {
-    return res.status(200).json(local)
-  }
-
-  // 2. Try Groq AI with strict prompt
-  if (GROQ_KEYS.length) {
-    const groqResult = await askGroqForPrice(q)
-    if (groqResult?.found) {
-      return res.status(200).json(groqResult)
-    }
-  }
-
-  // 3. Not found
-  return res.status(200).json({ found: false, reason: 'no_results', query: q })
 }
 
 async function askGroqForPrice(q) {
@@ -154,4 +121,33 @@ Format: {"found":true,"name":"Brand Name","mrp":50,"packSize":"10 tablets","perU
     } catch { continue }
   }
   return { found: false }
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  
+  if (req.method === 'OPTIONS') { res.status(200).end(); return }
+  if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
+
+  const q = (req.query.q || '').trim()
+  if (!q || q.length < 2) { res.status(400).json({ found: false, error: 'Query too short' }); return }
+
+  // 1. Try local Jan Aushadhi DB first
+  const local = lookupLocal(q)
+  if (local) {
+    return res.status(200).json(local)
+  }
+
+  // 2. Try Groq AI
+  if (GROQ_KEYS.length) {
+    const groqResult = await askGroqForPrice(q)
+    if (groqResult?.found) {
+      return res.status(200).json(groqResult)
+    }
+  }
+
+  // 3. Not found
+  return res.status(200).json({ found: false, reason: 'no_results', query: q })
 }
