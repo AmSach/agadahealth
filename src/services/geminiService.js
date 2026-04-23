@@ -13,7 +13,7 @@
 
 const GROQ_PROXY = '/api/groq'
 
-const VISION_MODEL = 'llama-3.2-11b-vision-preview'
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 const TEXT_MODEL = 'llama-3.3-70b-versatile'
 
 // ─────────────────────────────────────────────
