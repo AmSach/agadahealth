@@ -12,7 +12,7 @@ export default function HowItWorksPage() {
         {
           step: '01',
           title: 'You photograph a medicine strip',
-          detail: 'Tap "Scan Medicine." Your phone's rear camera opens. Frame the front of the strip — showing the brand name, dosage, and manufacturer. Tap the shutter.',
+          detail: 'Tap "Scan Medicine." Your phone\'s rear camera opens. Frame the front of the strip — showing the brand name, dosage, and manufacturer. Tap the shutter.',
           icon: '📷',
         },
         {

@@ -1,36 +1,23 @@
 /**
  * geminiService.js
  * 
- * Handles all interactions with Google Gemini API for Agada.
+ * Handles all interactions with Groq API for Agada (via /api/groq proxy).
+ * Keys are managed server-side in Vercel env vars (GROQ_KEY_*).
  * 
  * Two distinct calls are made:
  *   1. extractMedicineFromImage() — Vision model reads the medicine strip photo
  *      and returns structured JSON with brand name, salt, dosage, etc.
  *   2. generateMedicineExplanation() — Text model generates a plain-English
  *      explanation of what the medicine does, its warnings, and OTC status.
- * 
- * Both calls use gemini-1.5-flash for speed and free-tier capacity.
- * 
- * Privacy note: Images are sent directly to Google's API and are NOT stored
- * on any Agada server. Google's API usage policies apply.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
+const GROQ_PROXY = '/api/groq'
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-
-if (!API_KEY) {
-  console.error('[Agada] VITE_GEMINI_API_KEY is not set. Add it to your .env.local file.')
-}
-
-const genAI = new GoogleGenerativeAI(API_KEY)
+const VISION_MODEL = 'llama-3.2-11b-vision-preview'
+const TEXT_MODEL = 'llama-3.3-70b-versatile'
 
 // ─────────────────────────────────────────────
 // PROMPT 1: EXTRACTION PROMPT (Vision)
-// ─────────────────────────────────────────────
-// This prompt is engineered to be extremely explicit about output format.
-// We never want Gemini to return free text — we need machine-parseable JSON.
-// The prompt instructs Gemini to return ONLY the JSON object, no preamble.
 // ─────────────────────────────────────────────
 const EXTRACTION_PROMPT = `You are an expert at reading Indian medicine packaging. 
 Analyse this medicine strip, box, or label image carefully.
@@ -61,9 +48,6 @@ Rules:
 // ─────────────────────────────────────────────
 // PROMPT 2: EXPLANATION PROMPT (Text)
 // ─────────────────────────────────────────────
-// This prompt generates the "What is this?" card content.
-// Language: plain Hindi-inflected English. No jargon. Built for Tier 3 India.
-// ─────────────────────────────────────────────
 const buildExplanationPrompt = (saltComposition, brandName) => `
 You are a pharmacist explaining a medicine to a patient in simple, clear, friendly English. 
 The patient may have low health literacy. Avoid all medical jargon.
@@ -93,28 +77,45 @@ Keep all text SHORT. Use simple words. Avoid Latin terms. Write as if speaking t
 
 /**
  * Takes a base64-encoded JPEG image of a medicine strip and returns
- * structured extraction data from Gemini Vision.
+ * structured extraction data from Groq Vision.
  * 
  * @param {string} base64Image - Base64 encoded image (without data: prefix)
  * @param {string} mimeType - Image MIME type (default: 'image/jpeg')
  * @returns {Promise<Object>} Parsed extraction result
  */
 export async function extractMedicineFromImage(base64Image, mimeType = 'image/jpeg') {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
-
-  const imagePart = {
-    inlineData: {
-      data: base64Image,
-      mimeType,
-    },
-  }
-
   try {
-    const result = await model.generateContent([EXTRACTION_PROMPT, imagePart])
-    const response = await result.response
-    const text = response.text()
+    const res = await fetch(GROQ_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        max_tokens: 600,
+        temperature: 0.05,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: EXTRACTION_PROMPT },
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+          ]
+        }]
+      })
+    })
 
-    // Strip any markdown fences Gemini might add despite instructions
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      return {
+        success: false,
+        error: err.error || 'API request failed',
+        errorType: classifyError(res.status, err),
+        data: null,
+      }
+    }
+
+    const data = await res.json()
+    const text = data?.choices?.[0]?.message?.content || ''
+    
+    // Strip any markdown fences
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const parsed = JSON.parse(cleaned)
 
@@ -124,13 +125,11 @@ export async function extractMedicineFromImage(base64Image, mimeType = 'image/jp
       rawText: text,
     }
   } catch (error) {
-    console.error('[Agada] Gemini extraction error:', error)
-
-    // Structured error for UI to handle gracefully
+    console.error('[Agada] Vision extraction error:', error)
     return {
       success: false,
       error: error.message,
-      errorType: classifyGeminiError(error),
+      errorType: 'PARSE_ERROR',
       data: null,
     }
   }
@@ -149,13 +148,32 @@ export async function extractMedicineFromImage(base64Image, mimeType = 'image/jp
  * @returns {Promise<Object>} Parsed explanation result
  */
 export async function generateMedicineExplanation(saltComposition, brandName) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
   const prompt = buildExplanationPrompt(saltComposition, brandName)
 
   try {
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
+    const res = await fetch(GROQ_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: TEXT_MODEL,
+        max_tokens: 800,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      return {
+        success: false,
+        error: err.error || 'API request failed',
+        errorType: classifyError(res.status, err),
+        data: null,
+      }
+    }
+
+    const data = await res.json()
+    const text = data?.choices?.[0]?.message?.content || ''
 
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const parsed = JSON.parse(cleaned)
@@ -166,11 +184,11 @@ export async function generateMedicineExplanation(saltComposition, brandName) {
       source: 'AI Estimated',
     }
   } catch (error) {
-    console.error('[Agada] Gemini explanation error:', error)
+    console.error('[Agada] Explanation error:', error)
     return {
       success: false,
       error: error.message,
-      errorType: classifyGeminiError(error),
+      errorType: 'PARSE_ERROR',
       data: null,
     }
   }
@@ -179,29 +197,16 @@ export async function generateMedicineExplanation(saltComposition, brandName) {
 // ─────────────────────────────────────────────
 // HELPER: Classify errors for user-friendly messages
 // ─────────────────────────────────────────────
-function classifyGeminiError(error) {
-  const message = error.message?.toLowerCase() || ''
-
-  if (message.includes('api_key') || message.includes('401')) {
-    return 'INVALID_API_KEY'
-  }
-  if (message.includes('quota') || message.includes('429')) {
-    return 'QUOTA_EXCEEDED'
-  }
-  if (message.includes('safety') || message.includes('blocked')) {
-    return 'SAFETY_BLOCKED'
-  }
-  if (message.includes('json') || message.includes('parse')) {
-    return 'PARSE_ERROR'
-  }
-  if (message.includes('network') || message.includes('fetch')) {
-    return 'NETWORK_ERROR'
-  }
+function classifyError(status, err) {
+  if (status === 401) return 'INVALID_API_KEY'
+  if (status === 429) return 'QUOTA_EXCEEDED'
+  if (status === 400) return 'PARSE_ERROR'
+  if (status >= 500) return 'NETWORK_ERROR'
   return 'UNKNOWN_ERROR'
 }
 
 export const GeminiErrorMessages = {
-  INVALID_API_KEY: 'Gemini API key is missing or invalid. Please check setup instructions.',
+  INVALID_API_KEY: 'AI service unavailable. Please try again later.',
   QUOTA_EXCEEDED: 'AI request limit reached. Please try again in a few minutes.',
   SAFETY_BLOCKED: 'The image could not be processed. Please try a clearer photo.',
   PARSE_ERROR: 'AI returned an unexpected response. Please try again.',
