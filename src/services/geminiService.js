@@ -11,7 +11,7 @@
  * - Pharmacy deep links for live prices (no CORS issues)
  */
 
-import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary } from './dbService.js'
+import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary, parseSalts } from './dbService.js'
 import { logAIResponse } from './debugLog.js'
 import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
@@ -625,4 +625,138 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
     data: img
   }
 }
+
+// ─── PRESCRIPTION MEDICINE LOOKUP (QoL) ──────────────────────────────────────
+export async function lookupMedicineNameOnly(name) {
+  // Start DB load immediately
+  await ensureLoaded()
+
+  // Parse salt composition from name
+  const qSalts = parseSalts(name)
+  const saltComposition = name // use full name as best effort, or extract names
+  
+  // Lookup CDSCO and Jan Aushadhi
+  const cdscoResult = lookupCDSCO(saltComposition)
+  const jaLookup = lookupJanAushadhi(saltComposition, null, null)
+  const jaBest = jaLookup.best
+  const jaDoseDiff = jaLookup.doseMismatch
+
+  // Call text prompt for description and generics
+  let info = null, aiGenerics = []
+  try {
+    const [infoRes, genRes] = await Promise.allSettled([
+      callText(mkDescPrompt(name, saltComposition, 'MEDICINE')),
+      callText(mkGenericsPrompt(saltComposition, 'MEDICINE')),
+    ])
+    info = infoRes.status === 'fulfilled' ? infoRes.value : null
+    if (info) info.prescriptionRequired = resolveRx(saltComposition, info.prescriptionRequired)
+    if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
+      // Extract primary drug names from the query salt for validation
+      const queryDrugNames = (saltComposition || '')
+        .toLowerCase()
+        .split(/\band\b|\+|,/i)
+        .map(s => s.replace(/\d+\s*(mg|mcg|g|iu|ml)/gi, '').trim())
+        .filter(s => s.length > 3)
+
+      const seen = new Set()
+      aiGenerics = genRes.value
+        .filter(g => g && g.name && g.brand)
+        .filter(g => {
+          if (!queryDrugNames.length) return true
+          const returnedSalt = (g.salt || '').toLowerCase()
+          const returnedName = (g.name || '').toLowerCase()
+          return queryDrugNames.every(drug =>
+            returnedSalt.includes(drug) || returnedName.includes(drug)
+          )
+        })
+        .filter(g => {
+          const key = (g.brand || '').toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        .slice(0, 3)
+    }
+  } catch (e) {
+    console.error(e)
+  }
+
+  let allAlts = [
+    ...(jaBest ? [jaBest] : []),
+    ...aiGenerics,
+  ]
+
+  // Enriched with live prices if possible
+  if (allAlts.length > 0) {
+    try {
+      const davaMap = await batchFetchDavaIndiaPrices(allAlts)
+      allAlts = allAlts.map(alt => {
+        const key = alt.salt || alt.name
+        const dava = davaMap.get(key)
+        if (!dava) return alt
+        return {
+          ...alt,
+          mrp: dava.mrp,
+          estimatedMrp: dava.mrp,
+          packSize: dava.packSize || alt.packSize,
+          perUnit: dava.perUnit ?? alt.perUnit,
+          priceSource: 'DavaIndia',
+          highConfidence: true,
+          aiEstimated: false,
+          davaIndiaName: dava.name,
+        }
+      })
+    } catch {}
+  }
+
+  const authenticity = {
+    status: 'CANNOT_DETERMINE',
+    reason: 'Prescription lookup — no visual package present.',
+    genuineSignalsFound: [],
+    fakeSignalsFound: [],
+    cdscoBadge: cdscoResult.badge || 'Salt not found in CDSCO registry.',
+    cdscoIndication: cdscoResult.indication || null,
+    cdscoFound: cdscoResult.found,
+    approvalDate: cdscoResult.approvalDate || null,
+    warning: null,
+  }
+
+  return {
+    productType: 'MEDICINE',
+    brandName: name,
+    saltComposition: saltComposition,
+    manufacturer: null,
+    mrp: null,
+    unitSize: null,
+    batchNumber: null,
+    expiryDate: null,
+    isExpired: false,
+    licenceNumber: null,
+    confidence: 95,
+    saltSource: 'PRESCRIPTION',
+    doseUnconfirmed: false,
+    cannotRead: false,
+    cannotReadReason: null,
+    authenticity,
+    medicineInfo: info || fallbackInfo('MEDICINE'),
+    alternatives: {
+      hasGenerics: allAlts.length > 0,
+      janAushadhiAvailable: !!jaBest,
+      topAlternatives: allAlts,
+      doseMismatchAlt: jaDoseDiff,
+      jaCount: jaBest ? 1 : 0,
+      savingsSummary: buildSavingsSummary(jaBest, null, null),
+      pharmacyLinks: pharmacyLinks(saltComposition),
+      whereToFind: 'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
+      disclaimer: 'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate.',
+    },
+    dataSource: {
+      salt: 'Prescription lookup',
+      alts: 'BPPI Jan Aushadhi DB + AI',
+      cdsco: cdscoResult.found ? 'CDSCO Drug Registry' : 'Not in CDSCO registry',
+      cdscoFound: cdscoResult.found,
+    }
+  }
+}
+
 

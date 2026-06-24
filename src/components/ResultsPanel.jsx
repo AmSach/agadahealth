@@ -34,6 +34,38 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
   const [translated, setTranslated] = useState(null)
   const [translating, setTranslating] = useState(false)
 
+  const [isBookmarked, setIsBookmarked] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+      return saved.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)
+    } catch {
+      return false
+    }
+  })
+
+  const toggleBookmark = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+      let updated
+      if (isBookmarked) {
+        updated = saved.filter(b => !(b.brandName === results.brandName && b.saltComposition === results.saltComposition))
+        setIsBookmarked(false)
+      } else {
+        updated = [...saved, {
+          brandName: results.brandName,
+          saltComposition: results.saltComposition,
+          timestamp: Date.now(),
+          results: results
+        }]
+        setIsBookmarked(true)
+      }
+      localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+
   // Auto-translate AI-generated fields when lang != en
   React.useEffect(() => {
     if (lang === 'en') { setTranslated(null); return }
@@ -189,6 +221,30 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
             {translating && <span style={badge('amber')}>Translating...</span>}
           </div>
         </div>
+        
+        {/* Bookmark Button */}
+        <button
+          onClick={toggleBookmark}
+          title={isBookmarked ? "Remove Bookmark" : "Bookmark Medicine"}
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            background: isBookmarked ? 'var(--safflt)' : 'var(--bgsoft)',
+            border: `1.5px solid ${isBookmarked ? 'var(--saffron)' : 'var(--border)'}`,
+            color: isBookmarked ? 'var(--saffron)' : 'var(--textlt)',
+            fontSize: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            flexShrink: 0
+          }}
+        >
+          {isBookmarked ? '★' : '☆'}
+        </button>
+
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)', background: 'var(--greenlt)', padding: '3px 9px', borderRadius: 8, flexShrink: 0 }}>
           {results.confidence || 70}%
         </div>
@@ -226,7 +282,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
       <div style={{ animation: 'fadeIn 0.2s ease', flex: 1 }}>
         {card === 0 && <AuthCard auth={auth} results={results} t={t} reported={reported} setReported={setReported} />}
         {card === 1 && <InfoCard info={info} results={results} translating={translating} />}
-        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} />}
+        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} />}
       </div>
     </LayoutWrapper>
   )
@@ -442,8 +498,19 @@ function InfoCard({ info, results, translating }) {
 }
 
 // ─── CARD 3: ALTERNATIVES ─────────────────────────────────────────────────────
-function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
+function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt }) {
   const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
+  
+  // Savings Calculator state (QoL 1)
+  const [calcDays, setCalcDays] = useState(30)
+  const [calcQty, setCalcQty] = useState(1)
+
+  const showCalc = !isCheapest && cheapestAlt && brandedPerUnit && cheapestAlt.perUnit < brandedPerUnit
+
+  const totalQty = calcDays * calcQty
+  const brandedTotal = Math.round(totalQty * brandedPerUnit)
+  const genericTotal = Math.round(totalQty * cheapestAlt?.perUnit)
+  const savedAmount = brandedTotal - genericTotal
 
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
@@ -476,6 +543,156 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest }) {
             {alts.savingsSummary || 'Cheaper alternatives listed below.'}
           </div>
         )}
+
+        {/* Savings Calculator Widget (QoL 1) */}
+        {showCalc && (
+          <div style={{
+            background: 'var(--bgsoft)',
+            border: '1.5px solid var(--border)',
+            borderRadius: 12,
+            padding: '14px',
+            marginTop: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>🧮 Savings Calculator</span>
+              <span style={{ fontSize: 11, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
+                Interactive
+              </span>
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+              {/* Daily Dosage */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Tablets / day</label>
+                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
+                  {[1, 2, 3].map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => setCalcQty(q)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: 6,
+                        background: calcQty === q ? 'var(--navy)' : 'transparent',
+                        color: calcQty === q ? '#fff' : 'var(--textmd)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prescription Days */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Duration (Days)</label>
+                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
+                  {[10, 30, 90].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setCalcDays(d)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: 6,
+                        background: calcDays === d ? 'var(--navy)' : 'transparent',
+                        color: calcDays === d ? '#fff' : 'var(--textmd)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Custom inputs / sliders for more precision */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textlt)' }}>
+                <span>Custom Duration: {calcDays} Days</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="180"
+                step="5"
+                value={calcDays}
+                onChange={(e) => setCalcDays(parseInt(e.target.value))}
+                style={{
+                  width: '100%',
+                  height: 4,
+                  accentColor: 'var(--green)',
+                  background: 'var(--border)',
+                  outline: 'none',
+                  borderRadius: 2,
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
+
+            {/* Visual Bar Comparison Chart */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {/* Branded Bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
+                  <span>Branded Cost</span>
+                  <span style={{ fontWeight: 700 }}>₹{brandedTotal}</span>
+                </div>
+                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '100%', height: '100%', background: 'var(--navy)', borderRadius: 4 }} />
+                </div>
+              </div>
+
+              {/* Generic Bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
+                  <span>Generic/Alternative Cost</span>
+                  <span style={{ fontWeight: 700 }}>₹{genericTotal}</span>
+                </div>
+                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ width: `${Math.max(5, Math.min(100, (genericTotal / brandedTotal) * 100))}%`, height: '100%', background: 'var(--green)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Savings Result */}
+            <div style={{
+              background: '#DCFCE7',
+              border: '1px solid #86EFAC',
+              borderRadius: 8,
+              padding: '10px 12px',
+              textAlign: 'center',
+              color: '#15803D',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              marginTop: 4
+            }}>
+              <span>💰 Save ₹{savedAmount}!</span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#166534' }}>
+                ({savingsPct}% cheaper over {calcDays} days of treatment)
+              </span>
+            </div>
+          </div>
+        )}
+
 
         {/* Ask your chemist callout */}
         {alts.topAlternatives?.length > 0 && (

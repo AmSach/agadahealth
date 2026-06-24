@@ -24,6 +24,38 @@ export default function Scanner() {
   const cameraRef = useRef(null)
   const uploadRef = useRef(null)
 
+  // Bookmarks state & synchronizer (QoL 3)
+  const [bookmarks, setBookmarks] = useState([])
+  React.useEffect(() => {
+    if (view === VIEWS.HOME) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+        saved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        setBookmarks(saved)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }, [view])
+
+  const handleSelectBookmark = (bookmark) => {
+    setResults(bookmark.results)
+    setView(VIEWS.RESULTS)
+  }
+
+  const handleDeleteBookmark = (e, bookmark) => {
+    e.stopPropagation()
+    try {
+      const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+      const updated = saved.filter(b => !(b.brandName === bookmark.brandName && b.saltComposition === bookmark.saltComposition))
+      localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
+      setBookmarks(updated)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+
   const handleFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
@@ -94,9 +126,19 @@ export default function Scanner() {
         <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> — {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
 
-      {view === VIEWS.HOME    && <HomeView t={t} setPage={setPage} onCamera={(mode) => { setScanMode(mode); cameraRef.current?.click() }} onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }} />}
+      {view === VIEWS.HOME    && (
+        <HomeView
+          t={t}
+          setPage={setPage}
+          bookmarks={bookmarks}
+          handleSelectBookmark={handleSelectBookmark}
+          handleDeleteBookmark={handleDeleteBookmark}
+          onCamera={(mode) => { setScanMode(mode); cameraRef.current?.click() }}
+          onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
+        />
+      )}
       {view === VIEWS.LOADING && <LoadingView t={t} step={step} preview={preview} barcodeHit={barcodeHit} />}
-      {view === VIEWS.RESULTS && (results?.isPrescription ? <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} /> : <ResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} />)}
+      {view === VIEWS.RESULTS && (results?.isPrescription ? <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} /> : <ResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} />)}
       {view === VIEWS.ERROR   && <ErrorView error={error} onReset={reset} t={t} />}
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
@@ -105,7 +147,7 @@ export default function Scanner() {
   )
 }
 
-function HomeView({ t, setPage, onCamera, onUpload }) {
+function HomeView({ t, setPage, bookmarks, handleSelectBookmark, handleDeleteBookmark, onCamera, onUpload }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
 
@@ -172,6 +214,75 @@ function HomeView({ t, setPage, onCamera, onUpload }) {
           </div>
         ))}
       </div>
+
+      {/* Saved Scans Registry (QoL 3) */}
+      {bookmarks && bookmarks.length > 0 && (
+        <div style={{ marginTop: 24, marginBottom: 12, animation: 'fadeUp 0.5s ease 0.35s both' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            📌 Saved Medicines ({bookmarks.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+            {bookmarks.map((b, idx) => (
+              <div
+                key={idx}
+                onClick={() => handleSelectBookmark(b)}
+                style={{
+                  background: '#fff',
+                  border: '1.5px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.01)',
+                  transition: 'all 0.15s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--green)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                  💊
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.brandName}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {b.saltComposition}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => handleDeleteBookmark(e, b)}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: 'transparent',
+                    color: 'var(--textlt)',
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
+                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer links */}
       <div style={{ textAlign: 'center', padding: '16px 0 4px', display: 'flex', justifyContent: 'center', gap: 20 }}>

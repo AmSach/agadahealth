@@ -1,8 +1,43 @@
-import React from 'react'
+import React, { useState } from 'react'
+import ResultsPanel from './ResultsPanel.jsx'
+import { lookupMedicineNameOnly } from '../services/geminiService.js'
 
-export default function PrescriptionResultsPanel({ results, preview, onReset }) {
+export default function PrescriptionResultsPanel({ results, preview, onReset, t, lang }) {
   const { data } = results
+  const [loadingLookup, setLoadingLookup] = useState(false)
+  const [lookupMed, setLookupMed] = useState(null)
+  const [lookupResults, setLookupResults] = useState(null)
+
   if (!data) return null
+
+  const handleLookup = async (medName) => {
+    setLookupMed(medName)
+    setLoadingLookup(true)
+    try {
+      const res = await lookupMedicineNameOnly(medName)
+      setLookupResults(res)
+    } catch (e) {
+      console.error(e)
+      alert("Failed to find alternatives: " + e.message)
+    } finally {
+      setLoadingLookup(false)
+    }
+  }
+
+  if (lookupResults) {
+    return (
+      <ResultsPanel
+        results={lookupResults}
+        preview={null}
+        onReset={() => {
+          setLookupResults(null)
+          setLookupMed(null)
+        }}
+        t={t}
+        lang={lang}
+      />
+    )
+  }
 
   // Ensure arrays fallbacks
   const medicines = data.medicines || []
@@ -89,10 +124,47 @@ export default function PrescriptionResultsPanel({ results, preview, onReset }) 
                   <span style={{ background: '#E0F2FE', color: '#0369A1', fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6 }}>⏳ {med.duration || '?'}</span>
                 </div>
                 {med.instructions && (
-                  <div style={{ background: '#F0FDF4', color: '#166534', fontSize: 12, padding: '8px 12px', borderRadius: 8, borderLeft: '3px solid #16A34A', lineHeight: 1.4 }}>
+                  <div style={{ background: '#F0FDF4', color: '#166534', fontSize: 12, padding: '8px 12px', borderRadius: 8, borderLeft: '3px solid #16A34A', lineHeight: 1.4, marginBottom: 10 }}>
                     <strong>Note:</strong> {med.instructions}
                   </div>
                 )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <button
+                    onClick={() => handleLookup(med.name)}
+                    disabled={loadingLookup}
+                    style={{
+                      background: 'var(--green)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'opacity 0.2s',
+                    }}
+                  >
+                    {loadingLookup && lookupMed === med.name ? (
+                      <>
+                        <span className="spinner" style={{
+                          display: 'inline-block',
+                          width: 12,
+                          height: 12,
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: '#fff',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite'
+                        }} />
+                        Searching...
+                      </>
+                    ) : (
+                      <>🔍 Find Alternatives</>
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -106,3 +178,4 @@ export default function PrescriptionResultsPanel({ results, preview, onReset }) 
     </LayoutWrapper>
   )
 }
+
