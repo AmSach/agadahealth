@@ -11,7 +11,8 @@ import { useT } from '../i18n/translations.js'
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
-import { checkInteractions } from '../services/interactionService.js'
+import { checkInteractions, checkTherapeuticDuplication, orchestrateMedicationSchedule } from '../services/interactionService.js'
+import { getSecureLogs, saveSecureLogs } from '../services/dbServiceIndexedDB.js'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -52,14 +53,26 @@ export default function Scanner() {
   // Medicine Cabinet & Interactions
   const [cabinet, setCabinet] = useState([])
   const [activeInteractions, setActiveInteractions] = useState([])
+  const [activeDuplications, setActiveDuplications] = useState([])
+  const [activeSchedule, setActiveSchedule] = useState({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
 
   React.useEffect(() => {
     if (cabinet.length >= 2) {
       const activeSalts = cabinet.map(item => item.saltComposition)
       const collisions = checkInteractions(activeSalts)
+      const dups = checkTherapeuticDuplication(activeSalts)
       setActiveInteractions(collisions)
+      setActiveDuplications(dups)
     } else {
       setActiveInteractions([])
+      setActiveDuplications([])
+    }
+
+    if (cabinet.length > 0) {
+      const sched = orchestrateMedicationSchedule(cabinet)
+      setActiveSchedule(sched)
+    } else {
+      setActiveSchedule({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
     }
   }, [cabinet])
 
@@ -78,20 +91,36 @@ export default function Scanner() {
   // Load bookmarks on view load
   React.useEffect(() => {
     if (view === VIEWS.HOME) {
-      try {
-        const savedStr = localStorage.getItem('agada_bookmarks') || '[]'
-        if (savedStr.includes(':') && savedStr.split(':').length === 3) {
-          setIsVaultLocked(true)
-          setBookmarks([])
-        } else {
-          const saved = JSON.parse(savedStr)
-          saved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-          setBookmarks(saved)
-          setIsVaultLocked(false)
+      const loadData = async () => {
+        try {
+          let savedStr = await getSecureLogs()
+          
+          // Migrate from localStorage if present
+          if (!savedStr) {
+            savedStr = localStorage.getItem('agada_bookmarks')
+            if (savedStr) {
+              console.log("Migrating bookmarks from localStorage to IndexedDB...");
+              await saveSecureLogs(savedStr)
+              localStorage.removeItem('agada_bookmarks')
+            } else {
+              savedStr = '[]'
+            }
+          }
+          
+          if (savedStr.includes(':') && savedStr.split(':').length === 3) {
+            setIsVaultLocked(true)
+            setBookmarks([])
+          } else {
+            const saved = JSON.parse(savedStr)
+            saved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+            setBookmarks(saved)
+            setIsVaultLocked(false)
+          }
+        } catch (e) {
+          console.error("IndexedDB load failed, falling back to memory:", e)
         }
-      } catch (e) {
-        console.error(e)
       }
+      loadData()
     }
   }, [view])
 
@@ -108,9 +137,9 @@ export default function Scanner() {
       
       if (vaultPin) {
         const cipher = await encryptData(JSON.stringify(updated), vaultPin)
-        localStorage.setItem('agada_bookmarks', cipher)
+        await saveSecureLogs(cipher)
       } else {
-        localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
+        await saveSecureLogs(JSON.stringify(updated))
       }
     } catch (err) {
       console.error(err)
@@ -135,9 +164,9 @@ export default function Scanner() {
       
       if (vaultPin) {
         const cipher = await encryptData(JSON.stringify(updated), vaultPin)
-        localStorage.setItem('agada_bookmarks', cipher)
+        await saveSecureLogs(cipher)
       } else {
-        localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
+        await saveSecureLogs(JSON.stringify(updated))
       }
     } catch (e) {
       console.error(e)
@@ -146,7 +175,7 @@ export default function Scanner() {
 
   const handleUnlockVault = async (pin) => {
     try {
-      const savedStr = localStorage.getItem('agada_bookmarks') || '[]'
+      const savedStr = await getSecureLogs() || '[]'
       const decrypted = await decryptData(savedStr, pin)
       const parsed = JSON.parse(decrypted)
       parsed.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
@@ -167,7 +196,7 @@ export default function Scanner() {
     }
     try {
       const cipher = await encryptData(JSON.stringify(bookmarks), pin)
-      localStorage.setItem('agada_bookmarks', cipher)
+      await saveSecureLogs(cipher)
       setVaultPin(pin)
       setShowPinSetup(false)
       setNewPin('')
@@ -177,9 +206,9 @@ export default function Scanner() {
     }
   }
 
-  const handleDisableEncryption = () => {
+  const handleDisableEncryption = async () => {
     try {
-      localStorage.setItem('agada_bookmarks', JSON.stringify(bookmarks))
+      await saveSecureLogs(JSON.stringify(bookmarks))
       setVaultPin('')
       setPinError('')
     } catch (err) {
@@ -423,6 +452,8 @@ export default function Scanner() {
           cabinet={cabinet}
           toggleCabinetItem={toggleCabinetItem}
           activeInteractions={activeInteractions}
+          activeDuplications={activeDuplications}
+          activeSchedule={activeSchedule}
         />
       )}
       {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
@@ -466,7 +497,7 @@ function HomeView({
   vaultPin, isVaultLocked, setIsVaultLocked, pinInput, setPinInput, pinError, setPinError,
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
   handleDisableEncryption,
-  cabinet, toggleCabinetItem, activeInteractions
+  cabinet, toggleCabinetItem, activeInteractions, activeDuplications, activeSchedule
 }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
@@ -793,67 +824,184 @@ function HomeView({
                 ))}
               </div>
 
-              {/* Interaction Results */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              {/* Interaction & Duplication Results */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cabinet.length < 2 ? (
                   <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0 }}>
                     Select at least 2 medicines to analyze contraindications.
                   </p>
-                ) : activeInteractions.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      ⚠️ Contraindication Warnings Detected:
-                    </div>
-                    {activeInteractions.map((col, idx) => (
-                      <div 
-                        key={idx} 
-                        style={{ 
-                          padding: '10px 12px', 
-                          background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', 
-                          border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, 
-                          borderRadius: 10,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 4
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>
-                            {col.title}
-                          </span>
-                          <span style={{ 
-                            fontSize: 9, 
-                            fontWeight: 700, 
-                            padding: '2px 6px', 
-                            borderRadius: 4, 
-                            background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', 
-                            color: '#fff' 
-                          }}>
-                            {col.severity}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 11, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600 }}>
-                          Collision: {col.saltA} + {col.saltB}
-                        </div>
-                        <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
-                          {col.explanation}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
                 ) : (
-                  <div style={{ 
-                    padding: '8px 12px', 
-                    background: '#F0FDF4', 
-                    border: '1.5px solid #86EFAC', 
-                    borderRadius: 10,
-                    fontSize: 12,
-                    color: '#15803D',
-                    fontWeight: 600,
-                    textAlign: 'center'
-                  }}>
-                    ✓ No known interactions found between selected medicines.
-                  </div>
+                  <>
+                    {/* 1. Drug-Drug Interactions */}
+                    {activeInteractions.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          ⚠️ Contraindication Warnings Detected:
+                        </div>
+                        {activeInteractions.map((col, idx) => (
+                          <div 
+                            key={idx} 
+                            style={{ 
+                              padding: '10px 12px', 
+                              background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', 
+                              border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, 
+                              borderRadius: 10,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 4
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>
+                                {col.title}
+                              </span>
+                              <span style={{ 
+                                fontSize: 9, 
+                                fontWeight: 700, 
+                                padding: '2px 6px', 
+                                borderRadius: 4, 
+                                background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', 
+                                color: '#fff' 
+                              }}>
+                                {col.severity}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600 }}>
+                              Collision: {col.saltA} + {col.saltB}
+                            </div>
+                            <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
+                              {col.explanation}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 2. Therapeutic Duplications */}
+                    {activeDuplications.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          ⚠️ Therapeutic Duplications Detected:
+                        </div>
+                        {activeDuplications.map((dup, idx) => (
+                          <div 
+                            key={idx} 
+                            style={{ 
+                              padding: '10px 12px', 
+                              background: '#FFFBEB', 
+                              border: '1.5px solid #FCD34D', 
+                              borderRadius: 10,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 4
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
+                                {dup.title} ({dup.className})
+                              </span>
+                              <span style={{ 
+                                fontSize: 9, 
+                                fontWeight: 700, 
+                                padding: '2px 6px', 
+                                borderRadius: 4, 
+                                background: 'var(--saffron)', 
+                                color: '#fff' 
+                              }}>
+                                OVERLAP
+                              </span>
+                            </div>
+                            <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
+                              {dup.explanation}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 3. Safe Badge */}
+                    {activeInteractions.length === 0 && activeDuplications.length === 0 && (
+                      <div style={{ 
+                        padding: '8px 12px', 
+                        background: '#F0FDF4', 
+                        border: '1.5px solid #86EFAC', 
+                        borderRadius: 10,
+                        fontSize: 12,
+                        color: '#15803D',
+                        fontWeight: 600,
+                        textAlign: 'center'
+                      }}>
+                        ✓ No interactions or therapeutic duplications found.
+                      </div>
+                    )}
+
+                    {/* 4. Chronotherapy Daily Schedule Timeline */}
+                    {activeSchedule && activeSchedule.schedule && (
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          📅 Orchestrated Daily Dosing Schedule:
+                        </div>
+                        
+                        {/* Spacing Alert Notes */}
+                        {activeSchedule.notes && activeSchedule.notes.map((note, nidx) => (
+                          <div key={nidx} style={{ padding: '8px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11.5, color: '#1E40AF', marginBottom: 12, fontWeight: 600 }}>
+                            {note.message}
+                          </div>
+                        ))}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', paddingLeft: 12 }}>
+                          {/* Timeline vertical line */}
+                          <div style={{ position: 'absolute', left: 4, top: 8, bottom: 8, width: 2, background: 'linear-gradient(180deg, var(--green) 0%, var(--saffron) 50%, var(--navy) 100%)', borderRadius: 1 }} />
+                          
+                          {Object.entries(activeSchedule.schedule).map(([timeOfDay, meds]) => {
+                            // Determine visual styles for each time slot
+                            let icon = '☀️';
+                            let bulletColor = 'var(--green)';
+                            if (timeOfDay === 'Afternoon') { icon = '🌤️'; bulletColor = 'var(--saffron)'; }
+                            if (timeOfDay === 'Evening') { icon = '🌇'; bulletColor = 'var(--orange)'; }
+                            if (timeOfDay === 'Bedtime') { icon = '🌙'; bulletColor = 'var(--navy)'; }
+
+                            return (
+                              <div key={timeOfDay} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {/* Timeline Node Bullet */}
+                                <div style={{ position: 'absolute', left: -14, top: 4, width: 8, height: 8, borderRadius: '50%', background: bulletColor, border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + bulletColor }} />
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{icon} {timeOfDay}</span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--bgsoft)', color: 'var(--textmd)' }}>
+                                    {meds.length} {meds.length === 1 ? 'medicine' : 'medicines'}
+                                  </span>
+                                </div>
+
+                                {meds.length === 0 ? (
+                                  <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 4, fontStyle: 'italic' }}>
+                                    No medicines scheduled.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
+                                    {meds.map((med, midx) => (
+                                      <div key={midx} style={{ padding: '8px 10px', background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>{med.brandName}</span>
+                                          <span style={{ fontSize: 10, fontWeight: 700, color: med.foodRelation.includes('Empty') ? 'var(--red)' : 'var(--green)', background: med.foodRelation.includes('Empty') ? 'var(--redlt)' : 'var(--greenlt)', padding: '2px 6px', borderRadius: 4 }}>
+                                            {med.foodRelation}
+                                          </span>
+                                        </div>
+                                        <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
+                                        <div style={{ fontSize: 10.5, color: 'var(--textmd)', marginTop: 4, borderTop: '1px dashed var(--border)', paddingTop: 4, fontStyle: 'italic' }}>
+                                          💡 {med.rationale}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { initWasm } from '../services/wasmService.js'
+import ImageProcessorWorker from '../wasm/image_processor.worker.js?worker'
 
 export default function ARScanner({ onCapture, onCancel, t }) {
   const videoRef = useRef(null)
@@ -8,7 +8,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   const [error, setError] = useState(null)
   const [statusText, setStatusText] = useState('Initializing camera...')
   const [stabilityScore, setStabilityScore] = useState(0) // 0 to 100 for progress ring
-  const [wasmInstance, setWasmInstance] = useState(null)
+  const [worker, setWorker] = useState(null)
   const [filterMode, setFilterMode] = useState(0) // 0 = none, 1 = binarization, 2 = edges
 
   // Tracking refs for requestAnimationFrame loop
@@ -16,17 +16,43 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   const animFrameRef = useRef(null)
   const lastCoordsRef = useRef(null) // For smoothing coordinates (EMA)
   const stableFramesCountRef = useRef(0)
+  const workerBusyRef = useRef(false)
 
-  // Initialize WASM and camera stream
+  // Initialize Worker and camera stream
   useEffect(() => {
     let active = true
+    let newWorker = null
 
     async function startScanner() {
       try {
-        const instance = await initWasm()
-        if (!active) return
-        if (!instance) throw new Error("Failed to load Wasm computer vision module.")
-        setWasmInstance(instance)
+        // Instantiate Vite worker
+        newWorker = new ImageProcessorWorker()
+        
+        // Fetch wasm bytes to transfer to the worker
+        const response = await fetch('/image_processor.wasm')
+        if (!response.ok) throw new Error("Failed to load Wasm binary bytes.")
+        const bytes = await response.arrayBuffer()
+        
+        // Setup message routing
+        newWorker.onmessage = (e) => {
+          if (!active) return
+          const { type } = e.data
+          if (type === 'initialized') {
+            if (e.data.success) {
+              setWorker(newWorker)
+            } else {
+              setError(`Wasm Worker failed to load: ${e.data.error}`)
+            }
+          } else if (type === 'processed') {
+            handleWorkerProcessed(e.data)
+          } else if (type === 'error') {
+            console.error("Worker process error:", e.data.error)
+            workerBusyRef.current = false
+          }
+        }
+
+        // Initialize wasm in worker
+        newWorker.postMessage({ type: 'init', wasmBytes: bytes }, [bytes])
 
         // Request back-facing environment camera
         const constraints = {
@@ -66,6 +92,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
       }
+      if (newWorker) newWorker.terminate()
     }
   }, [])
 
@@ -99,12 +126,11 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   const analyzeFrame = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || video.paused || video.ended || !wasmInstance) {
+    if (!video || !canvas || video.paused || video.ended || !worker || workerBusyRef.current) {
       animFrameRef.current = requestAnimationFrame(analyzeFrame)
       return
     }
 
-    const exports = wasmInstance.exports
     const width = video.videoWidth
     const height = video.videoHeight
 
@@ -120,50 +146,51 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     }
 
     const ctx = canvas.getContext('2d')
-    
-    // 1. Draw raw frame or Wasm filtered output
     ctx.drawImage(video, 0, 0, width, height)
+    
     const imgData = ctx.getImageData(0, 0, width, height)
-    const data = imgData.data
+    workerBusyRef.current = true
 
-    // Copy JS RGBA buffer into WASM linear memory
-    const bufferPtr = exports.getBufferPtr()
-    const bufferSize = exports.getBufferSize()
-
-    if (data.length <= bufferSize) {
-      const wasmMemory = new Uint8Array(exports.memory.buffer)
-      wasmMemory.set(data, bufferPtr)
-
-      // Evaluate motion blur/focus metric in WASM
-      const focusScore = exports.computeFocusMetric(width, height)
-
-      // Process Wasm image binarization or Sobel filter if active
-      if (filterMode > 0) {
-        exports.processImage(width, height, filterMode)
-        const outputBuffer = wasmMemory.subarray(bufferPtr, bufferPtr + data.length)
-        const outputImgData = new ImageData(new Uint8ClampedArray(outputBuffer), width, height)
-        ctx.putImageData(outputImgData, 0, 0)
-      }
-
-      // Detect strip coordinates in WASM
-      const packedCoords = exports.detectBoundingBox(width, height)
-      let cropCoords = null
-
-      if (packedCoords !== 0n) {
-        const minY = Number((packedCoords >> 48n) & 0xFFFFn)
-        const minX = Number((packedCoords >> 32n) & 0xFFFFn)
-        const maxY = Number((packedCoords >> 16n) & 0xFFFFn)
-        const maxX = Number(packedCoords & 0xFFFFn)
-        cropCoords = smoothCoords({ minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY })
-      } else {
-        lastCoordsRef.current = null
-      }
-
-      // Draw AR Guide overlay indicators
-      drawGuides(ctx, width, height, cropCoords, focusScore)
-    }
+    // Delegate processing to Web Worker, transferring the pixel buffer to avoid copying
+    worker.postMessage({
+      type: 'process',
+      filterType: filterMode,
+      width,
+      height,
+      data: imgData.data
+    }, [imgData.data.buffer])
 
     animFrameRef.current = requestAnimationFrame(analyzeFrame)
+  }
+
+  const handleWorkerProcessed = (data) => {
+    workerBusyRef.current = false
+    
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const { width, height, cropCoords, focusMetric } = data
+    
+    // Draw the processed image back onto canvas if a filter mode is active
+    if (filterMode > 0) {
+      const outputImgData = new ImageData(new Uint8ClampedArray(data.data), width, height)
+      ctx.putImageData(outputImgData, 0, 0)
+    } else {
+      // Re-draw raw video frame
+      const video = videoRef.current
+      if (video) ctx.drawImage(video, 0, 0, width, height)
+    }
+    
+    // Smooth crop coordinates using EMA
+    let smoothed = null
+    if (cropCoords) {
+      smoothed = smoothCoords(cropCoords)
+    } else {
+      lastCoordsRef.current = null
+    }
+    
+    // Draw AR Guide overlay indicators and check auto-trigger
+    drawGuides(ctx, width, height, smoothed, focusMetric)
   }
 
   // Draw AR Neon overlays and check auto-trigger thresholds
