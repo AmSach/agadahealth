@@ -121,8 +121,7 @@ supabase/
   schema.sql                 ← Tables, GIN indexes, Row Level Security
 
 scripts/
-  seed-database.js           ← Sample data for testing
-  refresh-govt-data.js       ← Monthly data refresh helper
+  refresh-govt-data.js       ← Auto-updates the local Jan Aushadhi CSV spreadsheet (public/data/jan_aushadhi.csv) from the official PMBJP portal with failover support. Run via `node scripts/refresh-govt-data.js`.
 
 docs/
   SETUP.md
