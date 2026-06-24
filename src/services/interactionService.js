@@ -103,6 +103,15 @@ g.addNode('hyperkalemia_risk', 'PATHWAY', { name: 'Hyperkalemia Risk', severity:
 g.addNode('statin_toxicity', 'PATHWAY', { name: 'Statin Toxicity Risk', severity: 'MODERATE', title: 'Statin Muscle Toxicity Pathway' });
 g.addNode('hypoglycemia_risk', 'PATHWAY', { name: 'Hypoglycemia Risk', severity: 'MODERATE', title: 'Double Antidiabetic Hypoglycemia Pathway' });
 
+// Add side effect nodes
+g.addNode('dry_cough', 'SIDEEFFECT', { name: 'Dry Cough', description: 'ACE inhibitor-induced cough' });
+g.addNode('stomach_bleed', 'SIDEEFFECT', { name: 'Stomach Bleed', description: 'NSAID-induced gastrointestinal bleeding or irritation' });
+g.addNode('muscle_pain', 'SIDEEFFECT', { name: 'Muscle Pain', description: 'Statin-induced myalgia or rhabdomyolysis' });
+g.addNode('hypoglycemia', 'SIDEEFFECT', { name: 'Hypoglycemia', description: 'Low blood sugar from antidiabetics' });
+g.addNode('dizziness', 'SIDEEFFECT', { name: 'Dizziness', description: 'Blood pressure drop or orthostatic hypotension' });
+g.addNode('nausea', 'SIDEEFFECT', { name: 'Nausea', description: 'Common gastrointestinal side effect' });
+g.addNode('headache', 'SIDEEFFECT', { name: 'Headache', description: 'Vasodilator-induced cerebral pressure' });
+
 // Seed subclass/member relationships
 g.addEdge('aspirin', 'nsaid', 'MEMBER_OF');
 g.addEdge('ibuprofen', 'nsaid', 'MEMBER_OF');
@@ -117,6 +126,16 @@ g.addEdge('metformin', 'biguanide', 'MEMBER_OF');
 g.addEdge('glimepiride', 'sulfonylurea', 'MEMBER_OF');
 g.addEdge('paracetamol', 'analgesic', 'MEMBER_OF');
 g.addEdge('acetaminophen', 'analgesic', 'MEMBER_OF');
+
+// Seed side effect relationships
+g.addEdge('lisinopril', 'dry_cough', 'CAUSES');
+g.addEdge('aspirin', 'stomach_bleed', 'CAUSES');
+g.addEdge('ibuprofen', 'stomach_bleed', 'CAUSES');
+g.addEdge('simvastatin', 'muscle_pain', 'CAUSES');
+g.addEdge('glimepiride', 'hypoglycemia', 'CAUSES');
+g.addEdge('amlodipine', 'dizziness', 'CAUSES');
+g.addEdge('metformin', 'nausea', 'CAUSES');
+g.addEdge('nitroglycerin', 'headache', 'CAUSES');
 
 // Seed pathway potentiators / interactions
 g.addEdge('nsaid', 'bleeding_risk', 'POTENTIATES');
@@ -360,6 +379,57 @@ export function orchestrateMedicationSchedule(cabinetItems) {
   });
 
   return { schedule, notes };
+}
+
+/**
+ * Flags potential adverse drug reactions (ADRs) based on active salts in the cabinet and logged symptoms.
+ * @param {Array<string>} activeSalts - List of active ingredients in the cabinet.
+ * @param {Array<string>} loggedSymptoms - List of symptoms reported by the user.
+ * @returns {Array<object>} - Matching side effects with warning explanations.
+ */
+export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
+  if (!Array.isArray(activeSalts) || activeSalts.length === 0 || !Array.isArray(loggedSymptoms) || loggedSymptoms.length === 0) {
+    return [];
+  }
+
+  const normalizedSalts = activeSalts.map(s => normalizeSaltName(s)).filter(s => s.length > 0);
+  const normalizedSymptoms = loggedSymptoms.map(s => s.toLowerCase().trim()).filter(s => s.length > 0);
+  const flags = [];
+
+  for (const saltClean of normalizedSalts) {
+    // Find matching salt node in graph
+    const saltNodeKey = Array.from(g.nodes.keys()).find(k => {
+      const cleanK = k.replace(/[^a-z0-9]/g, '');
+      const cleanS = saltClean.replace(/[^a-z0-9]/g, '');
+      return cleanS.includes(cleanK) || cleanK.includes(cleanS);
+    });
+    if (!saltNodeKey) continue;
+
+    for (const symptom of normalizedSymptoms) {
+      // Find matching side effect node in graph
+      const sideEffectNodeKey = Array.from(g.nodes.keys()).find(k => {
+        const node = g.nodes.get(k);
+        const cleanK = k.replace(/[^a-z0-9]/g, '');
+        const cleanS = symptom.replace(/[^a-z0-9]/g, '');
+        return node?.type === 'SIDEEFFECT' && (cleanS.includes(cleanK) || cleanK.includes(cleanS));
+      });
+      if (!sideEffectNodeKey) continue;
+
+      // Find path from salt to side effect (depth <= 3)
+      const paths = g.findPaths(saltNodeKey, sideEffectNodeKey, 3);
+      if (paths.length > 0) {
+        const sideEffectNode = g.nodes.get(sideEffectNodeKey);
+        const saltNode = g.nodes.get(saltNodeKey);
+        flags.push({
+          salt: saltNode.name,
+          symptom: sideEffectNode.name,
+          explanation: `⚠️ Potential Side Effect: Your symptom '${symptom}' matches a known side effect of ${saltNode.name} (${sideEffectNode.description}).`,
+        });
+      }
+    }
+  }
+
+  return flags;
 }
 
 

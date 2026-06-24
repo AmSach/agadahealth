@@ -51,8 +51,29 @@ export default function Scanner() {
   const [showPinSetup, setShowPinSetup] = useState(false)
   const [newPin, setNewPin] = useState('')
 
-  // Medicine Cabinet & Interactions
-  const [cabinet, setCabinet] = useState([])
+  // Medicine Cabinet & Profiles
+  const [profiles, setProfiles] = useState([])
+  const [activeProfileId, setActiveProfileId] = useState('aman')
+  const [activeTab, setActiveTab] = useState('cabinet')
+  const [symptomInput, setSymptomInput] = useState('')
+  const [profileInput, setProfileInput] = useState('')
+  const [showAddProfile, setShowAddProfile] = useState(false)
+
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
+    id: 'aman',
+    name: 'Aman Sachan',
+    bloodGroup: '',
+    allergies: '',
+    chronicConditions: '',
+    emergencyName: '',
+    emergencyPhone: '',
+    cabinet: [],
+    adherence: {},
+    symptoms: [],
+    reminderTimes: { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
+  };
+  const cabinet = activeProfile.cabinet || [];
+
   const [activeInteractions, setActiveInteractions] = useState([])
   const [activeDuplications, setActiveDuplications] = useState([])
   const [activeSchedule, setActiveSchedule] = useState({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
@@ -165,19 +186,282 @@ export default function Scanner() {
     } else {
       setActiveSchedule({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
     }
-  }, [cabinet])
+  }, [profiles, activeProfileId])
 
-  const toggleCabinetItem = useCallback((bookmark, e) => {
-    if (e) e.stopPropagation()
-    setCabinet(prev => {
-      const isAlreadyIn = prev.some(item => item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition)
-      if (isAlreadyIn) {
-        return prev.filter(item => !(item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition))
+  // Save all profiles to IndexedDB (either encrypted or plain)
+  const saveAllProfiles = async (updatedProfiles, pin = vaultPin) => {
+    setProfiles(updatedProfiles)
+    for (const prof of updatedProfiles) {
+      const plainStr = JSON.stringify(prof)
+      if (pin) {
+        const cipher = await encryptData(plainStr, pin)
+        await saveEncryptedProfile(prof.id, cipher)
       } else {
-        return [...prev, bookmark]
+        await saveEncryptedProfile(prof.id, plainStr)
       }
+    }
+  }
+
+  // Load bookmarks and profiles from IndexedDB
+  const loadAllData = async (pin = vaultPin) => {
+    try {
+      // 1. Load bookmarks
+      let savedStr = await getSecureLogs()
+      if (!savedStr) {
+        savedStr = localStorage.getItem('agada_bookmarks')
+        if (savedStr) {
+          await saveSecureLogs(savedStr)
+          localStorage.removeItem('agada_bookmarks')
+        } else {
+          savedStr = '[]'
+        }
+      }
+      
+      let parsedBookmarks = []
+      if (savedStr.includes(':') && savedStr.split(':').length === 3) {
+        if (!pin) {
+          setIsVaultLocked(true)
+          return
+        }
+        const decrypted = await decryptData(savedStr, pin)
+        parsedBookmarks = JSON.parse(decrypted)
+      } else {
+        parsedBookmarks = JSON.parse(savedStr)
+      }
+      parsedBookmarks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      setBookmarks(parsedBookmarks)
+      
+      // 2. Load Profiles
+      const keys = await listProfileIds()
+      let loadedProfiles = []
+      for (const k of keys) {
+        const cipher = await getEncryptedProfile(k)
+        if (cipher) {
+          let plain
+          if (cipher.includes(':') && cipher.split(':').length === 3) {
+            if (!pin) {
+              setIsVaultLocked(true)
+              return
+            }
+            plain = await decryptData(cipher, pin)
+          } else {
+            plain = cipher
+          }
+          loadedProfiles.push(JSON.parse(plain))
+        }
+      }
+      
+      if (loadedProfiles.length === 0) {
+        const defaultProf = {
+          id: 'aman',
+          name: 'Aman Sachan',
+          bloodGroup: 'O+',
+          allergies: '',
+          chronicConditions: '',
+          emergencyName: '',
+          emergencyPhone: '',
+          cabinet: [],
+          adherence: {},
+          symptoms: [],
+          reminderTimes: { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
+        }
+        const serialized = JSON.stringify(defaultProf)
+        if (pin) {
+          const cipher = await encryptData(serialized, pin)
+          await saveEncryptedProfile('aman', cipher)
+        } else {
+          await saveEncryptedProfile('aman', serialized)
+        }
+        loadedProfiles = [defaultProf]
+      }
+      
+      setProfiles(loadedProfiles)
+      const activeId = localStorage.getItem('agada_active_profile_id') || loadedProfiles[0].id
+      setActiveProfileId(activeId)
+      setIsVaultLocked(false)
+    } catch (e) {
+      console.error("Failed to load secure vault data:", e)
+    }
+  }
+
+  // Toggles an item in the active profile's cabinet
+  const toggleCabinetItem = useCallback(async (bookmark, e) => {
+    if (e) e.stopPropagation()
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const cab = p.cabinet || []
+        const isAlreadyIn = cab.some(item => item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition)
+        const nextCab = isAlreadyIn 
+          ? cab.filter(item => !(item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition))
+          : [...cab, { 
+              brandName: bookmark.brandName, 
+              saltComposition: bookmark.saltComposition, 
+              pillCount: 30, 
+              notificationsEnabled: true,
+              meta: {
+                idealTime: 'Morning',
+                foodRelation: 'With or without food',
+                rationale: 'Standard maintenance dosing.'
+              }
+            }]
+        return { ...p, cabinet: nextCab }
+      }
+      return p
     })
-  }, [])
+    await saveAllProfiles(updated)
+  }, [profiles, activeProfileId])
+
+  // Update a profile's emergency health card details
+  const handleSaveHealthCard = async (formData) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        return { ...p, ...formData }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Log a symptom for the active profile
+  const handleLogSymptom = async (text) => {
+    if (!text.trim()) return
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const sym = p.symptoms || []
+        return { 
+          ...p, 
+          symptoms: [...sym, { text: text.trim(), date: new Date().toLocaleDateString() }] 
+        }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+    setSymptomInput('')
+  }
+
+  // Delete a symptom
+  const handleDeleteSymptom = async (idx) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const sym = p.symptoms || []
+        return { ...p, symptoms: sym.filter((_, i) => i !== idx) }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Toggle notification alerts for a medicine
+  const handleToggleNotification = async (med) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const nextCab = (p.cabinet || []).map(item => {
+          if (item.brandName === med.brandName && item.saltComposition === med.saltComposition) {
+            return { ...item, notificationsEnabled: !item.notificationsEnabled }
+          }
+          return item
+        })
+        return { ...p, cabinet: nextCab }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Update pill stock counts
+  const handleUpdatePillCount = async (med, diff) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const nextCab = (p.cabinet || []).map(item => {
+          if (item.brandName === med.brandName && item.saltComposition === med.saltComposition) {
+            const count = Math.max(0, (item.pillCount || 0) + diff)
+            return { ...item, pillCount: count }
+          }
+          return item
+        })
+        return { ...p, cabinet: nextCab }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Update reminder take-times
+  const handleUpdateReminderTime = async (slot, val) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const times = p.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
+        return { ...p, reminderTimes: { ...times, [slot]: val } }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Toggle daily dose adherence checklist items
+  const handleToggleAdherence = async (dateStr, slot) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const ad = p.adherence || {}
+        const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false }
+        const nextTodayAd = { ...todayAd, [slot]: !todayAd[slot] }
+        return { ...p, adherence: { ...ad, [dateStr]: nextTodayAd } }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Add a new family profile
+  const handleAddProfile = async (name) => {
+    if (!name.trim()) return
+    const cleanId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '_')
+    if (profiles.some(p => p.id === cleanId)) return
+    
+    const newProf = {
+      id: cleanId,
+      name: name.trim(),
+      bloodGroup: '',
+      allergies: '',
+      chronicConditions: '',
+      emergencyName: '',
+      emergencyPhone: '',
+      cabinet: [],
+      adherence: {},
+      symptoms: [],
+      reminderTimes: { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
+    }
+    const nextProfiles = [...profiles, newProf]
+    await saveAllProfiles(nextProfiles)
+    setActiveProfileId(cleanId)
+    localStorage.setItem('agada_active_profile_id', cleanId)
+    setProfileInput('')
+    setShowAddProfile(false)
+  }
+
+  // Delete a profile
+  const handleDeleteProfile = async (profileId) => {
+    if (profiles.length <= 1) return
+    const updated = profiles.filter(p => p.id !== profileId)
+    setProfiles(updated)
+    await dbDeleteProfile(profileId)
+    const nextId = updated[0].id
+    setActiveProfileId(nextId)
+    localStorage.setItem('agada_active_profile_id', nextId)
+  }
+
+  // Notification Reminder Background loop
+  React.useEffect(() => {
+    if (activeProfile && activeProfile.cabinet && activeProfile.cabinet.length > 0) {
+      const times = activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
+      startReminderLoop(activeProfile.cabinet, times, (item, slot) => {
+        alert(`⏰ Reminder: It is time to take your ${item.brandName} (${slot} dose).`)
+      })
+    }
+    return () => {
+      stopReminderLoop()
+    }
+  }, [profiles, activeProfileId])
 
   // Load bookmarks on view load
   React.useEffect(() => {
@@ -625,6 +909,28 @@ export default function Scanner() {
           isSearching={isSearching}
           searchStatus={searchStatus}
           handleSelectSearchResult={handleSelectSearchResult}
+          
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          setActiveProfileId={setActiveProfileId}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          symptomInput={symptomInput}
+          setSymptomInput={setSymptomInput}
+          profileInput={profileInput}
+          setProfileInput={setProfileInput}
+          showAddProfile={showAddProfile}
+          setShowAddProfile={setShowAddProfile}
+          activeProfile={activeProfile}
+          handleSaveHealthCard={handleSaveHealthCard}
+          handleLogSymptom={handleLogSymptom}
+          handleDeleteSymptom={handleDeleteSymptom}
+          handleToggleNotification={handleToggleNotification}
+          handleUpdatePillCount={handleUpdatePillCount}
+          handleUpdateReminderTime={handleUpdateReminderTime}
+          handleToggleAdherence={handleToggleAdherence}
+          handleAddProfile={handleAddProfile}
+          handleDeleteProfile={handleDeleteProfile}
         />
       )}
       {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
@@ -669,7 +975,13 @@ function HomeView({
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
   handleDisableEncryption,
   cabinet, toggleCabinetItem, activeInteractions, activeDuplications, activeSchedule,
-  searchQuery, handleSearchChange, searchResults, isSearching, searchStatus, handleSelectSearchResult
+  searchQuery, handleSearchChange, searchResults, isSearching, searchStatus, handleSelectSearchResult,
+  
+  profiles, activeProfileId, setActiveProfileId, activeTab, setActiveTab,
+  symptomInput, setSymptomInput, profileInput, setProfileInput, showAddProfile, setShowAddProfile,
+  activeProfile, handleSaveHealthCard, handleLogSymptom, handleDeleteSymptom,
+  handleToggleNotification, handleUpdatePillCount, handleUpdateReminderTime, handleToggleAdherence,
+  handleAddProfile, handleDeleteProfile
 }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
@@ -1067,8 +1379,8 @@ function HomeView({
         )
       )}
 
-      {/* Medicine Cabinet & Interaction Panel */}
-      {!isVaultLocked && bookmarks && bookmarks.length > 0 && (
+      {/* Personal Medicine OS Dashboard */}
+      {!isVaultLocked && (
         <div style={{ 
           marginTop: 20, 
           background: '#fff', 
@@ -1078,234 +1390,342 @@ function HomeView({
           boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.4s both'
         }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            💊 Medicine Cabinet ({cabinet.length})
-          </h3>
-          
-          {cabinet.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
-              Check the boxes on your saved medicines above to load them into the Cabinet and run automatic drug-drug interaction audits.
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* List of active drugs in cabinet */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {cabinet.map((item, i) => (
-                  <span 
-                    key={i} 
-                    style={{ 
-                      fontSize: 11.5, 
-                      fontWeight: 600,
-                      background: 'var(--greenlt)', 
-                      color: 'var(--green)', 
-                      borderRadius: 20, 
-                      padding: '4px 10px', 
-                      border: '1px solid #A7D9CA',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    {item.brandName}
-                    <button 
-                      onClick={(e) => toggleCabinetItem(item, e)}
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: 'var(--green)', 
-                        fontWeight: 800, 
-                        cursor: 'pointer',
-                        padding: 0,
-                        fontSize: 12,
-                        lineHeight: 1
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
+          {/* Profile Selector Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, background: 'var(--navy)', color: '#fff', padding: '10px 14px', borderRadius: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>👤</span>
+              <select 
+                value={activeProfileId} 
+                onChange={e => {
+                  setActiveProfileId(e.target.value);
+                  localStorage.setItem('agada_active_profile_id', e.target.value);
+                }}
+                style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+              >
+                {profiles.map(p => <option key={p.id} value={p.id} style={{ color: 'var(--navy)' }}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => setShowAddProfile(o => !o)} style={{ fontSize: 12, fontWeight: 700, padding: '4px 8px', background: 'rgba(255,255,255,0.15)', borderRadius: 6, color: '#fff' }}>
+                {showAddProfile ? 'Cancel' : '➕ User'}
+              </button>
+              {profiles.length > 1 && (
+                <button onClick={() => { if(confirm(`Delete profile for ${activeProfile.name}?`)) handleDeleteProfile(activeProfileId) }} style={{ fontSize: 12, fontWeight: 700, padding: '4px 8px', background: 'var(--red)', borderRadius: 6, color: '#fff' }}>
+                  🗑️
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Add Profile Inline Form */}
+          {showAddProfile && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, padding: 12, background: 'var(--bgsoft)', borderRadius: 10, animation: 'fadeIn 0.25s' }}>
+              <input 
+                type="text" 
+                value={profileInput} 
+                onChange={e => setProfileInput(e.target.value)} 
+                placeholder="Family member's name..." 
+                style={{ flex: 1, height: 36, padding: '0 8px', borderRadius: 6, border: '1px solid var(--bordermd)', fontSize: 13 }}
+              />
+              <button onClick={() => handleAddProfile(profileInput)} style={{ padding: '0 12px', background: 'var(--green)', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>Add</button>
+            </div>
+          )}
+
+          {/* Dashboard Navigation Tabs */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet & Stock</button>
+            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>📅 Alarms & Adherence</button>
+            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Health Card</button>
+            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Symptoms & ADR</button>
+          </div>
+
+          {/* TAB 1: Cabinet & Stock */}
+          {activeTab === 'cabinet' && (
+            <div>
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 10 }}>Active Cabinet Inventory</h4>
+              {cabinet.length === 0 ? (
+                <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
+                  No medicines in cabinet. Add from search autocomplete or check bookmark boxes above to add scans to this user's cabinet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                  {cabinet.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'var(--bgsoft)', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{item.brandName}</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{item.saltComposition}</div>
+                        </div>
+                        <button onClick={(e) => toggleCabinetItem(item, e)} style={{ fontSize: 16, color: 'var(--red)', fontWeight: 800 }}>×</button>
+                      </div>
+
+                      {/* Stock & Notifications control row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px dashed var(--border)', paddingTop: 6, marginTop: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, color: 'var(--textmd)', fontWeight: 600 }}>Stock:</span>
+                          <span style={{ 
+                            fontSize: 11, 
+                            fontWeight: 700, 
+                            color: (item.pillCount || 0) <= 5 ? 'var(--red)' : 'var(--navy)',
+                            background: (item.pillCount || 0) <= 5 ? 'var(--redlt)' : 'transparent',
+                            padding: '1px 5px',
+                            borderRadius: 4
+                          }}>
+                            {item.pillCount || 0} pills {(item.pillCount || 0) <= 5 && '⚠️ Low stock!'}
+                          </span>
+                          <button onClick={() => handleUpdatePillCount(item, -1)} style={{ fontSize: 11, padding: '2px 6px', background: '#fff', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 800 }}>-1</button>
+                          <button onClick={() => handleUpdatePillCount(item, 30)} style={{ fontSize: 11, padding: '2px 6px', background: '#fff', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 800 }}>+30</button>
+                        </div>
+
+                        <label style={{ fontSize: 11, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={!!item.notificationsEnabled} 
+                            onChange={() => handleToggleNotification(item)}
+                            style={{ accentColor: 'var(--green)' }} 
+                          />
+                          🔔 Alerts
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Interaction Warning Sub-Panel */}
+              {cabinet.length >= 2 && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                  {activeInteractions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ⚠️ Contraindications Warning:
+                      </div>
+                      {activeInteractions.map((col, idx) => (
+                        <div key={idx} style={{ padding: '10px 12px', background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, borderRadius: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>{col.title}</span>
+                            <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', color: '#fff' }}>{col.severity}</span>
+                          </div>
+                          <div style={{ fontSize: 10.5, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600, marginBottom: 4 }}>Collision: {col.saltA} + {col.saltB}</div>
+                          <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.45 }}>{col.explanation}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeDuplications.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ⚠️ Therapeutic Overlaps:
+                      </div>
+                      {activeDuplications.map((dup, idx) => (
+                        <div key={idx} style={{ padding: '10px 12px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#92400E' }}>{dup.title} ({dup.className})</span>
+                          </div>
+                          <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.45 }}>{dup.explanation}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeInteractions.length === 0 && activeDuplications.length === 0 && (
+                    <div style={{ padding: '8px 12px', background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, fontSize: 11.5, color: '#15803D', fontWeight: 600, textAlign: 'center' }}>
+                      ✓ No interactions or therapeutic duplications found in cabinet.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: Alarms & Adherence */}
+          {activeTab === 'reminders' && (
+            <div>
+              {/* Daily Reminder Time Pickers */}
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Set Reminder Times</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => (
+                  <div key={slot} style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'var(--bgsoft)', padding: '6px 10px', borderRadius: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>{slot}</span>
+                    <input 
+                      type="time" 
+                      value={time} 
+                      onChange={(e) => handleUpdateReminderTime(slot, e.target.value)} 
+                      style={{ fontSize: 12, padding: '2px', border: '1px solid var(--border)', borderRadius: 4, background: '#fff', width: '100%', outline: 'none' }}
+                    />
+                  </div>
                 ))}
               </div>
 
-              {/* Interaction & Duplication Results */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {cabinet.length < 2 ? (
-                  <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0 }}>
-                    Select at least 2 medicines to analyze contraindications.
-                  </p>
-                ) : (
-                  <>
-                    {/* 1. Drug-Drug Interactions */}
-                    {activeInteractions.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          ⚠️ Contraindication Warnings Detected:
-                        </div>
-                        {activeInteractions.map((col, idx) => (
-                          <div 
-                            key={idx} 
-                            style={{ 
-                              padding: '10px 12px', 
-                              background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', 
-                              border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, 
-                              borderRadius: 10,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 4
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>
-                                {col.title}
-                              </span>
-                              <span style={{ 
-                                fontSize: 9, 
-                                fontWeight: 700, 
-                                padding: '2px 6px', 
-                                borderRadius: 4, 
-                                background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', 
-                                color: '#fff' 
-                              }}>
-                                {col.severity}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: 11, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600 }}>
-                              Collision: {col.saltA} + {col.saltB}
-                            </div>
-                            <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
-                              {col.explanation}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {/* Daily Adherence Grid */}
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Daily Adherence Check-off</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--greenlt)', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--greendk)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Dose Adherence checklist:</span>
+                  <span>{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                  {['Morning', 'Afternoon', 'Evening', 'Bedtime'].map(slot => {
+                    const dateStr = new Date().toDateString();
+                    const ad = activeProfile.adherence || {};
+                    const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
+                    const isChecked = !!todayAd[slot];
 
-                    {/* 2. Therapeutic Duplications */}
-                    {activeDuplications.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          ⚠️ Therapeutic Duplications Detected:
-                        </div>
-                        {activeDuplications.map((dup, idx) => (
-                          <div 
-                            key={idx} 
-                            style={{ 
-                              padding: '10px 12px', 
-                              background: '#FFFBEB', 
-                              border: '1.5px solid #FCD34D', 
-                              borderRadius: 10,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 4
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
-                                {dup.title} ({dup.className})
-                              </span>
-                              <span style={{ 
-                                fontSize: 9, 
-                                fontWeight: 700, 
-                                padding: '2px 6px', 
-                                borderRadius: 4, 
-                                background: 'var(--saffron)', 
-                                color: '#fff' 
-                              }}>
-                                OVERLAP
-                              </span>
-                            </div>
-                            <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
-                              {dup.explanation}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 3. Safe Badge */}
-                    {activeInteractions.length === 0 && activeDuplications.length === 0 && (
-                      <div style={{ 
-                        padding: '8px 12px', 
-                        background: '#F0FDF4', 
-                        border: '1.5px solid #86EFAC', 
-                        borderRadius: 10,
-                        fontSize: 12,
-                        color: '#15803D',
-                        fontWeight: 600,
-                        textAlign: 'center'
-                      }}>
-                        ✓ No interactions or therapeutic duplications found.
-                      </div>
-                    )}
-
-                    {/* 4. Chronotherapy Daily Schedule Timeline */}
-                    {activeSchedule && activeSchedule.schedule && (
-                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          📅 Orchestrated Daily Dosing Schedule:
-                        </div>
-                        
-                        {/* Spacing Alert Notes */}
-                        {activeSchedule.notes && activeSchedule.notes.map((note, nidx) => (
-                          <div key={nidx} style={{ padding: '8px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11.5, color: '#1E40AF', marginBottom: 12, fontWeight: 600 }}>
-                            {note.message}
-                          </div>
-                        ))}
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', paddingLeft: 12 }}>
-                          {/* Timeline vertical line */}
-                          <div style={{ position: 'absolute', left: 4, top: 8, bottom: 8, width: 2, background: 'linear-gradient(180deg, var(--green) 0%, var(--saffron) 50%, var(--navy) 100%)', borderRadius: 1 }} />
-                          
-                          {Object.entries(activeSchedule.schedule).map(([timeOfDay, meds]) => {
-                            // Determine visual styles for each time slot
-                            let icon = '☀️';
-                            let bulletColor = 'var(--green)';
-                            if (timeOfDay === 'Afternoon') { icon = '🌤️'; bulletColor = 'var(--saffron)'; }
-                            if (timeOfDay === 'Evening') { icon = '🌇'; bulletColor = 'var(--orange)'; }
-                            if (timeOfDay === 'Bedtime') { icon = '🌙'; bulletColor = 'var(--navy)'; }
-
-                            return (
-                              <div key={timeOfDay} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {/* Timeline Node Bullet */}
-                                <div style={{ position: 'absolute', left: -14, top: 4, width: 8, height: 8, borderRadius: '50%', background: bulletColor, border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + bulletColor }} />
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{icon} {timeOfDay}</span>
-                                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--bgsoft)', color: 'var(--textmd)' }}>
-                                    {meds.length} {meds.length === 1 ? 'medicine' : 'medicines'}
-                                  </span>
-                                </div>
-
-                                {meds.length === 0 ? (
-                                  <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 4, fontStyle: 'italic' }}>
-                                    No medicines scheduled.
-                                  </div>
-                                ) : (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
-                                    {meds.map((med, midx) => (
-                                      <div key={midx} style={{ padding: '8px 10px', background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>{med.brandName}</span>
-                                          <span style={{ fontSize: 10, fontWeight: 700, color: med.foodRelation.includes('Empty') ? 'var(--red)' : 'var(--green)', background: med.foodRelation.includes('Empty') ? 'var(--redlt)' : 'var(--greenlt)', padding: '2px 6px', borderRadius: 4 }}>
-                                            {med.foodRelation}
-                                          </span>
-                                        </div>
-                                        <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
-                                        <div style={{ fontSize: 10.5, color: 'var(--textmd)', marginTop: 4, borderTop: '1px dashed var(--border)', paddingTop: 4, fontStyle: 'italic' }}>
-                                          💡 {med.rationale}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                    return (
+                      <button 
+                        key={slot}
+                        onClick={() => handleToggleAdherence(dateStr, slot)}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 8,
+                          border: `1.5px solid ${isChecked ? 'var(--green)' : 'var(--border)'}`,
+                          background: isChecked ? 'var(--green)' : '#fff',
+                          color: isChecked ? '#fff' : 'var(--textmd)',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isChecked ? '✓ ' : ''}{slot}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Chronotherapy Daily Schedule Timeline */}
+              {activeSchedule && activeSchedule.schedule && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    📅 Orchestrated Daily Dosing Timeline:
+                  </div>
+                  
+                  {activeSchedule.notes && activeSchedule.notes.map((note, nidx) => (
+                    <div key={nidx} style={{ padding: '8px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11.5, color: '#1E40AF', marginBottom: 12, fontWeight: 600 }}>
+                      {note.message}
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', paddingLeft: 12 }}>
+                    <div style={{ position: 'absolute', left: 4, top: 8, bottom: 8, width: 2, background: 'linear-gradient(180deg, var(--green) 0%, var(--saffron) 50%, var(--navy) 100%)', borderRadius: 1 }} />
+                    
+                    {Object.entries(activeSchedule.schedule).map(([timeOfDay, meds]) => {
+                      let icon = '☀️';
+                      let bulletColor = 'var(--green)';
+                      if (timeOfDay === 'Afternoon') { icon = '🌤️'; bulletColor = 'var(--saffron)'; }
+                      if (timeOfDay === 'Evening') { icon = '🌇'; bulletColor = 'var(--orange)'; }
+                      if (timeOfDay === 'Bedtime') { icon = '🌙'; bulletColor = 'var(--navy)'; }
+
+                      return (
+                        <div key={timeOfDay} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ position: 'absolute', left: -14, top: 4, width: 8, height: 8, borderRadius: '50%', background: bulletColor, border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + bulletColor }} />
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{icon} {timeOfDay}</span>
+                            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--bgsoft)', color: 'var(--textmd)' }}>
+                              {meds.length} {meds.length === 1 ? 'med' : 'meds'}
+                            </span>
+                          </div>
+
+                          {meds.length === 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 4, fontStyle: 'italic' }}>
+                              No medicines scheduled.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
+                              {meds.map((med, midx) => (
+                                <div key={midx} style={{ padding: '8px 10px', background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>{med.brandName}</span>
+                                    <span style={{ fontSize: 9.5, fontWeight: 700, color: med.foodRelation.includes('Empty') ? 'var(--red)' : 'var(--green)', background: med.foodRelation.includes('Empty') ? 'var(--redlt)' : 'var(--greenlt)', padding: '2px 5px', borderRadius: 4 }}>
+                                      {med.foodRelation}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
+                                  <div style={{ fontSize: 10.5, color: 'var(--textmd)', marginTop: 4, borderTop: '1px dashed var(--border)', paddingTop: 4, fontStyle: 'italic' }}>
+                                    💡 {med.rationale}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: Health Card & QR */}
+          {activeTab === 'healthcard' && (
+            <HealthCard profile={activeProfile} onSaveProfile={handleSaveHealthCard} />
+          )}
+
+          {/* TAB 4: Symptoms & ADR Warnings */}
+          {activeTab === 'symptoms' && (
+            <div>
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Log Symptoms & Track Side Effects</h4>
+              
+              {/* Symptom logger input form */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <input 
+                  type="text" 
+                  value={symptomInput} 
+                  onChange={e => setSymptomInput(e.target.value)} 
+                  placeholder="Enter symptom (e.g. Dry cough, muscle pain)..." 
+                  style={{ flex: 1, height: 38, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--bordermd)', fontSize: 13 }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleLogSymptom(symptomInput) }}
+                />
+                <button onClick={() => handleLogSymptom(symptomInput)} style={{ padding: '0 14px', background: 'var(--green)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Log</button>
+              </div>
+
+              {/* Flagged ADR Side-effect alert warnings */}
+              {(() => {
+                const cabSalts = cabinet.map(c => c.saltComposition);
+                const symTexts = (activeProfile.symptoms || []).map(s => s.text);
+                const warnings = flagPotentialSideEffects(cabSalts, symTexts);
+
+                if (warnings.length > 0) {
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        🚨 Potential Side Effect Overlaps Flagged:
+                      </div>
+                      {warnings.map((w, idx) => (
+                        <div key={idx} style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1.5px solid #FECACA', borderRadius: 10, fontSize: 12, color: '#991B1B', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <div>{w.explanation}</div>
+                          <div style={{ fontSize: 10, color: 'var(--textlt)', fontStyle: 'italic' }}>
+                            Linked drug: {w.salt} causes {w.symptom}. We recommend consulting a pharmacist to adjust dosage.
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Symptoms history log */}
+              <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Symptom History</h5>
+              {(!activeProfile.symptoms || activeProfile.symptoms.length === 0) ? (
+                <p style={{ fontSize: 11.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic' }}>No logged symptoms. Enter symptoms above to check for adverse drug reactions.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
+                  {activeProfile.symptoms.map((s, sidx) => (
+                    <div key={sidx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bgsoft)', padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
+                      <div>
+                        <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{s.text}</span>
+                        <span style={{ fontSize: 10, color: 'var(--textlt)', marginLeft: 8 }}>({s.date})</span>
+                      </div>
+                      <button onClick={() => handleDeleteSymptom(sidx)} style={{ color: 'var(--red)', fontSize: 12 }}>🗑️</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

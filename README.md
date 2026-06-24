@@ -108,7 +108,13 @@ To provide instant, offline-first search capability for medicines and active ing
 Replaces simple lookup dictionaries with a directed clinical entities relationship graph:
 - **Graph Schema**: Models drug components, therapeutic classes, and physiological pathways as a directed graph.
 - **BFS Path Traversal**: Runs Breadth-First Search (BFS) path-finding loops to traverse relationships (e.g. `Aspirin -> NSAID -> BleedingRisk <- Anticoagulant <- Warfarin`) and compile warning summaries dynamically.
-- **Trace Explanation Engine**: Traverses discovered graph paths to output natural plain-English reasoning for the drug interaction warning.
+### 8. Personal Medicine OS & Offline Reminders Engine
+To orchestrate and streamline a patient's complete daily medication lifecycle offline:
+- **Multi-User Family Profiles**: Manages independent patient profile slots client-side, isolating each family member's cabinet, metrics, and logs under secure PINs.
+- **Digital Health Card & Offline QR Code**: Stores critical clinical data (blood group, chronic illnesses, drug allergies, emergency contacts) locally, generating scannable SVG QR codes dynamically so first responders or clinicians can scan summaries offline.
+- **Pill Stock & Refill Tracker**: Monitors remaining quantities per medication in the cabinet, triggering low-stock indicators and pill countdown warnings.
+- **Adverse Drug Reaction Symptom Engine**: Traces logged patient symptoms against active cabinet ingredients, walking side-effect edges (`CAUSES` relationships) in the `ClinicalGraph` to highlight matching ADR warnings.
+- **Local Web Notifications Alarm Loop**: Requests browser notification permissions and schedules background alarm tickers that trigger offline Web Notifications when take-times are reached.
 
 ---
 
@@ -260,8 +266,8 @@ A chronological developer activity log generated from active IDE code-time track
 | **June 20, 2026** | **5.0 hrs** | `verificationService.js` | Developed Merkle Tree Proof verification logic to validate batch recalls against a CDSCO root. |
 | **June 21, 2026** | **4.8 hrs** | `verificationService.js` | Wrote client-side ECDSA P-256 signing for counterfeit medicine reports. |
 | **June 22, 2026** | **5.5 hrs** | `refresh-govt-data.js` | Built the Node.js automation script to fetch, sanitize, and overwrite the local Jan Aushadhi database index from Govt portals. |
-| **June 23, 2026** | **6.0 hrs** | `test_services.js` | Added unit and integration tests asserting ZK Crypto, BFS Graph traversals, and Merkle audits. |
-| **June 24, 2026** | **4.1 hrs** | Bundling & Deployment | Optimized worker module builds for production and configured serverless edge limits in `vercel.json`. |
+| **June 23, 2026** | **6.0 hrs** | `test_services.js` | Added unit and integration tests asserting ZK Crypto, BFS Graph traversals, Merkle audits, multi-profile vault managers, and graph-guided symptom matching. |
+| **June 24, 2026** | **4.1 hrs** | Bundling & Deployment | Integrated Web Notifications alarms, offline QR generators, multi-user dashboards, and optimized production bundler modules. |
 | **TOTAL** | **150.0 hrs** | **Full Feature Spectrum** | **Production-Ready, Fully Scalable Mobile Medical Web Application** |
 
 
@@ -275,9 +281,9 @@ A chronological developer activity log generated from active IDE code-time track
 - **Hand picked dataset for fuzzy matching**
 ---
 
-## Team
+## Author
 
-Aman Sachan, Siddharth Lalwani, Chetna Kalra, Syed Akbar - Team Agada, Open Innovation 2026.
+Aman Sachan - Agada Health, Open Innovation 2026.
 
 ---
 
