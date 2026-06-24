@@ -11,6 +11,7 @@ import { useT } from '../i18n/translations.js'
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
+import { checkInteractions } from '../services/interactionService.js'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -47,6 +48,32 @@ export default function Scanner() {
   const [pinError, setPinError] = useState('')
   const [showPinSetup, setShowPinSetup] = useState(false)
   const [newPin, setNewPin] = useState('')
+
+  // Medicine Cabinet & Interactions
+  const [cabinet, setCabinet] = useState([])
+  const [activeInteractions, setActiveInteractions] = useState([])
+
+  React.useEffect(() => {
+    if (cabinet.length >= 2) {
+      const activeSalts = cabinet.map(item => item.saltComposition)
+      const collisions = checkInteractions(activeSalts)
+      setActiveInteractions(collisions)
+    } else {
+      setActiveInteractions([])
+    }
+  }, [cabinet])
+
+  const toggleCabinetItem = useCallback((bookmark, e) => {
+    if (e) e.stopPropagation()
+    setCabinet(prev => {
+      const isAlreadyIn = prev.some(item => item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition)
+      if (isAlreadyIn) {
+        return prev.filter(item => !(item.brandName === bookmark.brandName && item.saltComposition === bookmark.saltComposition))
+      } else {
+        return [...prev, bookmark]
+      }
+    })
+  }, [])
 
   // Load bookmarks on view load
   React.useEffect(() => {
@@ -393,6 +420,9 @@ export default function Scanner() {
           setNewPin={setNewPin}
           handleSetupPin={handleSetupPin}
           handleDisableEncryption={handleDisableEncryption}
+          cabinet={cabinet}
+          toggleCabinetItem={toggleCabinetItem}
+          activeInteractions={activeInteractions}
         />
       )}
       {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
@@ -435,7 +465,8 @@ function HomeView({
   wasmEnabled, setWasmEnabled, wasmFilter, setWasmFilter, useAsyncQueue, setUseAsyncQueue,
   vaultPin, isVaultLocked, setIsVaultLocked, pinInput, setPinInput, pinError, setPinError,
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
-  handleDisableEncryption
+  handleDisableEncryption,
+  cabinet, toggleCabinetItem, activeInteractions
 }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
@@ -618,67 +649,216 @@ function HomeView({
               🔒 Saved Medicines ({bookmarks.length}) {vaultPin && <span style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 400 }}>(Encrypted)</span>}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-              {bookmarks.map((b, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleSelectBookmark(b)}
-                  style={{
-                    background: '#fff',
-                    border: '1.5px solid var(--border)',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.01)',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--green)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)';
-                    e.currentTarget.style.transform = 'none';
-                  }}
-                >
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
-                    dY'S
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {b.brandName}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {b.saltComposition}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => handleDeleteBookmark(e, b)}
+              {bookmarks.map((b, idx) => {
+                const isInCabinet = cabinet.some(item => item.brandName === b.brandName && item.saltComposition === b.saltComposition);
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectBookmark(b)}
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: 'transparent',
-                      color: 'var(--textlt)',
-                      fontSize: 14,
+                      background: '#fff',
+                      border: isInCabinet ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                      borderRadius: 12,
+                      padding: '10px 12px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 10,
                       cursor: 'pointer',
-                      transition: 'color 0.2s'
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.01)',
+                      transition: 'all 0.15s'
                     }}
-                    onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
-                    onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--green)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = isInCabinet ? 'var(--green)' : 'var(--border)';
+                      e.currentTarget.style.transform = 'none';
+                    }}
                   >
-                    🗑️
-                  </button>
-                </div>
-              ))}
+                    <div 
+                      onClick={(e) => toggleCabinetItem(b, e)} 
+                      title="Add/remove from interaction check cabinet"
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        width: 28, 
+                        height: 28, 
+                        borderRadius: 8, 
+                        border: `1.5px solid ${isInCabinet ? 'var(--green)' : 'var(--bordermd)'}`, 
+                        background: isInCabinet ? 'var(--green)' : '#fff',
+                        color: isInCabinet ? '#fff' : 'transparent',
+                        fontWeight: 900,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      ✓
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.brandName}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.saltComposition}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => handleDeleteBookmark(e, b)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: 'transparent',
+                        color: 'var(--textlt)',
+                        fontSize: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )
+      )}
+
+      {/* Medicine Cabinet & Interaction Panel */}
+      {!isVaultLocked && bookmarks && bookmarks.length > 0 && (
+        <div style={{ 
+          marginTop: 20, 
+          background: '#fff', 
+          border: '1.5px solid var(--border)', 
+          borderRadius: 16, 
+          padding: '16px', 
+          boxShadow: 'var(--shadow)',
+          animation: 'fadeUp 0.5s ease 0.4s both'
+        }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            💊 Medicine Cabinet ({cabinet.length})
+          </h3>
+          
+          {cabinet.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
+              Check the boxes on your saved medicines above to load them into the Cabinet and run automatic drug-drug interaction audits.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* List of active drugs in cabinet */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cabinet.map((item, i) => (
+                  <span 
+                    key={i} 
+                    style={{ 
+                      fontSize: 11.5, 
+                      fontWeight: 600,
+                      background: 'var(--greenlt)', 
+                      color: 'var(--green)', 
+                      borderRadius: 20, 
+                      padding: '4px 10px', 
+                      border: '1px solid #A7D9CA',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {item.brandName}
+                    <button 
+                      onClick={(e) => toggleCabinetItem(item, e)}
+                      style={{ 
+                        background: 'transparent', 
+                        border: 'none', 
+                        color: 'var(--green)', 
+                        fontWeight: 800, 
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: 12,
+                        lineHeight: 1
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {/* Interaction Results */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                {cabinet.length < 2 ? (
+                  <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0 }}>
+                    Select at least 2 medicines to analyze contraindications.
+                  </p>
+                ) : activeInteractions.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      ⚠️ Contraindication Warnings Detected:
+                    </div>
+                    {activeInteractions.map((col, idx) => (
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          padding: '10px 12px', 
+                          background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', 
+                          border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, 
+                          borderRadius: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>
+                            {col.title}
+                          </span>
+                          <span style={{ 
+                            fontSize: 9, 
+                            fontWeight: 700, 
+                            padding: '2px 6px', 
+                            borderRadius: 4, 
+                            background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', 
+                            color: '#fff' 
+                          }}>
+                            {col.severity}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600 }}>
+                          Collision: {col.saltA} + {col.saltB}
+                        </div>
+                        <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.5 }}>
+                          {col.explanation}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    padding: '8px 12px', 
+                    background: '#F0FDF4', 
+                    border: '1.5px solid #86EFAC', 
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: '#15803D',
+                    fontWeight: 600,
+                    textAlign: 'center'
+                  }}>
+                    ✓ No known interactions found between selected medicines.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Footer links */}
