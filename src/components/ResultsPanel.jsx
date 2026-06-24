@@ -28,13 +28,13 @@ async function translateTexts(texts, targetLang) {
   } catch { return texts }
 }
 
-export default function ResultsPanel({ results, preview, onReset, t, lang }) {
+export default function ResultsPanel({ results, preview, onReset, t, lang, isBookmarked: propsIsBookmarked, onToggleBookmark }) {
   const [card, setCard] = useState(0)
   const [reported, setReported] = useState(false)
   const [translated, setTranslated] = useState(null)
   const [translating, setTranslating] = useState(false)
 
-  const [isBookmarked, setIsBookmarked] = useState(() => {
+  const [localIsBookmarked, setLocalIsBookmarked] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
       return saved.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)
@@ -43,13 +43,19 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
     }
   })
 
+  const isBookmarked = propsIsBookmarked !== undefined ? propsIsBookmarked : localIsBookmarked;
+
   const toggleBookmark = () => {
+    if (onToggleBookmark) {
+      onToggleBookmark()
+      return
+    }
     try {
       const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
       let updated
       if (isBookmarked) {
         updated = saved.filter(b => !(b.brandName === results.brandName && b.saltComposition === results.saltComposition))
-        setIsBookmarked(false)
+        setLocalIsBookmarked(false)
       } else {
         updated = [...saved, {
           brandName: results.brandName,
@@ -57,7 +63,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang }) {
           timestamp: Date.now(),
           results: results
         }]
-        setIsBookmarked(true)
+        setLocalIsBookmarked(true)
       }
       localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
     } catch (e) {

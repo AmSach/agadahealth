@@ -4,6 +4,14 @@
       "memory": 1024,
       "maxDuration": 60
     },
+    "api/create-scan-job.js": {
+      "memory": 512,
+      "maxDuration": 15
+    },
+    "api/scan-stream.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
     "api/prices.js": {
       "memory": 512,
       "maxDuration": 20

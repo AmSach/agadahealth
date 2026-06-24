@@ -123,6 +123,8 @@ Format: {"found":true,"name":"Brand Name","mrp":50,"packSize":"10 tablets","perU
   return { found: false }
 }
 
+import { scrapeMarketPrices } from './scraperCluster.js'
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
@@ -134,13 +136,35 @@ export default async function handler(req, res) {
   const q = (req.query.q || '').trim()
   if (!q || q.length < 2) { res.status(400).json({ found: false, error: 'Query too short' }); return }
 
-  // 1. Try local Jan Aushadhi DB first
+  // 1. Try local Jan Aushadhi DB first (fastest)
   const local = lookupLocal(q)
   if (local) {
     return res.status(200).json(local)
   }
 
-  // 2. Try Groq AI
+  // 2. Try the Live Scraper Cluster to query e-pharmacies concurrently
+  try {
+    const scrapedResults = await scrapeMarketPrices(q)
+    if (scrapedResults.length > 0) {
+      const best = scrapedResults[0]
+      const count = parseInt(best.packSize) || 10
+      return res.status(200).json({
+        found: true,
+        name: best.name,
+        mrp: best.mrp,
+        packSize: best.packSize,
+        perUnit: Math.round((best.mrp / count) * 100) / 100,
+        priceSource: `${best.source} (Live Scrape)`,
+        highConfidence: true,
+        aiEstimated: false,
+        url: best.url,
+      })
+    }
+  } catch (err) {
+    console.error("Scraper cluster failed inside prices api:", err)
+  }
+
+  // 3. Try Groq AI (fallback)
   if (GROQ_KEYS.length) {
     const groqResult = await askGroqForPrice(q)
     if (groqResult?.found) {
@@ -148,6 +172,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. Not found
+  // 4. Not found
   return res.status(200).json({ found: false, reason: 'no_results', query: q })
 }
