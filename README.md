@@ -143,6 +143,60 @@ docs/
 
 ---
 
+## Public API Endpoints
+
+Agada exposes public endpoints for querying medicine pricing, generic alternatives, and local DavaIndia proxies by medicine/salt name.
+
+### 1. Market Price & Alternatives Lookup
+Query the core price engine to fetch Jan Aushadhi generic matches, scrape live e-pharmacy rates (Apollo, Netmeds, DavaIndia), or obtain AI estimations.
+
+- **Endpoint**: `GET /api/prices`
+- **Query Parameter**: `q` (string, required) — The brand name or active ingredient salt composition (e.g., `Paracetamol 500mg`, `Atorvastatin`).
+- **Response Format**: JSON
+- **Example Request**:
+  ```bash
+  curl "https://agadahealth.vercel.app/api/prices?q=Paracetamol+500mg"
+  ```
+- **Example Response (Jan Aushadhi Match)**:
+  ```json
+  {
+    "found": true,
+    "name": "Paracetamol 500mg",
+    "mrp": 2.5,
+    "packSize": "10 tablets",
+    "perUnit": 0.25,
+    "priceSource": "Jan Aushadhi (Local DB)",
+    "highConfidence": true,
+    "aiEstimated": false,
+    "generic": true
+  }
+  ```
+
+### 2. DavaIndia Proxy Search
+Directly query DavaIndia's inventory catalog through the Vercel Edge Serverless proxy.
+
+- **Endpoint**: `GET /api/davaindia`
+- **Query Parameter**: `q` (string, required) — The target medicine name.
+- **Example Request**:
+  ```bash
+  curl "https://agadahealth.vercel.app/api/davaindia?q=Amoxycillin+500mg"
+  ```
+- **Example Response**:
+  ```json
+  {
+    "found": true,
+    "name": "AMOXYCILLIN 500MG CAPSULE",
+    "mrp": 59.8,
+    "packSize": "10 Capsules",
+    "perUnit": 5.98,
+    "saltComposition": "Amoxycillin 500mg",
+    "priceSource": "DavaIndia",
+    "highConfidence": true
+  }
+  ```
+
+---
+
 ## Data sources
 
 - **CDSCO Approved Drug List** — [cdscoonline.gov.in](https://cdscoonline.gov.in), updated quarterly
