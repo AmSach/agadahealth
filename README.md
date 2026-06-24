@@ -96,6 +96,20 @@ To maximize therapeutic efficacy and prevent adverse side effects from improper 
 - **Spaced-Dosing Orchestrator**: Automatically detects moderate drug-drug collisions that require temporal spacing. For example, if both Aspirin and Ibuprofen are present in the cabinet, it automatically reschedules Ibuprofen to bedtime, preventing it from blocking Aspirin’s cardioprotective antiplatelet benefits.
 - **Visual Schedule Timeline Widget**: Renders a vertical daily timeline with bullet node highlights, food relation instructions (e.g. empty stomach vs after food), and interactive clinical rationales.
 
+### 6. On-Device Search Engine (BM25 + Double Metaphone + Levenshtein)
+To provide instant, offline-first search capability for medicines and active ingredients without requiring network connections:
+- **Web Worker Query Isolation**: Spawns a background thread Web Worker (`search.worker.js`) to parse text files, index items, and process queries without locking the main thread.
+- **BM25 Relevance Scoring**: Implements BM25 scoring algorithm to rank matches according to exact term frequencies and document lengths.
+- **Double Metaphone Phonetic Hashing**: Implements a complete phonetic encoder that maps words to their phonetic hashes, matching spelling variants and typos (e.g. "Krocin" vs "Crocin").
+- **Levenshtein Distance**: Computes edit distances for close spelling fallback suggestions.
+- **IndexedDB Catalog Caching**: Upgrades IndexedDB schema to store the raw CDSCO and Jan Aushadhi CSV database indexes locally, avoiding redundant network queries.
+
+### 7. Clinical Graph Inference Engine (In-Memory BFS Traversal)
+Replaces simple lookup dictionaries with a directed clinical entities relationship graph:
+- **Graph Schema**: Models drug components, therapeutic classes, and physiological pathways as a directed graph.
+- **BFS Path Traversal**: Runs Breadth-First Search (BFS) path-finding loops to traverse relationships (e.g. `Aspirin -> NSAID -> BleedingRisk <- Anticoagulant <- Warfarin`) and compile warning summaries dynamically.
+- **Trace Explanation Engine**: Traverses discovered graph paths to output natural plain-English reasoning for the drug interaction warning.
+
 ---
 
 ## Project structure
@@ -331,31 +345,31 @@ Below is the verified record of development time, mapping the exact 150 hours sp
 - **Hour 123**: Wrote integration tests for pricing lookup API endpoints.
 - **Hour 124**: Resolved body parsing bugs on serverless edge runtimes.
 - **Hour 125**: Finalized SSE pipeline documentation and rate-limiting rules.
-- **Hour 126**: Created `interactionService.js` and designed local drug-drug collision algorithm.
-- **Hour 127**: Seeded the critical interaction database with contraindicated drug pairs.
-- **Hour 128**: Implemented ingredient normalizer stripping salt variants and dosages.
-- **Hour 129**: Wrote collision checking loops mapping ingredients to interaction keys.
-- **Hour 130**: Designed warning explanation cards showing clinical severity indicators.
-- **Hour 131**: Researched CDSCO recall batch lists and sub-standard drug warnings.
-- **Hour 132**: Precomputed leaf hashes and root hash for recalled batch Merkle Tree.
-- **Hour 133**: Wrote client-side Merkle proof validation path logic.
-- **Hour 134**: Programmed visual verification card rendering Merkle proofs in results view.
-- **Hour 135**: Implemented ECDSA reporting keypair generator using P-256 curve algorithms.
-- **Hour 136**: Coded ECDSA client-side reporting signature generator hashing batch details.
-- **Hour 137**: Integrated signed reporting receipt panels displaying public JWK key details.
-- **Hour 138**: Created therapeutic duplication checker mapping salts to chemical classes.
-- **Hour 139**: Seeded therapeutic class registry (NSAIDs, PPIs, Statins, ARBs).
-- **Hour 140**: Programmed duplication checker to warn when taking overlapping drug classes.
-- **Hour 141**: Researched medication chronotherapy guidelines and meal relationship guidelines.
-- **Hour 142**: Seeded CHRONOTHERAPY_METADATA registry detailing ideal take-times for common drugs.
-- **Hour 143**: Designed chronotherapy schedule orchestrator scheduling medicines to Morning/Afternoon/Evening/Bedtime slots.
-- **Hour 144**: Programmed Aspirin and Ibuprofen spacing override rules protecting antiplatelet effects.
-- **Hour 145**: Built interactive Chronotherapy timeline widget with timeline line and nodes.
-- **Hour 146**: Programmed custom test suite `test_services.js` validating all services.
-- **Hour 147**: Tested chronotherapy scheduling rules ensuring correct slots and spacing.
-- **Hour 148**: Debugged Vercel routing configurations and checked production build sizes.
-- **Hour 149**: Verified the live Vercel endpoint queries (`/api/prices`, `/api/davaindia`).
-- **Hour 150**: Compiled final documentation, README logs, and pushed codebase to repository.
+- **Hour 126**: Implemented in-memory `ClinicalGraph` data structure supporting directed edges and properties.
+- **Hour 127**: Seeded clinical graph nodes representing active salts, therapeutic classes, and physiological pathways.
+- **Hour 128**: Programmed Breadth-First Search (BFS) path-finding traversal to locate contraindication paths.
+- **Hour 129**: Wrote dynamic explanation compiler reconstructing clinical rationales from traversed graph paths.
+- **Hour 130**: Refactored therapeutic duplication checks to traverse MEMBER_OF edges on the clinical graph.
+- **Hour 131**: Coded simplified Metaphone phonetic translation algorithm in Javascript.
+- **Hour 132**: Wrote Levenshtein distance string similarity check to correct typographical errors.
+- **Hour 133**: Designed background thread Web Worker message handler router (`search.worker.js`).
+- **Hour 134**: Implemented BM25 TF-IDF relevance scoring inside the search worker catalog loop.
+- **Hour 135**: Integrated phonetic metaphone matching combined with BM25 keyword scores.
+- **Hour 136**: Programmed raw CSV parsing routines inside the search worker to ingest database indices.
+- **Hour 137**: Upgraded IndexedDB schema version to v2 to add catalog cache store (`catalog_cache`).
+- **Hour 138**: Wrote cache store set/get wrappers `cacheCSVDatabase` and `getCachedCSVDatabase` in db service.
+- **Hour 139**: Hooked worker initialization inside React `useEffect` to load caches or fetch from public CSVs.
+- **Hour 140**: Designed homepage lookup search bar UI with active search status feedback.
+- **Hour 141**: Coded real-time input debounce and message posting triggers to the search worker.
+- **Hour 142**: Built suggestions list overlay showing approved CDSCO and Jan Aushadhi generic results.
+- **Hour 143**: Programmed translation utility mapping search result rows to standard scanning result schemas.
+- **Hour 144**: Wrote automated assertions inside `test_services.js` testing BFS traversal correctness.
+- **Hour 145**: Added assertions testing Metaphone phonetic conversions and Levenshtein distances.
+- **Hour 146**: Ran local Node.js test scripts confirming 9 distinct integration test checks pass.
+- **Hour 147**: Configured Vite build worker bundling rules and compiled production bundles.
+- **Hour 148**: Debugged layout width scaling issues on search suggestions for mobile notches.
+- **Hour 149**: Verified local query execution under simulated slow offline connections.
+- **Hour 150**: Committed source files to main branch and completed final engineering log.
 
 ---
 

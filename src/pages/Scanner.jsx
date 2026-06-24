@@ -12,7 +12,8 @@ import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
 import { checkInteractions, checkTherapeuticDuplication, orchestrateMedicationSchedule } from '../services/interactionService.js'
-import { getSecureLogs, saveSecureLogs } from '../services/dbServiceIndexedDB.js'
+import { getSecureLogs, saveSecureLogs, cacheCSVDatabase, getCachedCSVDatabase } from '../services/dbServiceIndexedDB.js'
+import SearchWorker from '../wasm/search.worker.js?worker'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -55,6 +56,96 @@ export default function Scanner() {
   const [activeInteractions, setActiveInteractions] = useState([])
   const [activeDuplications, setActiveDuplications] = useState([])
   const [activeSchedule, setActiveSchedule] = useState({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
+
+  // Client-Side Search Engine states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchWorker, setSearchWorker] = useState(null)
+  const [searchStatus, setSearchStatus] = useState('Initializing search engine...')
+
+  // Initialize Search worker and database cache
+  React.useEffect(() => {
+    let active = true;
+    let worker = null;
+
+    async function initSearch() {
+      try {
+        setSearchStatus('Loading drug databases...');
+        let cdscoText = await getCachedCSVDatabase('cdsco');
+        let jaText = await getCachedCSVDatabase('jan_aushadhi');
+
+        if (!cdscoText || !jaText) {
+          setSearchStatus('Downloading database indexes for offline search...');
+          const [cdscoRes, jaRes] = await Promise.all([
+            fetch('/data/cdsco.csv'),
+            fetch('/data/jan_aushadhi.csv')
+          ]);
+          if (!cdscoRes.ok || !jaRes.ok) throw new Error('Failed to fetch static CSV records from host.');
+          
+          cdscoText = await cdscoRes.text();
+          jaText = await jaRes.text();
+
+          await cacheCSVDatabase('cdsco', cdscoText);
+          await cacheCSVDatabase('jan_aushadhi', jaText);
+        }
+
+        if (!active) return;
+        setSearchStatus('Initializing search thread worker...');
+        
+        worker = new SearchWorker();
+        worker.onmessage = (e) => {
+          if (!active) return;
+          const { type, cdsco, ja, success, error } = e.data;
+          if (type === 'initialized') {
+            if (success) {
+              setSearchWorker(worker);
+              setSearchStatus('Offline search ready.');
+            } else {
+              setSearchStatus(`Failed to initialize search: ${error}`);
+            }
+          } else if (type === 'results') {
+            setSearchResults({ cdsco, ja });
+            setIsSearching(false);
+          } else if (type === 'error') {
+            console.error('Search worker error:', error);
+            setIsSearching(false);
+          }
+        };
+
+        worker.postMessage({
+          type: 'init',
+          data: { cdscoText, jaText }
+        });
+      } catch (err) {
+        console.error('Failed to setup search worker:', err);
+        setSearchStatus('Search unavailable: offline database load failed.');
+      }
+    }
+
+    initSearch();
+
+    return () => {
+      active = false;
+      if (worker) worker.terminate();
+    };
+  }, []);
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+    if (searchWorker) {
+      setIsSearching(true);
+      searchWorker.postMessage({
+        type: 'search',
+        data: { query }
+      });
+    }
+  };
 
   React.useEffect(() => {
     if (cabinet.length >= 2) {
@@ -215,6 +306,80 @@ export default function Scanner() {
       setPinError('Failed to disable encryption.')
     }
   }
+
+  const handleSelectSearchResult = (result, type) => {
+    let brandName = 'Unknown';
+    let saltComposition = 'Unknown';
+    let mrp = 0.0;
+    let packSize = '10 tablets';
+    let cdscoFound = false;
+    let cdscoBadge = '';
+    let approvalDate = '';
+    let indication = '';
+
+    if (type === 'cdsco') {
+      saltComposition = result.row['Drug Name'] || '';
+      brandName = saltComposition.split(' ')[0] || 'Generic';
+      cdscoFound = true;
+      cdscoBadge = `✓ ${saltComposition} is CDSCO-approved`;
+      approvalDate = result.row['Approval Date'] || 'N/A';
+      indication = result.row['Indication'] || 'Maintenance therapy';
+    } else {
+      saltComposition = result.row['Generic Name'] || '';
+      brandName = result.row['Drug Name'] || result.row['Generic Name'] || 'Generic';
+      mrp = parseFloat(result.row['MRP']) || 0.0;
+      packSize = result.row['Unit Size'] || '10 tablets';
+    }
+
+    const mockResult = {
+      productType: 'MEDICINE',
+      brandName,
+      saltComposition,
+      manufacturer: result.row['Manufacturer'] || 'Generic Manufacturer',
+      mrp: mrp || null,
+      unitSize: packSize,
+      confidence: 100,
+      saltSource: 'OFFLINE_SEARCH',
+      authenticity: {
+        status: cdscoFound ? 'LIKELY_GENUINE' : 'CANNOT_DETERMINE',
+        reason: cdscoFound ? 'Matches national CDSCO registration database.' : 'Unchecked in registry. Verify with pharmacist.',
+        cdscoBadge: cdscoBadge || 'Salt not verified in offline CDSCO index.',
+        cdscoFound,
+        approvalDate,
+      },
+      medicineInfo: {
+        whatItDoes: indication || 'Active ingredient medication used for clinical therapy.',
+        commonUses: indication ? [indication] : ['Symptomatic relief'],
+        prescriptionRequired: true,
+        sideEffects: ['Nausea', 'Dizziness'],
+        importantWarnings: ['Consult with your healthcare practitioner before use.'],
+      },
+      alternatives: {
+        hasGenerics: type === 'ja',
+        janAushadhiAvailable: type === 'ja',
+        topAlternatives: type === 'ja' ? [{
+          name: saltComposition,
+          brand: 'Jan Aushadhi',
+          mrp,
+          packSize,
+          perUnit: mrp / 10,
+          priceSource: 'Jan Aushadhi (Offline Search)',
+          highConfidence: true,
+          aiEstimated: false,
+        }] : [],
+        disclaimer: 'Offline catalog search match.',
+      },
+      dataSource: {
+        salt: 'Offline Search Database',
+        alts: 'Jan Aushadhi Catalog',
+        cdsco: cdscoFound ? 'CDSCO Approved' : 'Unregistered',
+        cdscoFound,
+      }
+    };
+
+    setResults(mockResult);
+    setView(VIEWS.RESULTS);
+  };
 
   // Unified Scanner backend analysis coordinator
   const startAnalysis = useCallback(async (finalBase64, barcodeData) => {
@@ -454,6 +619,12 @@ export default function Scanner() {
           activeInteractions={activeInteractions}
           activeDuplications={activeDuplications}
           activeSchedule={activeSchedule}
+          searchQuery={searchQuery}
+          handleSearchChange={handleSearchChange}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          searchStatus={searchStatus}
+          handleSelectSearchResult={handleSelectSearchResult}
         />
       )}
       {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
@@ -497,7 +668,8 @@ function HomeView({
   vaultPin, isVaultLocked, setIsVaultLocked, pinInput, setPinInput, pinError, setPinError,
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
   handleDisableEncryption,
-  cabinet, toggleCabinetItem, activeInteractions, activeDuplications, activeSchedule
+  cabinet, toggleCabinetItem, activeInteractions, activeDuplications, activeSchedule,
+  searchQuery, handleSearchChange, searchResults, isSearching, searchStatus, handleSelectSearchResult
 }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
@@ -546,6 +718,136 @@ function HomeView({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Offline search engine section */}
+      <div style={{
+        background: '#fff',
+        border: '1.5px solid var(--border)',
+        borderRadius: 16,
+        padding: '16px',
+        marginTop: '16px',
+        marginBottom: '20px',
+        boxShadow: 'var(--shadow)',
+        animation: 'fadeUp 0.5s ease 0.35s both'
+      }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          🔍 Instant Medicine & Salt Lookup
+        </h3>
+        <p style={{ fontSize: 11, color: 'var(--textlt)', margin: '0 0 12px 0' }}>
+          Type a brand name or composition salt. Works offline using Double Metaphone and BM25 index matching.
+        </p>
+
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search e.g. Crocin, Paracetamol, Atorvastatin..."
+            style={{
+              width: '100%',
+              height: 46,
+              padding: '0 12px',
+              borderRadius: 10,
+              border: '1.5px solid var(--bordermd)',
+              fontSize: 13.5,
+              color: 'var(--navy)',
+              outline: 'none',
+              background: '#fff',
+              boxSizing: 'border-box',
+              transition: 'border-color 0.2s'
+            }}
+            onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--bordermd)'}
+          />
+          <div style={{ fontSize: 10, color: 'var(--textlt)', marginTop: 6, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>🔒</span> {searchStatus}
+          </div>
+        </div>
+
+        {/* Real-time Search suggestions */}
+        {searchQuery && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, maxHeight: 220, overflowY: 'auto' }}>
+            {isSearching && (
+              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--border)', borderTopColor: 'var(--green)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                Computing scoring ranks...
+              </div>
+            )}
+
+            {!isSearching && (!searchResults || (searchResults.cdsco.length === 0 && searchResults.ja.length === 0)) && (
+              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center' }}>
+                No matches found phonetically or by keyword relevance.
+              </div>
+            )}
+
+            {searchResults && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {searchResults.cdsco.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                      Approved CDSCO Formulations:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchResults.cdsco.map((res, ridx) => (
+                        <div
+                          key={ridx}
+                          onClick={() => handleSelectSearchResult(res, 'cdsco')}
+                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--greenlt)'}
+                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {res.row['Drug Name']}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              Indication: {res.row['Indication'] || 'Maintenance Therapy'}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--greenlt)', color: 'var(--green)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                            Score: {res.score.toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {searchResults.ja.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, marginTop: 6 }}>
+                      Jan Aushadhi Generic Alternatives:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchResults.ja.map((res, ridx) => (
+                        <div
+                          key={ridx}
+                          onClick={() => handleSelectSearchResult(res, 'ja')}
+                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--safflt)'}
+                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {res.row['Generic Name']}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>
+                              MRP: ₹{res.row['MRP']} ({res.row['Unit Size']})
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--safflt)', color: 'var(--saffron)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                            Score: {res.score.toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Trust Badges */}
