@@ -200,3 +200,59 @@ export function detectBoundingBox(width: i32, height: i32): u64 {
 
   return pMinY | pMinX | pMaxY | pMaxX;
 }
+
+// Compute image focus metric using variance of Sobel gradients
+export function computeFocusMetric(width: i32, height: i32): f32 {
+  const size = width * height;
+  if (size > MAX_WIDTH * MAX_HEIGHT) return 0.0;
+
+  // Convert to grayscale
+  const gray = new Uint8Array(size);
+  for (let i = 0; i < size; i++) {
+    const r = f32(imgBuffer[i * 4]);
+    const g = f32(imgBuffer[i * 4 + 1]);
+    const b = f32(imgBuffer[i * 4 + 2]);
+    gray[i] = u8(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+
+  let sum: f32 = 0.0;
+  let count: f32 = 0.0;
+  const magnitudes = new Float32Array(size);
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const v00 = f32(gray[(y - 1) * width + (x - 1)]);
+      const v01 = f32(gray[(y - 1) * width + x]);
+      const v02 = f32(gray[(y - 1) * width + (x + 1)]);
+      
+      const v10 = f32(gray[y * width + (x - 1)]);
+      const v12 = f32(gray[y * width + (x + 1)]);
+      
+      const v20 = f32(gray[(y + 1) * width + (x - 1)]);
+      const v21 = f32(gray[(y + 1) * width + x]);
+      const v22 = f32(gray[(y + 1) * width + (x + 1)]);
+
+      const gx = (v02 + 2.0 * v12 + v22) - (v00 + 2.0 * v10 + v20);
+      const gy = (v20 + 2.0 * v21 + v22) - (v00 + 2.0 * v01 + v02);
+
+      const mag = Math.sqrt(gx * gx + gy * gy) as f32;
+      magnitudes[idx] = mag;
+      sum += mag;
+      count += 1.0;
+    }
+  }
+
+  const mean = sum / count;
+  let varianceSum: f32 = 0.0;
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const diff = magnitudes[idx] - mean;
+      varianceSum += diff * diff;
+    }
+  }
+
+  return varianceSum / count;
+}

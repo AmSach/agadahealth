@@ -7,11 +7,12 @@ import HamMenu from '../components/HamMenu.jsx'
 import { useLang, useSetPage } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
 
-// Import Wasm and Crypto services
+// Import Wasm, Crypto and ARScanner components
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
+import ARScanner from '../components/ARScanner.jsx'
 
-const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error' }
+const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
 export default function Scanner() {
   const { lang, setLang } = useLang()
@@ -159,46 +160,9 @@ export default function Scanner() {
     }
   }
 
-  const handleFile = useCallback(async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-    if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
-    
-    setView(VIEWS.LOADING)
-    setError(null)
-    setStep(1)
-    setBarcodeHit(false)
-    setProcessedPreview(null)
-    setCompletedStepIds([])
-    setActiveStepId(null)
-
-    if (preview) URL.revokeObjectURL(preview)
-    setPreview(URL.createObjectURL(file))
-
+  // Unified Scanner backend analysis coordinator
+  const startAnalysis = useCallback(async (finalBase64, barcodeData) => {
     try {
-      // 1. Concurrently start barcode decoding
-      const barcodePromise = scanMode === 'medicine' ? readBarcode(file).catch(() => null) : Promise.resolve(null)
-      
-      // 2. WebAssembly Pre-processing
-      let finalBase64 = null
-      if (wasmEnabled) {
-        setActiveStepId('started')
-        try {
-          const result = await processImageWasm(file, wasmFilter)
-          finalBase64 = result.base64
-          setProcessedPreview(`data:image/jpeg;base64,${finalBase64}`)
-        } catch (wasmErr) {
-          console.error("WASM filter failed, falling back to client-side compression:", wasmErr)
-        }
-      }
-
-      if (!finalBase64) {
-        finalBase64 = await compressAndEncode(file)
-      }
-
-      // 3. Resolve barcode data
-      const barcodeData = await barcodePromise
-      if (barcodeData) setBarcodeHit(true)
-      
       if (!useAsyncQueue) {
         // Fallback to synchronous OCR handler
         let res
@@ -297,7 +261,66 @@ export default function Scanner() {
       setError(err.message)
       setView(VIEWS.ERROR)
     }
-  }, [preview, scanMode, wasmEnabled, wasmFilter, useAsyncQueue])
+  }, [scanMode, useAsyncQueue])
+
+  // Handle image capture from live WebRTC stream
+  const handleCapturedFrame = useCallback(async (base64) => {
+    setView(VIEWS.LOADING)
+    setError(null)
+    setStep(1)
+    setBarcodeHit(false)
+    setProcessedPreview(null)
+    setCompletedStepIds([])
+    setActiveStepId(null)
+    setPreview(`data:image/jpeg;base64,${base64}`)
+    
+    await startAnalysis(base64, null)
+  }, [startAnalysis])
+
+  // Handle standard file selection
+  const handleFile = useCallback(async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
+    
+    setView(VIEWS.LOADING)
+    setError(null)
+    setStep(1)
+    setBarcodeHit(false)
+    setProcessedPreview(null)
+    setCompletedStepIds([])
+    setActiveStepId(null)
+
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(URL.createObjectURL(file))
+
+    try {
+      const barcodePromise = scanMode === 'medicine' ? readBarcode(file).catch(() => null) : Promise.resolve(null)
+      
+      let finalBase64 = null
+      if (wasmEnabled) {
+        setActiveStepId('started')
+        try {
+          const result = await processImageWasm(file, wasmFilter)
+          finalBase64 = result.base64
+          setProcessedPreview(`data:image/jpeg;base64,${finalBase64}`)
+        } catch (wasmErr) {
+          console.error("WASM filter failed, falling back to client-side compression:", wasmErr)
+        }
+      }
+
+      if (!finalBase64) {
+        finalBase64 = await compressAndEncode(file)
+      }
+
+      const barcodeData = await barcodePromise
+      if (barcodeData) setBarcodeHit(true)
+      
+      await startAnalysis(finalBase64, barcodeData)
+    } catch (err) {
+      setError(err.message)
+      setView(VIEWS.ERROR)
+    }
+  }, [preview, scanMode, wasmEnabled, wasmFilter, startAnalysis])
 
   const handleChange = useCallback((e) => {
     const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''
@@ -339,7 +362,14 @@ export default function Scanner() {
           bookmarks={bookmarks}
           handleSelectBookmark={handleSelectBookmark}
           handleDeleteBookmark={handleDeleteBookmark}
-          onCamera={(mode) => { setScanMode(mode); cameraRef.current?.click() }}
+          onCamera={(mode) => { 
+            setScanMode(mode);
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              setView(VIEWS.AR);
+            } else {
+              cameraRef.current?.click();
+            }
+          }}
           onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
           
           wasmEnabled={wasmEnabled}
@@ -365,6 +395,7 @@ export default function Scanner() {
           handleDisableEncryption={handleDisableEncryption}
         />
       )}
+      {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
       {view === VIEWS.LOADING && (
         <LoadingView 
           t={t} 
