@@ -100,7 +100,7 @@ const DRUG_PREFIX = /^(levo|dextro|nor|des|fos|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|
 
 // ─── SALT PARSER ─────────────────────────────────────────────────────────────
 // Strips form/route/salt-type words; preserves dose numbers; expands parenthetical doses.
-const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna)\b/gi
+const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|resistance|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna)\b/gi
 
 export function parseSalts(text) {
   if (!text) return []
@@ -109,9 +109,8 @@ export function parseSalts(text) {
 
   const form = formBucket(text)
 
-  // Expand parenthetical dose content before stripping parens
-  // "(Sulphamethoxazole 800mg and Trimethoprim 160mg)" → " Sulphamethoxazole 800mg and Trimethoprim 160mg "
-  let t = text.replace(/\(([^)]*(?:mg|mcg|g|iu|%)[^)]*)\)/gi, ' $1 ')
+  // Expand parenthetical dose content before stripping parens (requires a digit before the unit)
+  let t = text.replace(/\(([^)]*\b\d+\s*(?:mg|mcg|g|iu|%)\b[^)]*)\)/gi, ' $1 ')
   t = t.replace(/\([^)]*\)/g, ' ')       // remove remaining non-dose parens
   t = t.replace(/\b\d+%/g, ' ')          // remove % ratios (insulin 30%/70%)
 
@@ -123,7 +122,7 @@ export function parseSalts(text) {
       let name = part
         .replace(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/gi, '')
         .replace(STRIP_WORDS, '')
-        .replace(/[^a-zA-Z\s()\-]/g, ' ')
+        .replace(/[^a-zA-Z\s()]/g, ' ')
         .replace(/\s+/g, ' ').trim().toLowerCase()
       name = normName(name)
       return name.length > 2 ? { name, dose, form } : null
