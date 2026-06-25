@@ -333,22 +333,51 @@ export default function ARScanner({ onCapture, onCancel, t }) {
       streamRef.current.getTracks().forEach(t => t.stop())
     }
 
-    let finalCanvas = canvas
-    
-    // Crop if a valid coordinates box is available and we don't have direct barcode text
-    if (!directBarcodeText && cropCoords && cropCoords.w > 100 && cropCoords.h > 100) {
-      const cropCanvas = document.createElement('canvas')
-      cropCanvas.width = cropCoords.w
-      cropCanvas.height = cropCoords.h
-      const cropCtx = cropCanvas.getContext('2d')
+    try {
+      // Create a clean canvas to capture the raw frame from the video element (no guide boxes/overlays)
+      const cleanCanvas = document.createElement('canvas')
+      cleanCanvas.width = video.videoWidth || canvas.width || 640
+      cleanCanvas.height = video.videoHeight || canvas.height || 480
       
-      // Draw cropped section from main canvas
-      cropCtx.drawImage(canvas, cropCoords.minX, cropCoords.minY, cropCoords.w, cropCoords.h, 0, 0, cropCoords.w, cropCoords.h)
-      finalCanvas = cropCanvas
-    }
+      const cleanCtx = cleanCanvas.getContext('2d')
+      cleanCtx.drawImage(video, 0, 0, cleanCanvas.width, cleanCanvas.height)
 
-    const base64 = finalCanvas.toDataURL('image/jpeg', 0.7).split(',')[1]
-    onCapture(base64, directBarcodeText)
+      let finalCanvas = cleanCanvas
+
+      // Crop if a valid coordinates box is available and we don't have direct barcode text
+      if (!directBarcodeText && cropCoords && cropCoords.w > 100 && cropCoords.h > 100) {
+        // Safe clamp coordinate boundaries to prevent DOMException errors
+        const sMinX = Math.max(0, Math.min(cleanCanvas.width - 1, Math.round(cropCoords.minX || 0)))
+        const sMinY = Math.max(0, Math.min(cleanCanvas.height - 1, Math.round(cropCoords.minY || 0)))
+        const sMaxX = Math.max(0, Math.min(cleanCanvas.width, Math.round(cropCoords.maxX || (sMinX + cropCoords.w))))
+        const sMaxY = Math.max(0, Math.min(cleanCanvas.height, Math.round(cropCoords.maxY || (sMinY + cropCoords.h))))
+        
+        const sW = sMaxX - sMinX
+        const sH = sMaxY - sMinY
+
+        if (sW > 100 && sH > 100) {
+          const cropCanvas = document.createElement('canvas')
+          cropCanvas.width = sW
+          cropCanvas.height = sH
+          const cropCtx = cropCanvas.getContext('2d')
+          
+          // Draw cropped section from the clean canvas
+          cropCtx.drawImage(cleanCanvas, sMinX, sMinY, sW, sH, 0, 0, sW, sH)
+          finalCanvas = cropCanvas
+        }
+      }
+
+      const base64 = finalCanvas.toDataURL('image/jpeg', 0.7).split(',')[1]
+      onCapture(base64, directBarcodeText)
+    } catch (err) {
+      console.error("Failed to capture clean cropped frame, falling back to overlay canvas:", err)
+      try {
+        const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]
+        onCapture(base64, directBarcodeText)
+      } catch (fallbackErr) {
+        console.error("Total capture failure:", fallbackErr)
+      }
+    }
   }
 
   const handleManualCapture = () => {
