@@ -147,13 +147,20 @@ export default async function handler(req, res) {
     const scrapedResults = await scrapeMarketPrices(q)
     if (scrapedResults.length > 0) {
       const best = scrapedResults[0]
-      const count = parseInt(best.packSize) || 10
+      const packSizeStr = best.packSize || ''
+      const numMatch = packSizeStr.match(/(\d+)/)
+      let count = 1
+      if (numMatch) {
+        count = parseInt(numMatch[1])
+      } else if (/pair/i.test(packSizeStr)) {
+        count = 2
+      }
       return res.status(200).json({
         found: true,
         name: best.name,
         mrp: best.mrp,
         packSize: best.packSize,
-        perUnit: Math.round((best.mrp / count) * 100) / 100,
+        perUnit: count > 0 ? Math.round((best.mrp / count) * 100) / 100 : best.mrp,
         priceSource: `${best.source} (Live Scrape)`,
         highConfidence: true,
         aiEstimated: false,

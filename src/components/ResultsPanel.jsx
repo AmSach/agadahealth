@@ -142,9 +142,18 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
   // Real savings % — computed from actual DB data, not hardcoded
   const brandedMrp    = results?.mrp ? parseFloat(results.mrp) : null
   const brandedUnitSz = results?.unitSize || null
-  const brandedPerUnit = brandedMrp && brandedUnitSz
-    ? (() => { const n = brandedUnitSz.match(/(\d+)/); return n ? Math.round(brandedMrp / parseInt(n[1]) * 100) / 100 : brandedMrp / 10 })()
-    : brandedMrp ? brandedMrp / 10 : null
+  const brandedPerUnit = brandedMrp
+    ? (() => {
+        if (!brandedUnitSz) return brandedMrp / 10;
+        const n = brandedUnitSz.match(/(\d+)/);
+        if (n) {
+          const count = parseInt(n[1]);
+          return count > 0 ? Math.round((brandedMrp / count) * 100) / 100 : brandedMrp;
+        }
+        if (/pair/i.test(brandedUnitSz)) return Math.round((brandedMrp / 2) * 100) / 100;
+        return brandedMrp;
+      })()
+    : null;
 
   const cheapestAlt = alts.topAlternatives?.[0]
   const savingsPct = (brandedPerUnit && cheapestAlt?.perUnit)

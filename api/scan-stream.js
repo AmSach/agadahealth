@@ -98,12 +98,19 @@ function lookupJanAushadhi(saltQuery) {
   
   if (bestScore > 0 && best) {
     const mrp = parseFloat(best['MRP']) || 0;
-    const count = parseInt(best['Unit Size']) || 10;
+    const unitSizeStr = best['Unit Size'] || '';
+    const numMatch = unitSizeStr.match(/(\d+)/);
+    let count = 1;
+    if (numMatch) {
+      count = parseInt(numMatch[1]);
+    } else if (/pair/i.test(unitSizeStr)) {
+      count = 2;
+    }
     return {
       name: best['Generic Name'],
       mrp,
       packSize: best['Unit Size'],
-      perUnit: count > 0 ? Math.round((mrp / count) * 100) / 100 : mrp / 10,
+      perUnit: count > 0 ? Math.round((mrp / count) * 100) / 100 : mrp,
       priceSource: 'Jan Aushadhi (Backend DB)',
       highConfidence: true,
       aiEstimated: false,
@@ -350,15 +357,25 @@ export default async function handler(req, res) {
 
     // Add scraped alternatives
     liveAlternatives.forEach(alt => {
+      const packSizeStr = alt.packSize || '';
+      const numMatch = packSizeStr.match(/(\d+)/);
+      let count = 1;
+      if (numMatch) {
+        count = parseInt(numMatch[1]);
+      } else if (/pair/i.test(packSizeStr)) {
+        count = 2;
+      }
+      const isJA = /jan\s*aushadhi/i.test(alt.brand || '') || /jan\s*aushadhi/i.test(alt.name || '');
       allAlts.push({
         name: alt.name,
         brand: alt.brand,
         mrp: alt.mrp,
         packSize: alt.packSize,
-        perUnit: alt.mrp / 10,
+        perUnit: count > 0 ? Math.round((alt.mrp / count) * 100) / 100 : alt.mrp,
         priceSource: `${alt.source} (Live Scraped)`,
         highConfidence: true,
         aiEstimated: false,
+        isJanAushadhi: isJA || undefined,
         url: alt.url,
       });
     });

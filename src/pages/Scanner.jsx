@@ -44,7 +44,11 @@ const getTesseractWorker = async () => {
   tesseractWorkerPromise = (async () => {
     try {
       const Tesseract = await loadTesseract();
-      const worker = await Tesseract.createWorker('eng');
+      const workerPromise = Tesseract.createWorker('eng');
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("OCR engine initialization timed out after 8 seconds.")), 8000)
+      );
+      const worker = await Promise.race([workerPromise, timeoutPromise]);
       return worker;
     } catch (err) {
       tesseractWorkerPromise = null;
@@ -1038,16 +1042,24 @@ export default function Scanner() {
         jaMatchesForBest.slice(0, 4).forEach(match => {
           const item = match.row;
           const mrp = parseFloat(item['MRP']) || 0;
-          const count = parseInt(item['Unit Size']) || 10;
+          const unitSizeStr = item['Unit Size'] || '';
+          const numMatch = unitSizeStr.match(/(\d+)/);
+          let count = 1;
+          if (numMatch) {
+            count = parseInt(numMatch[1]);
+          } else if (/pair/i.test(unitSizeStr)) {
+            count = 2;
+          }
           allAlts.push({
             name: item['Generic Name'],
             brand: 'Jan Aushadhi',
             mrp,
             packSize: item['Unit Size'],
-            perUnit: count > 0 ? Math.round((mrp / count) * 100) / 100 : mrp / 10,
+            perUnit: count > 0 ? Math.round((mrp / count) * 100) / 100 : mrp,
             priceSource: 'Jan Aushadhi (Local DB)',
             highConfidence: true,
             aiEstimated: false,
+            isJanAushadhi: true,
           });
         });
 
@@ -1261,7 +1273,20 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     setPreview(URL.createObjectURL(file))
 
     try {
-      const barcodePromise = scanMode === 'medicine' ? readBarcode(file).catch(() => null) : Promise.resolve(null)
+      // Helper to wrap promises with a timeout fallback
+      const timeoutPromise = (promise, ms) => {
+        return new Promise((resolve) => {
+          const timer = setTimeout(() => resolve(null), ms);
+          promise.then(
+            (res) => { clearTimeout(timer); resolve(res); },
+            () => { clearTimeout(timer); resolve(null); }
+          );
+        });
+      };
+
+      const barcodePromise = scanMode === 'medicine' 
+        ? timeoutPromise(readBarcode(file), 1500) 
+        : Promise.resolve(null)
       
       let finalBase64 = null
       if (wasmEnabled) {

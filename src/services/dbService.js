@@ -183,7 +183,13 @@ export function matchQuality(qSalts, pSalts) {
 // ─── PER-UNIT PRICE ──────────────────────────────────────────────────────────
 function perUnit(mrp, unitSize) {
   if (!mrp || !unitSize || /ml|gm|g\b/i.test(unitSize)) return null
-  const n = unitSize.match(/(\d+)/); const count = n ? parseInt(n[1]) : 10
+  const n = unitSize.match(/(\d+)/)
+  let count = 1
+  if (n) {
+    count = parseInt(n[1])
+  } else if (/pair/i.test(unitSize)) {
+    count = 2
+  }
   return count > 0 ? Math.round(mrp / count * 100) / 100 : null
 }
 
