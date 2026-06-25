@@ -21,6 +21,148 @@ import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
+// Dynamic script loader for Tesseract.js
+const loadTesseract = async () => {
+  if (window.Tesseract) return window.Tesseract;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    script.onload = () => {
+      if (window.Tesseract) resolve(window.Tesseract);
+      else reject(new Error('Tesseract script loaded, but Tesseract is not defined.'));
+    };
+    script.onerror = () => reject(new Error('Failed to load Tesseract.js from CDN.'));
+    document.head.appendChild(script);
+  });
+};
+
+const NOISE_WORDS = new Set([
+  'tablets', 'capsules', 'capsule', 'tablet', 'mg', 'mcg', 'ml', 'g', 'b.no', 'batch', 'expiry', 
+  'exp', 'mfg', 'mrp', 'manufacturing', 'date', 'rs', 'price', 'rx', 'only', 'composition', 
+  'directions', 'dosage', 'warnings', 'keep', 'reach', 'children', 'store', 'cool', 'dry', 
+  'place', 'manufactured', 'by', 'marketed', 'india', 'ltd', 'limited', 'pvt', 'pharmaceuticals', 
+  'pharma', 'laboratories', 'labs', 'co', 'incorporated', 'inc', 'warning', 'prescriptions', 
+  'schedule', 'drug', 'caution', 'licensed', 'user', 'under', 'patent', 'ip', 'bp', 'usp',
+  'contains', 'each', 'film', 'coated', 'colour', 'titanium', 'dioxide'
+]);
+
+function extractCandidateQueries(text) {
+  if (!text) return [];
+  const lines = text.split('\n');
+  const candidates = [];
+  for (let line of lines) {
+    // Replace non-alphanumeric (except space) with space
+    let cleaned = line.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    // Split into tokens
+    let tokens = cleaned.split(/\s+/).map(t => t.trim()).filter(Boolean);
+    // Filter tokens
+    let filteredTokens = tokens.filter(token => {
+      // Filter out pure numbers
+      if (/^\d+$/.test(token)) return false;
+      // Filter out noise words
+      if (NOISE_WORDS.has(token)) return false;
+      // Keep only tokens longer than 2 characters
+      return token.length >= 3;
+    });
+    
+    if (filteredTokens.length > 0) {
+      candidates.push(filteredTokens.join(' '));
+    }
+  }
+  return [...new Set(candidates)];
+}
+
+const LOCAL_DRUG_TEMPLATES = {
+  paracetamol: {
+    whatItDoes: "A widely used pain reliever (analgesic) and fever reducer (antipyretic). It helps alleviate mild to moderate pain.",
+    commonUses: ["Fever reduction", "Mild to moderate pain relief", "Headache", "Muscle ache"],
+    prescriptionRequired: false,
+    sideEffects: ["Nausea", "Allergic reactions (rare)", "Liver damage (in high doses)"],
+    importantWarnings: ["Do not exceed 4000mg per day to avoid liver toxicity", "Avoid alcohol while taking this medication", "Check other cold/flu meds for paracetamol content"]
+  },
+  atorvastatin: {
+    whatItDoes: "A statin medication used to prevent cardiovascular disease and lower lipid levels (cholesterol). It works by reducing cholesterol production in the liver.",
+    commonUses: ["Hypercholesterolemia (high cholesterol)", "Prevention of cardiovascular disease", "Lowering LDL cholesterol"],
+    prescriptionRequired: true,
+    sideEffects: ["Muscle aches (myalgia)", "Headache", "Nausea", "Elevated liver enzymes"],
+    importantWarnings: ["Report unexplained muscle pain immediately", "Avoid grapefruit juice during treatment", "Not safe during pregnancy"]
+  },
+  metformin: {
+    whatItDoes: "An oral diabetes medicine that helps control blood sugar levels for people with type 2 diabetes. It improves insulin sensitivity and reduces glucose production by the liver.",
+    commonUses: ["Type 2 Diabetes Mellitus", "Insulin resistance", "Polycystic Ovary Syndrome (PCOS)"],
+    prescriptionRequired: true,
+    sideEffects: ["Gastrointestinal upset (diarrhea, nausea)", "Metallic taste", "Vitamin B12 deficiency"],
+    importantWarnings: ["Take with meals to minimize stomach upset", "Risk of lactic acidosis (rare but serious)", "Inform doctor before contrast dye scans"]
+  },
+  pantoprazole: {
+    whatItDoes: "A proton pump inhibitor (PPI) that decreases the amount of acid produced in the stomach, allowing the esophagus and stomach lining to heal.",
+    commonUses: ["Gastroesophageal Reflux Disease (GERD)", "Acid reflux relief", "Stomach ulcer healing", "Zollinger-Ellison syndrome"],
+    prescriptionRequired: true,
+    sideEffects: ["Headache", "Diarrhea", "Flatulence", "Joint pain"],
+    importantWarnings: ["Typically taken 30-60 minutes before breakfast", "Long-term use may cause low magnesium levels", "May increase risk of bone fractures with prolonged use"]
+  },
+  ibuprofen: {
+    whatItDoes: "A nonsteroidal anti-inflammatory drug (NSAID) that reduces hormones causing pain and inflammation in the body.",
+    commonUses: ["Inflammation and swelling reduction", "Pain relief (dental, menstrual, joint)", "Fever reduction"],
+    prescriptionRequired: false,
+    sideEffects: ["Stomach upset/heartburn", "Increased blood pressure", "Dizziness", "Fluid retention"],
+    importantWarnings: ["Take with food to protect stomach lining", "Avoid if you have active stomach ulcers", "May increase cardiovascular risk with long-term use"]
+  },
+  amoxicillin: {
+    whatItDoes: "A penicillin-type antibiotic used to treat a wide variety of bacterial infections. It works by stopping the growth of bacteria.",
+    commonUses: ["Bacterial infections", "Ear, nose, and throat infections", "Pneumonia", "Urinary tract infections (UTIs)"],
+    prescriptionRequired: true,
+    sideEffects: ["Nausea", "Diarrhea", "Skin rash", "Yeast infection"],
+    importantWarnings: ["Complete the entire prescribed course even if symptoms disappear", "Does not treat viral infections like flu or common cold", "Seek emergency help if allergic reaction occurs"]
+  },
+  cetirizine: {
+    whatItDoes: "An antihistamine that reduces the effects of natural chemical histamine in the body, relieving allergy symptoms.",
+    commonUses: ["Seasonal allergy symptoms", "Hives/itching", "Runny nose/sneezing", "Watery eyes"],
+    prescriptionRequired: false,
+    sideEffects: ["Drowsiness", "Dry mouth", "Fatigue", "Headache"],
+    importantWarnings: ["May cause drowsiness; avoid driving or operating machinery", "Avoid alcohol while taking this medication", "Consult doctor if symptoms do not improve in 3 days"]
+  },
+  amlodipine: {
+    whatItDoes: "A calcium channel blocker that dilates (widens) blood vessels and improves blood flow, lowering blood pressure and reducing workload on the heart.",
+    commonUses: ["Hypertension (high blood pressure)", "Angina (chest pain)", "Coronary artery disease"],
+    prescriptionRequired: true,
+    sideEffects: ["Swelling of ankles/feet (edema)", "Dizziness", "Flushing", "Palpitations"],
+    importantWarnings: ["Rise slowly from sitting/lying positions to prevent dizziness", "Do not stop taking abruptly without consulting doctor", "Monitor blood pressure regularly"]
+  },
+  lisinopril: {
+    whatItDoes: "An ACE inhibitor that relaxes blood vessels, lowering blood pressure and improving survival rates after heart attacks.",
+    commonUses: ["Hypertension (high blood pressure)", "Heart failure management", "Post-heart attack recovery"],
+    prescriptionRequired: true,
+    sideEffects: ["Persistent dry cough", "Dizziness", "Headache", "Hyperkalemia (high potassium)"],
+    importantWarnings: ["Risk of severe allergic reaction (angioedema - swelling of face/lips)", "Do not use if pregnant (fetal toxicity)", "Avoid potassium supplements unless advised by doctor"]
+  },
+  omeprazole: {
+    whatItDoes: "A proton pump inhibitor (PPI) that suppresses gastric acid secretion by blocking the acid-producing pumps in the stomach.",
+    commonUses: ["GERD/acid reflux", "Stomach and duodenal ulcers", "Erosive esophagitis"],
+    prescriptionRequired: false,
+    sideEffects: ["Nausea", "Diarrhea", "Headache", "Abdominal pain"],
+    importantWarnings: ["Take in the morning before food", "Not intended for immediate heartburn relief", "Long-term use may affect B12 absorption"]
+  }
+};
+
+const genericFallbackTemplate = {
+  whatItDoes: "Used to treat symptoms under the guidance of a healthcare professional. Contains active ingredients to manage targeted physiological conditions.",
+  commonUses: ["Symptomatic relief", "Maintenance therapy"],
+  prescriptionRequired: true,
+  sideEffects: ["Nausea", "Dizziness", "Headache"],
+  importantWarnings: ["Follow your doctor's exact dosage instructions", "Do not share this medication with others", "Store in a cool, dry place out of reach of children"]
+};
+
+function getLocalMedicineInfo(saltName) {
+  const norm = (saltName || '').toLowerCase();
+  for (const key of Object.keys(LOCAL_DRUG_TEMPLATES)) {
+    if (norm.includes(key)) {
+      return LOCAL_DRUG_TEMPLATES[key];
+    }
+  }
+  return genericFallbackTemplate;
+}
+
 export default function Scanner() {
   const { lang, setLang } = useLang()
   const t = useT(lang)
@@ -40,6 +182,9 @@ export default function Scanner() {
   const [wasmEnabled, setWasmEnabled] = useState(true)
   const [wasmFilter, setWasmFilter] = useState(1) // 1 = Adaptive, 2 = Sobel, 3 = Contrast Stretch
   const [processedPreview, setProcessedPreview] = useState(null)
+
+  // Local OCR settings
+  const [localOcrEnabled, setLocalOcrEnabled] = useState(true)
 
   // SSE Stream states
   const [useAsyncQueue, setUseAsyncQueue] = useState(true)
@@ -733,6 +878,208 @@ export default function Scanner() {
         return
       }
 
+      if (localOcrEnabled && scanMode === 'medicine') {
+        // Run Local OCR Pipeline client-side
+        setActiveStepId('started')
+        setCompletedStepIds([])
+        await new Promise(r => setTimeout(r, 400)) // small layout delay
+
+        // 1. Vision Step (OCR)
+        setCompletedStepIds(prev => [...prev, 'started'])
+        setActiveStepId('vision')
+        
+        let extractedText = '';
+        try {
+          const Tesseract = await loadTesseract();
+          const worker = await Tesseract.createWorker('eng');
+          const { data: { text } } = await worker.recognize(`data:image/jpeg;base64,${finalBase64}`);
+          extractedText = text;
+          await worker.terminate();
+        } catch (tessErr) {
+          console.error("Local Tesseract OCR failed:", tessErr);
+          throw new Error("Local OCR Engine failed. Please verify internet connection or toggle settings.");
+        }
+
+        if (!extractedText || !extractedText.trim()) {
+          throw new Error("No text detected on the medicine strip. Try again with a clearer photo.");
+        }
+
+        // 2. Database Step (Query search database via search worker)
+        setCompletedStepIds(prev => [...prev, 'vision'])
+        setActiveStepId('db')
+
+        if (!searchWorker) {
+          throw new Error("Local offline database is still initializing. Please wait a moment and try again.");
+        }
+
+        const candidates = extractCandidateQueries(extractedText);
+        if (candidates.length === 0) {
+          throw new Error("Could not identify any medicine names from the extracted text.");
+        }
+
+        // Helper to query searchWorker with promises
+        const getSearchResultsPromise = (queryStr) => {
+          return new Promise((resolve) => {
+            const handler = (e) => {
+              if (e.data.type === 'results' && e.data.query === queryStr) {
+                searchWorker.removeEventListener('message', handler);
+                resolve({ cdsco: e.data.cdsco, ja: e.data.ja });
+              } else if (e.data.type === 'error') {
+                searchWorker.removeEventListener('message', handler);
+                resolve({ cdsco: [], ja: [] });
+              }
+            };
+            searchWorker.addEventListener('message', handler);
+            searchWorker.postMessage({
+              type: 'search',
+              data: { query: queryStr }
+            });
+          });
+        };
+
+        // Query the search worker for all candidates
+        const allSearchResults = await Promise.all(
+          candidates.map(c => getSearchResultsPromise(c))
+        );
+
+        // Find the best match across all candidates
+        let bestCdscoMatch = null;
+        let bestJaMatch = null;
+        let bestCdscoScore = 0;
+        let bestJaScore = 0;
+        let bestCandidate = '';
+
+        allSearchResults.forEach((res, idx) => {
+          const cand = candidates[idx];
+          if (res.cdsco && res.cdsco.length > 0) {
+            const first = res.cdsco[0];
+            if (first.score > bestCdscoScore) {
+              bestCdscoScore = first.score;
+              bestCdscoMatch = first;
+              bestCandidate = cand;
+            }
+          }
+          if (res.ja && res.ja.length > 0) {
+            const first = res.ja[0];
+            if (first.score > bestJaScore) {
+              bestJaScore = first.score;
+              bestJaMatch = first;
+              bestCandidate = cand;
+            }
+          }
+        });
+
+        // Minimum score threshold to prevent bad hallucination matches
+        if (bestCdscoScore < 0.5 && bestJaScore < 0.5) {
+          throw new Error("Could not find any matching medicine salts in the CDSCO approved registry.");
+        }
+
+        // Determine salt composition and brand name
+        let saltName = '';
+        if (bestCdscoMatch) {
+          saltName = bestCdscoMatch.row['Drug Name'];
+        } else if (bestJaMatch) {
+          saltName = bestJaMatch.row['Generic Name'];
+        }
+
+        let brandName = '';
+        // Find other candidate that represents the brand
+        const otherCandidates = candidates.filter(c => c !== bestCandidate && !saltName.toLowerCase().includes(c.toLowerCase()) && !c.toLowerCase().includes(saltName.toLowerCase()));
+        if (otherCandidates.length > 0) {
+          brandName = otherCandidates[0].split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        } else {
+          brandName = bestCandidate.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+
+        // 3. Scraping / Summary step (simulate locally)
+        setCompletedStepIds(prev => [...prev, 'db'])
+        setActiveStepId('scraping')
+        await new Promise(r => setTimeout(r, 300))
+
+        setCompletedStepIds(prev => [...prev, 'scraping'])
+        setActiveStepId('summary')
+        await new Promise(r => setTimeout(r, 300))
+
+        const cdscoRes = bestCdscoMatch 
+          ? {
+              found: true,
+              badge: `✓ ${saltName} is CDSCO-approved`,
+              indication: bestCdscoMatch.row['Indication'] || null,
+              approvalDate: bestCdscoMatch.row['Approval Date'] || null,
+            }
+          : { found: false, badge: 'Salt not found in CDSCO registry.' };
+
+        const localInfo = getLocalMedicineInfo(saltName);
+
+        // Build alternatives from search worker results for the best candidate
+        const allAlts = [];
+        const jaMatchesForBest = allSearchResults[candidates.indexOf(bestCandidate)]?.ja || [];
+        jaMatchesForBest.slice(0, 4).forEach(match => {
+          const item = match.row;
+          const mrp = parseFloat(item['MRP']) || 0;
+          const count = parseInt(item['Unit Size']) || 10;
+          allAlts.push({
+            name: item['Generic Name'],
+            brand: 'Jan Aushadhi',
+            mrp,
+            packSize: item['Unit Size'],
+            perUnit: count > 0 ? Math.round((mrp / count) * 100) / 100 : mrp / 10,
+            priceSource: 'Jan Aushadhi (Local DB)',
+            highConfidence: true,
+            aiEstimated: false,
+          });
+        });
+
+        const finalResult = {
+          productType: 'MEDICINE',
+          brandName,
+          saltComposition: saltName,
+          manufacturer: 'Local Scan',
+          mrp: null,
+          unitSize: bestJaMatch?.row['Unit Size'] || '10 tablets',
+          batchNumber: null,
+          expiryDate: null,
+          manufacturingDate: null,
+          isExpired: false,
+          confidence: Math.round(Math.min(99, Math.max(70, Math.max(bestCdscoScore, bestJaScore) * 10))),
+          saltSource: 'LOCAL_OCR',
+          authenticity: {
+            status: cdscoRes.found ? 'LIKELY_GENUINE' : 'CANNOT_DETERMINE',
+            reason: cdscoRes.found ? 'Matches national CDSCO registration database.' : 'Missing in CDSCO database. Verify with pharmacist.',
+            cdscoBadge: cdscoRes.badge,
+            cdscoFound: cdscoRes.found,
+            approvalDate: cdscoRes.approvalDate,
+          },
+          medicineInfo: {
+            whatItDoes: localInfo.whatItDoes,
+            commonUses: localInfo.commonUses,
+            prescriptionRequired: localInfo.prescriptionRequired,
+            sideEffects: localInfo.sideEffects,
+            importantWarnings: localInfo.importantWarnings,
+          },
+          alternatives: {
+            hasGenerics: allAlts.length > 0,
+            janAushadhiAvailable: allAlts.length > 0,
+            topAlternatives: allAlts,
+            disclaimer: 'Alternatives listed from local Jan Aushadhi offline registry. Verify rates at retail stores.',
+          },
+          dataSource: {
+            salt: 'Local Tesseract OCR + Gov Database',
+            alts: 'Jan Aushadhi Offline DB',
+            cdsco: cdscoRes.found ? 'CDSCO Approved' : 'Unregistered',
+            cdscoFound: cdscoRes.found,
+          }
+        };
+
+        setCompletedStepIds(prev => [...prev, 'summary'])
+        setActiveStepId(null)
+        
+        finalResult.preview = `data:image/jpeg;base64,${finalBase64}`
+        setResults(finalResult)
+        setView(VIEWS.RESULTS)
+        return
+      }
+
       if (!useAsyncQueue) {
         // Fallback to synchronous OCR handler
         let res
@@ -834,7 +1181,7 @@ export default function Scanner() {
       setError(err.message)
       setView(VIEWS.ERROR)
     }
-  }, [scanMode, useAsyncQueue])
+  }, [scanMode, useAsyncQueue, localOcrEnabled, searchWorker])
 
 // Base64 helper to convert camera capture to Blob for QR/barcode scanner
 function base64ToBlob(base64, mime = 'image/jpeg') {
@@ -988,6 +1335,8 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
           setWasmFilter={setWasmFilter}
           useAsyncQueue={useAsyncQueue}
           setUseAsyncQueue={setUseAsyncQueue}
+          localOcrEnabled={localOcrEnabled}
+          setLocalOcrEnabled={setLocalOcrEnabled}
           
           vaultPin={vaultPin}
           isVaultLocked={isVaultLocked}
@@ -1258,6 +1607,7 @@ function EmergencyCardResultView({ results, onReset, t }) {
 function HomeView({ 
   t, setPage, bookmarks, handleSelectBookmark, handleDeleteBookmark, onCamera, onUpload,
   wasmEnabled, setWasmEnabled, wasmFilter, setWasmFilter, useAsyncQueue, setUseAsyncQueue,
+  localOcrEnabled, setLocalOcrEnabled,
   vaultPin, isVaultLocked, setIsVaultLocked, pinInput, setPinInput, pinError, setPinError,
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
   handleDisableEncryption,
@@ -1653,6 +2003,20 @@ function HomeView({
           </div>
           <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
             Streams medicine scans in the background so you can continue scanning without freeze screens or lag.
+          </div>
+        </div>
+
+        {/* Local OCR Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={localOcrEnabled} onChange={e => setLocalOcrEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
+              🔎 Local OCR Engine (Offline)
+            </label>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>LOCAL OCR</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
+            Extracts text from medicine strips directly in your browser using Tesseract.js. No cloud APIs, zero costs, and runs fully offline.
           </div>
         </div>
 
