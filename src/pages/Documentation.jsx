@@ -19,6 +19,9 @@ export default function Documentation({ onBack }) {
         <p style={{ fontSize: 13.5, color: 'var(--textlt)', lineHeight: 1.5 }}>
           i built a few serverless backend helper endpoints because putting API keys directly in the frontend is a security risk, and vercel functions timeout if you take too long to run image processing.
         </p>
+        <div className="aman-note">
+          yes, i actually documented my API endpoints. if you are building another app, you can use these, but please don't spam them because my Groq and Davaindia scraper credits aren't infinite.
+        </div>
       </div>
 
       {/* Endpoint 1 */}

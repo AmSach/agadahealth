@@ -889,19 +889,19 @@ function InfoCard({ info, results, translating, profile }) {
   const currentPoint = pkData.find(d => d.time === scrubTime) || pkData[0] || { time: 0, conc: 0 }
   const currentConc = currentPoint.conc
 
-  let warningMsg = "✅ Safe Dosing: The amount of medicine in your body looks correct and safe."
+  let warningMsg = "✅ Safe Dosing: The amount of medicine in your body looks correct. (these thresholds are from standard clinical sheets. obviously, listen to your actual doctor and not a website designed by a sleep-deprived programmer)"
   let warningColor = "#166534"
   let warningBg = "#F0FDF4"
   let warningBorder = "#86EFAC"
 
   if (pkParams) {
     if (peakConc > pkParams.minToxicConc) {
-      warningMsg = "❌ DANGER: Too much medicine! Taking it this often or this strong is dangerous and can make you sick. Please take less or wait longer between doses."
+      warningMsg = "❌ DANGER: Too much medicine! Taking it this often or this strong is dangerous. (clinical sheets say this level is toxic. please listen to your doctor, not a website)"
       warningColor = "#991B1B"
       warningBg = "#FEF2F2"
       warningBorder = "#FCA5A5"
     } else if (peakConc < pkParams.minEffectiveConc) {
-      warningMsg = "⚠️ Not Enough: This amount is too low to work. It won't help you feel better. Speak to your doctor."
+      warningMsg = "⚠️ Not Enough: This amount is too low to work. (clinical sheets say this is below effective levels. speak to your doctor, not me)"
       warningColor = "#92400E"
       warningBg = "#FFFBEB"
       warningBorder = "#FCD34D"
@@ -1074,7 +1074,7 @@ function InfoCard({ info, results, translating, profile }) {
             </div>
 
             <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.55 }}>
-              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks.
+              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
             </p>
 
             {/* Simulated graph & 3D Bloodstream Simulation row */}
@@ -1478,7 +1478,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>💸 Cheaper alternatives</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>💸 Cheaper alternatives (chemists in india upcharge the fuck out of you)</div>
         <span style={badge('green')}>BPPI + AI</span>
       </div>
 
@@ -1490,7 +1490,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
             <span style={{ fontSize: 30 }}>🏆</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--greendk)', marginBottom: 2 }}>This is already the cheapest available</div>
-              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found. You're already paying a fair price.</div>
+              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found. looks like the chemist isn't ripping you off this time.</div>
             </div>
           </div>
         ) : savingsPct && savingsPct > 0 ? (
@@ -1502,8 +1502,8 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
             </div>
           </div>
         ) : (
-          <div style={{ padding: '12px 14px', background: 'var(--bgsoft)', borderRadius: 10, fontSize: 13, color: 'var(--textlt)' }}>
-            {alts.savingsSummary || 'Cheaper alternatives listed below.'}
+          <div style={{ padding: '12px 14px', background: 'var(--bgsoft)', borderRadius: 10, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.45 }}>
+            {alts.savingsSummary || "some brands cost 10x what the actual generic drug costs, even though the chemical composition is identical. i built this search so you don't get ripped off."}
           </div>
         )}
 

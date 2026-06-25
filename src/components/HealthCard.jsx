@@ -89,7 +89,7 @@ Zero-Knowledge Offline Medical Pass`;
     <div className="health-card-container">
       <div className="health-card-header">
         <h3>📋 Digital Emergency Health Card</h3>
-        <p className="card-subtitle">Offline scannable card for doctors & first responders</p>
+        <p className="card-subtitle">offline card designed to be scanned on the first try by older, dust-covered barcode scanners in government hospitals. i stored this whole card in your local browser storage. no databases, no server logs, absolutely zero cloud tracking.</p>
       </div>
 
       <div className="health-card-body" style={{ animation: 'fadeUp 0.4s ease' }}>
@@ -188,8 +188,8 @@ Zero-Knowledge Offline Medical Pass`;
             <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--navy)', marginBottom: '4px' }}>
               ✏️ Edit Emergency Profile Card
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '10px' }}>
-              All medical information is saved privately on your device.
+            <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '10px', lineHeight: 1.5 }}>
+              i stored this whole card in your local browser storage. no databases, no server logs, absolutely zero cloud tracking. if you lose this device or clear your browser cache, this card is gone forever. so don't do stupid stuff. (when you save this card, it encodes it as a high-error-correction offline QR code designed to be ugly so that older, dust-covered barcode scanners in government hospitals can read it instantly).
             </p>
             <div className="form-grid">
               <div className="form-group">

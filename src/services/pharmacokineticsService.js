@@ -250,14 +250,14 @@ export function checkDosageSafety(saltComposition, doseStrengthMg, dailyFrequenc
   
   if (!safe) {
     if (age < 18) {
-      reason = `Daily intake of ${scheduledMg}mg exceeds pediatric safety limit of ${Math.round(maxSafeMg)}mg for a child of ${w}kg.`;
+      reason = `Daily intake of ${scheduledMg}mg exceeds pediatric safety limit of ${Math.round(maxSafeMg)}mg for a child of ${w}kg. (standard clinical guidance, but listen to your actual doctor and not a website designed by a sleep-deprived programmer)`;
     } else if (age > 50 && renalFactor < 0.9) {
-      reason = `Daily intake of ${scheduledMg}mg exceeds age-adjusted safety limit of ${Math.round(maxSafeMg)}mg due to age-related renal clearance decline.`;
+      reason = `Daily intake of ${scheduledMg}mg exceeds age-adjusted safety limit of ${Math.round(maxSafeMg)}mg due to age-related renal clearance decline. (clinical guidelines, but listen to your doctor, not a website)`;
     } else {
-      reason = `Daily intake of ${scheduledMg}mg exceeds weight-adjusted safety limit of ${Math.round(maxSafeMg)}mg for a patient of ${w}kg.`;
+      reason = `Daily intake of ${scheduledMg}mg exceeds weight-adjusted safety limit of ${Math.round(maxSafeMg)}mg for a patient of ${w}kg. (clinical guidelines, but listen to your doctor, not me)`;
     }
   } else {
-    reason = `Dose of ${scheduledMg}mg/day is safe for patient weight (${w}kg) and age (${age}).`;
+    reason = `Dose of ${scheduledMg}mg/day is safe for patient weight (${w}kg) and age (${age}). (at least according to standard medical sheets, but verify with a pharmacist before swallowing pills)`;
   }
   
   return {

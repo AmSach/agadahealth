@@ -1,6 +1,6 @@
 # Agada — What this app actually does 💊
 
-Agada (Sanskrit: आगद — antidote/medicine) is a free public utility built for the **India Innovates 2026** initiative. Its sole purpose is to help everyday people verify medicines, figure out what they do, and avoid getting overcharged at the pharmacy counter.
+Agada (Sanskrit: आगद — antidote/medicine) is a free public utility built for the **India Innovates 2026** initiative. Its sole purpose is to help everyday people verify medicines, figure out what they do, and avoid getting overcharged at the pharmacy counter. (ok so basically i got overcharged for a basic prescription and it just sat in my head. so i built this from scratch in my bedroom).
 
 Here's the rundown of what I built into it:
 
@@ -40,7 +40,7 @@ Agada lists government-subsidized Jan Aushadhi generic equivalents with prices t
 ---
 
 ## ⚕️ Prescription vs. OTC Safety
-The app automatically flags whether a medicine requires a doctor's prescription (Schedule H/H1/X drugs) with a red warning, or if it is a general Over-The-Counter (OTC) medicine. I wrote custom override rules for 70+ commonly misidentified medicines to keep the safety classifications accurate.
+The app automatically flags whether a medicine requires a doctor's prescription (Schedule H/H1/X drugs) with a red warning, or if it is a general Over-The-Counter (OTC) medicine. I wrote custom override rules for 70+ commonly misidentified medicines because the official government databases are full of spelling typos and inconsistencies (e.g. spelling "paracetamol" as "paracetamal").
 
 ---
 
@@ -58,4 +58,4 @@ Calculates how the drug level builds up and decays in your body using standard p
 
 ## 📁 On-Device Security & Profiles
 - **Profile Cabinet:** Create separate profiles for family members, log their daily schedules, track their adherence rates, and log active symptoms.
-- **On-Device Cryptography:** If you lock your cabinet with a 4-digit PIN, your history is encrypted inside your browser cache using AES-GCM. I don't run servers, so your data never leaves your device.
+- **On-Device Cryptography:** If you lock your cabinet with a 4-digit PIN, your history is encrypted inside your browser cache using AES-GCM. I don't run servers, so your data never leaves your device. seriously, if you lose your PIN, your data is gone forever because i have no way to reset it.

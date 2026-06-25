@@ -1977,8 +1977,8 @@ function HomeView({
             </label>
             <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>WASM (LOCAL)</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
-            Runs image filters directly on your device to clean up blurry medicine labels. Your photos are never uploaded or sent to the cloud.
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            spent two nights writing custom WebAssembly code in Rust just to fix camera glare. phone photos taken under bad fluorescent pharmacy lighting are usually garbage, so we binarize and clean them up locally on your CPU. no servers.
           </div>
           {wasmEnabled && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22, marginTop: 4 }}>
@@ -2001,8 +2001,8 @@ function HomeView({
             </label>
             <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>ASYNC STREAM</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
-            Streams medicine scans in the background so you can continue scanning without freeze screens or lag.
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            runs the scans in the background because vercel's serverless functions are literally the bottleneck here and will timeout if they do the OCR and matching synchronously. this prevents the app from hanging.
           </div>
         </div>
 
@@ -2015,8 +2015,8 @@ function HomeView({
             </label>
             <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>LOCAL OCR</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
-            Extracts text from medicine strips directly in your browser using Tesseract.js. No cloud APIs, zero costs, and runs fully offline.
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            extracts text from medicine strips directly in your browser using Tesseract.js. if you're on a cheap phone, it might take 10 seconds because browser OCR is slow. but hey, at least your medical data isn't being sold to advertisers.
           </div>
         </div>
 
@@ -2030,8 +2030,8 @@ function HomeView({
               {vaultPin ? 'SECURED (AES-256)' : 'UNLOCKED (PLAIN)'}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
-            Scrambles your saved medicine history under military-grade math encryption. Access it only using your 4-digit PIN.
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            scrambles your saved medicine history under PBKDF2 + AES-GCM encryption. if you lose this 4-digit PIN, your history is gone forever. i literally do not store it anywhere. don't write me emails asking to reset it, i literally can't.
           </div>
 
           <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -2197,8 +2197,8 @@ function HomeView({
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>📓 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Private Notebook Under Your Pillow</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Think of Agada like writing your secrets in a paper diary and shoving it under your pillow. We don't have database servers, accounts, or tracking. Your cabinet, dose counts, and alarms stay entirely in your browser cache.
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Think of Agada like writing your secrets in a paper diary and shoving it under your pillow. seriously, hit F12 on this page and inspect Application (and then Local Storage). it's just raw strings. no hidden API calls to some tracking system. everything stays in your browser cache.
                         </p>
                       </div>
 
@@ -2255,8 +2255,8 @@ function HomeView({
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔑 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Secret Cipher Steel Safe</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Setting a 4-digit PIN locks your cabinet in an unbreakable steel safe. We scramble the records into random noise. Only typing your secret PIN can decrypt and show them.
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Setting a 4-digit PIN locks your cabinet in an unbreakable steel safe. i used native browser Crypto subtle APIs. it does the PBKDF2 key stretching inside the browser, which is why it might take a fraction of a second to lock/unlock. math takes cpu cycles to scramble the records into random noise.
                         </p>
                       </div>
 
@@ -2326,8 +2326,8 @@ function HomeView({
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab to crop, binarize, and sharpen blurry medicine labels offline.
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab. the WebAssembly module is compiled from about 200 lines of Rust to crop, binarize, and sharpen blurry medicine labels offline. i wanted it to be as lightweight as possible. the source code is open.
                         </p>
                       </div>
 
@@ -2760,7 +2760,7 @@ function HomeView({
                     </div>
                   ) : null}
                   <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6, textAlign: 'left' }}>
-                    Your medicine cabinet is empty. Use the quick search above or click "+ Add Custom Medicine" to populate your cabinet inventory immediately.
+                    i built this 3D shelf view at 3 AM because list views are boring. if you haven't scanned anything yet, search for "Crocin" or "Calpol" above, or manually add your pill stash to populate your cabinet. (your medicine cabinet is empty).
                   </p>
                 </div>
               ) : (
