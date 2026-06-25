@@ -339,6 +339,7 @@ function AuthCard({
   reportPublicKey, setReportPublicKey
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [showReceipt, setShowReceipt] = useState(false)
   const isGenuine = auth.status === 'LIKELY_GENUINE'
   const isFake    = auth.status === 'LIKELY_FAKE'
 
@@ -452,67 +453,105 @@ function AuthCard({
             gap: 10
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>
-              🔒 Cryptographic Audit Ledger
+              🛡️ Batch recall & manufacturer verification
             </div>
             
-            {isCheckingRecall ? (
-              <div style={{ fontSize: 12, color: 'var(--textlt)' }}>Checking CDSCO recall registry root...</div>
-            ) : recallStatus ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* User-friendly Summary */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Recall Status */}
+              {isCheckingRecall ? (
+                <div style={{ fontSize: 13, color: 'var(--textlt)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ⏳ Checking government recall records...
+                </div>
+              ) : recallStatus ? (
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  gap: 6, 
-                  fontSize: 12, 
-                  color: recallStatus.recalled ? 'var(--red)' : 'var(--green)',
+                  gap: 8, 
+                  fontSize: 13.5, 
+                  color: recallStatus.recalled ? '#b71c1c' : '#166534',
                   fontWeight: 600
                 }}>
-                  <span>{recallStatus.recalled ? '🚨 RECALL DETECTED' : '✓ Batch not flagged in recalls'}</span>
+                  <span>{recallStatus.recalled ? '🚨 RECALL WARNING: This batch has been recalled!' : '✓ Safe from official safety recalls'}</span>
                 </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--bgsoft)', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
-                    <span style={{ color: 'var(--textlt)', fontWeight: 600 }}>MERKLE ROOT</span>
-                    <span style={{ fontFamily: 'monospace', color: 'var(--navy)' }}>{recallStatus.root.substring(0, 16)}...</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
-                    <span style={{ color: 'var(--textlt)', fontWeight: 600 }}>BATCH HASH</span>
-                    <span style={{ fontFamily: 'monospace', color: 'var(--navy)' }}>{results.batchNumber ? results.batchNumber : 'UNKNOWN'}</span>
-                  </div>
-                  
-                  {recallStatus.proofPath && (
-                    <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', marginBottom: 4 }}>Merkle Audit Proof Path:</div>
-                      {recallStatus.proofPath.map((sibling, stepIdx) => (
-                        <div key={stepIdx} style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}>
-                          <span>Step {stepIdx + 1} ({sibling.direction}):</span>
-                          <span>{sibling.hash.substring(0, 12)}...</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--textlt)' }}>Batch verification not available.</div>
-            )}
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--textlt)' }}>Batch verification not available.</div>
+              )}
 
-            {/* Manufacturer Signature Status */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
-              padding: '6px 10px', 
-              background: '#F0FDF4', 
-              borderRadius: 8, 
-              border: '1.5px solid #86EFAC',
-              fontSize: 11.5,
-              color: '#15803D',
-              fontWeight: 600
-            }}>
-              <span>✓ Manufacturer Signature Valid</span>
-              <span style={{ fontSize: 9.5, background: '#16A34A', color: '#fff', padding: '1px 5px', borderRadius: 4 }}>ECDSA</span>
+              {/* Manufacturer Signature */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8, 
+                fontSize: 13.5, 
+                color: '#166534',
+                fontWeight: 600
+              }}>
+                <span>✓ Verified manufacturer package signature</span>
+              </div>
             </div>
+
+            {/* Collapsible Details */}
+            {results.batchNumber && (
+              <div style={{ marginTop: 4 }}>
+                <button 
+                  onClick={() => setExpanded(!expanded)} 
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--green)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '4px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  {expanded ? '▼ Hide Technical Audit Proof' : '▶ Show Technical Audit Proof (Merkle / ECDSA)'}
+                </button>
+                
+                {expanded && (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 6, 
+                    background: 'var(--bgsoft)', 
+                    padding: '10px 12px', 
+                    borderRadius: 8, 
+                    border: '1px solid var(--border)',
+                    marginTop: 6,
+                    animation: 'fadeIn 0.2s ease'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
+                      <span style={{ color: 'var(--textlt)', fontWeight: 600 }}>MERKLE ROOT</span>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--navy)' }}>{recallStatus?.root ? recallStatus.root.substring(0, 16) + '...' : 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
+                      <span style={{ color: 'var(--textlt)', fontWeight: 600 }}>BATCH HASH</span>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--navy)' }}>{results.batchNumber}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
+                      <span style={{ color: 'var(--textlt)', fontWeight: 600 }}>ALGORITHM</span>
+                      <span style={{ color: 'var(--navy)' }}>ECDSA-P256</span>
+                    </div>
+                    
+                    {recallStatus?.proofPath && (
+                      <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', marginBottom: 4 }}>Merkle Audit Proof Path:</div>
+                        {recallStatus.proofPath.map((sibling, stepIdx) => (
+                          <div key={stepIdx} style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}>
+                            <span>Step {stepIdx + 1} ({sibling.direction}):</span>
+                            <span>{sibling.hash.substring(0, 12)}...</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -561,39 +600,66 @@ function AuthCard({
           </button>
         ) : (
           <div style={{ 
-            background: '#F0FDF4', 
-            border: '1.5px solid #86EFAC', 
+            background: '#FDF2F2', 
+            border: '1.5px solid #FDE8E8', 
             borderRadius: 10, 
             padding: '12px 14px',
             fontSize: 12.5,
-            color: '#166534',
+            color: '#9B1C1C',
             display: 'flex',
             flexDirection: 'column',
             gap: 8
           }}>
-            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>✓ Cryptographically Signed & Logged</span>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#9B1C1C' }}>
+              <span>🚨 Report Logged Successfully</span>
             </div>
-            
+            <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
+              This strip has been reported as suspicious. If you suspect the medicine is counterfeit, please do not consume it. You can return it to your chemist.
+            </div>
+
+            {/* Collapsible Receipt Details */}
             {signedReportSignature && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#fff', padding: 8, borderRadius: 8, border: '1px solid #A7D9CA', fontSize: 11 }}>
-                <div>
-                  <span style={{ fontWeight: 700, color: 'var(--navy)' }}>REPORT SIGNATURE:</span>
-                  <div style={{ fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--bgsoft)', padding: 4, borderRadius: 4, marginTop: 2, fontSize: 10 }}>
-                    {signedReportSignature}
-                  </div>
-                </div>
-                {reportPublicKey && (
-                  <div>
-                    <span style={{ fontWeight: 700, color: 'var(--navy)' }}>REPORTER PUBLIC KEY (JWK):</span>
-                    <div style={{ fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--bgsoft)', padding: 4, borderRadius: 4, marginTop: 2, fontSize: 10 }}>
-                      {reportPublicKey}
+              <div style={{ marginTop: 4 }}>
+                <button 
+                  onClick={() => setShowReceipt(!showReceipt)} 
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#9B1C1C',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '4px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {showReceipt ? '▼ Hide Receipt Details' : '▶ Show Cryptographic Receipt Details'}
+                </button>
+                
+                {showReceipt && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#fff', padding: 8, borderRadius: 8, border: '1px solid #FBD5D5', fontSize: 11, marginTop: 6, color: 'var(--textmd)', textAlign: 'left' }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: 'var(--navy)' }}>REPORT SIGNATURE:</span>
+                      <div style={{ fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--bgsoft)', padding: 4, borderRadius: 4, marginTop: 2, fontSize: 10 }}>
+                        {signedReportSignature}
+                      </div>
+                    </div>
+                    {reportPublicKey && (
+                      <div>
+                        <span style={{ fontWeight: 700, color: 'var(--navy)' }}>REPORTER PUBLIC KEY (JWK):</span>
+                        <div style={{ fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--bgsoft)', padding: 4, borderRadius: 4, marginTop: 2, fontSize: 10 }}>
+                          {reportPublicKey}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 9.5, color: 'var(--textlt)', marginTop: 2 }}>
+                      Report logged to public CDSCO counterfeit ledger. Keep this signature receipt for disputes.
                     </div>
                   </div>
                 )}
-                <div style={{ fontSize: 9.5, color: 'var(--textlt)', marginTop: 2 }}>
-                  Report logged to public CDSCO counterfeit ledger. Keep this signature receipt for disputes.
-                </div>
               </div>
             )}
             
@@ -602,7 +668,7 @@ function AuthCard({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#15803D',
+                color: '#9B1C1C',
                 fontSize: 12,
                 fontWeight: 600,
                 textDecoration: 'underline',
