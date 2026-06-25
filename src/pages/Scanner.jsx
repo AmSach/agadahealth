@@ -18,6 +18,7 @@ import { startReminderLoop, stopReminderLoop } from '../services/notificationSer
 import SearchWorker from '../wasm/search.worker.js?worker'
 import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '../services/pharmacokineticsService.js'
 import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer.jsx'
+import { parseSalts, matchQuality } from '../services/dbService.js'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -1039,7 +1040,16 @@ export default function Scanner() {
         // Build alternatives from search worker results for the best candidate
         const allAlts = [];
         const jaMatchesForBest = allSearchResults[candidates.indexOf(bestCandidate)]?.ja || [];
-        jaMatchesForBest.slice(0, 4).forEach(match => {
+        
+        const qSalts = parseSalts(saltName);
+        const filteredMatches = jaMatchesForBest.filter(match => {
+          const item = match.row;
+          const pSalts = parseSalts(item['Generic Name'] || '');
+          const quality = matchQuality(qSalts, pSalts);
+          return quality === 'exact' || quality === 'dose_mismatch';
+        });
+
+        filteredMatches.slice(0, 4).forEach(match => {
           const item = match.row;
           const mrp = parseFloat(item['MRP']) || 0;
           const unitSizeStr = item['Unit Size'] || '';
