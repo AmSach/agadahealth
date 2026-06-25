@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { scanMedicine, scanPrescription, compressAndEncode, lookupMedicineNameOnly } from '../services/geminiService.js'
 import { readBarcode } from '../services/barcodeService.js'
-import ResultsPanel from '../components/ResultsPanel.jsx'
+import ResultsPanel, { BloodstreamSimulator } from '../components/ResultsPanel.jsx'
 import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
 import HamMenu from '../components/HamMenu.jsx'
 import HealthCard from '../components/HealthCard.jsx'
@@ -16,6 +16,7 @@ import { checkInteractions, checkTherapeuticDuplication, orchestrateMedicationSc
 import { getSecureLogs, saveSecureLogs, cacheCSVDatabase, getCachedCSVDatabase, saveEncryptedProfile, getEncryptedProfile, listProfileIds, deleteProfile as dbDeleteProfile } from '../services/dbServiceIndexedDB.js'
 import { startReminderLoop, stopReminderLoop } from '../services/notificationService.js'
 import SearchWorker from '../wasm/search.worker.js?worker'
+import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '../services/pharmacokineticsService.js'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -87,6 +88,96 @@ export default function Scanner() {
   const [searchWorker, setSearchWorker] = useState(null)
   const [searchStatus, setSearchStatus] = useState('Initializing search engine...')
 
+  // Smart Cabinet Hub detail state variables
+  const [selectedCabinetIndex, setSelectedCabinetIndex] = useState(0)
+  const cabinetSearchQueryRef = useRef('')
+  const [cabinetSearchResults, setCabinetSearchResults] = useState(null)
+  const [isCabinetSearching, setIsCabinetSearching] = useState(false)
+
+  // Direct Cabinet Adding Search States
+  const cabinetAddQueryRef = useRef('')
+  const [cabinetAddQuery, setCabinetAddQuery] = useState('')
+  const [cabinetAddResults, setCabinetAddResults] = useState(null)
+  const [isCabinetAddSearching, setIsCabinetAddSearching] = useState(false)
+
+  // Cabinet View Toggles & Add Modal Form
+  const [showCabinet3D, setShowCabinet3D] = useState(true)
+  const [showManualAddModal, setShowManualAddModal] = useState(false)
+  const [manualAddForm, setManualAddForm] = useState({
+    brandName: '',
+    saltComposition: '',
+    strength: 500,
+    strengthUnit: 'mg',
+    form: 'Tablet',
+    pillCount: 30,
+    mfgDate: '',
+    expiryDate: '',
+    batchNumber: '',
+    idealTime: 'Morning',
+    foodRelation: 'With or without food',
+    frequency: 3
+  })
+
+  const selectedMed = cabinet[selectedCabinetIndex] || cabinet[0] || null
+  const [cabDoseStrength, setCabDoseStrength] = useState(500)
+  const [cabDoseFreq, setCabDoseFreq] = useState(3)
+  const [cabScrubTime, setCabScrubTime] = useState(0)
+
+  const handleCabinetSearch = useCallback((query) => {
+    if (!query) {
+      setCabinetSearchResults(null)
+      setIsCabinetSearching(false)
+      return
+    }
+    cabinetSearchQueryRef.current = query
+    if (searchWorker) {
+      setIsCabinetSearching(true)
+      searchWorker.postMessage({
+        type: 'search',
+        data: { query }
+      })
+    }
+  }, [searchWorker])
+
+  const handleCabinetAddSearch = useCallback((query) => {
+    setCabinetAddQuery(query)
+    if (!query) {
+      setCabinetAddResults(null)
+      setIsCabinetAddSearching(false)
+      return
+    }
+    cabinetAddQueryRef.current = query
+    if (searchWorker) {
+      setIsCabinetAddSearching(true)
+      searchWorker.postMessage({
+        type: 'search',
+        data: { query }
+      })
+    }
+  }, [searchWorker])
+
+  React.useEffect(() => {
+    if (selectedMed) {
+      let parsedDose = 500;
+      if (typeof selectedMed.strength === 'number') {
+        parsedDose = selectedMed.strength;
+      } else {
+        const m = (selectedMed.saltComposition || '').match(/(\d+)\s*(mg|mcg|g)/i)
+        parsedDose = m ? parseInt(m[1]) : 500;
+      }
+      
+      let parsedFreq = 3;
+      if (typeof selectedMed.frequency === 'number') {
+        parsedFreq = selectedMed.frequency;
+      }
+      
+      setCabDoseStrength(parsedDose)
+      setCabDoseFreq(parsedFreq)
+      setCabScrubTime(0)
+      handleCabinetSearch(selectedMed.saltComposition || selectedMed.brandName)
+    }
+  }, [selectedCabinetIndex, selectedMed?.brandName, selectedMed?.saltComposition, selectedMed?.strength, selectedMed?.frequency, handleCabinetSearch])
+
   // Initialize Search worker and database cache
   React.useEffect(() => {
     let active = true;
@@ -119,7 +210,7 @@ export default function Scanner() {
         worker = new SearchWorker();
         worker.onmessage = (e) => {
           if (!active) return;
-          const { type, cdsco, ja, success, error } = e.data;
+          const { type, query: respQuery, cdsco, ja, success, error } = e.data;
           if (type === 'initialized') {
             if (success) {
               setSearchWorker(worker);
@@ -128,11 +219,21 @@ export default function Scanner() {
               setSearchStatus(`Failed to initialize search: ${error}`);
             }
           } else if (type === 'results') {
-            setSearchResults({ cdsco, ja });
-            setIsSearching(false);
+            if (respQuery && respQuery === cabinetAddQueryRef.current) {
+              setCabinetAddResults({ cdsco, ja });
+              setIsCabinetAddSearching(false);
+            } else if (respQuery && respQuery === cabinetSearchQueryRef.current) {
+              setCabinetSearchResults({ cdsco, ja });
+              setIsCabinetSearching(false);
+            } else {
+              setSearchResults({ cdsco, ja });
+              setIsSearching(false);
+            }
           } else if (type === 'error') {
             console.error('Search worker error:', error);
             setIsSearching(false);
+            setIsCabinetSearching(false);
+            setIsCabinetAddSearching(false);
           }
         };
 
@@ -378,6 +479,23 @@ export default function Scanner() {
           if (item.brandName === med.brandName && item.saltComposition === med.saltComposition) {
             const count = Math.max(0, (item.pillCount || 0) + diff)
             return { ...item, pillCount: count }
+          }
+          return item
+        })
+        return { ...p, cabinet: nextCab }
+      }
+      return p
+    })
+    await saveAllProfiles(updated)
+  }
+
+  // Update specific fields of a cabinet item (MFG, Expiry, Batch, etc.)
+  const handleUpdateCabinetItem = async (med, fields) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const nextCab = (p.cabinet || []).map(item => {
+          if (item.brandName === med.brandName && item.saltComposition === med.saltComposition) {
+            return { ...item, ...fields }
           }
           return item
         })
@@ -918,6 +1036,31 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
           handleToggleAdherence={handleToggleAdherence}
           handleAddProfile={handleAddProfile}
           handleDeleteProfile={handleDeleteProfile}
+          selectedCabinetIndex={selectedCabinetIndex}
+          setSelectedCabinetIndex={setSelectedCabinetIndex}
+          cabinetSearchResults={cabinetSearchResults}
+          setCabinetSearchResults={setCabinetSearchResults}
+          isCabinetSearching={isCabinetSearching}
+          setIsCabinetSearching={setIsCabinetSearching}
+          selectedMed={selectedMed}
+          cabDoseStrength={cabDoseStrength}
+          setCabDoseStrength={setCabDoseStrength}
+          cabDoseFreq={cabDoseFreq}
+          setCabDoseFreq={setCabDoseFreq}
+          cabScrubTime={cabScrubTime}
+          setCabScrubTime={setCabScrubTime}
+          handleUpdateCabinetItem={handleUpdateCabinetItem}
+          cabinetAddQuery={cabinetAddQuery}
+          cabinetAddResults={cabinetAddResults}
+          isCabinetAddSearching={isCabinetAddSearching}
+          handleCabinetAddSearch={handleCabinetAddSearch}
+          showCabinet3D={showCabinet3D}
+          setShowCabinet3D={setShowCabinet3D}
+          showManualAddModal={showManualAddModal}
+          setShowManualAddModal={setShowManualAddModal}
+          manualAddForm={manualAddForm}
+          setManualAddForm={setManualAddForm}
+          saveAllProfiles={saveAllProfiles}
         />
       )}
       {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
@@ -946,6 +1089,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
             lang={lang} 
             isBookmarked={bookmarks.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)}
             onToggleBookmark={() => toggleBookmark(results)}
+            profile={activeProfile}
           />
         )
       )}
@@ -1123,10 +1267,124 @@ function HomeView({
   symptomInput, setSymptomInput, profileInput, setProfileInput, showAddProfile, setShowAddProfile,
   activeProfile, handleSaveHealthCard, handleLogSymptom, handleDeleteSymptom,
   handleToggleNotification, handleUpdatePillCount, handleUpdateReminderTime, handleToggleAdherence,
-  handleAddProfile, handleDeleteProfile
+  handleAddProfile, handleDeleteProfile,
+
+  selectedCabinetIndex, setSelectedCabinetIndex,
+  cabinetSearchResults, setCabinetSearchResults,
+  isCabinetSearching, setIsCabinetSearching,
+  selectedMed,
+  cabDoseStrength, setCabDoseStrength,
+  cabDoseFreq, setCabDoseFreq,
+  cabScrubTime, setCabScrubTime,
+  handleUpdateCabinetItem,
+  cabinetAddQuery,
+  cabinetAddResults,
+  isCabinetAddSearching,
+  handleCabinetAddSearch,
+  showCabinet3D,
+  setShowCabinet3D,
+  showManualAddModal,
+  setShowManualAddModal,
+  manualAddForm,
+  setManualAddForm,
+  saveAllProfiles
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
+
+  const handleQuickAdd = async (medName, saltName) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const cab = p.cabinet || [];
+        const isAlreadyIn = cab.some(item => item.brandName === medName && item.saltComposition === saltName);
+        if (isAlreadyIn) return p;
+        const nextCab = [...cab, {
+          brandName: medName,
+          saltComposition: saltName,
+          pillCount: 30,
+          notificationsEnabled: true,
+          meta: {
+            idealTime: 'Morning',
+            foodRelation: 'With or without food',
+            rationale: 'Quick-added from search suggestions.'
+          }
+        }];
+        return { ...p, cabinet: nextCab };
+      }
+      return p;
+    });
+    await saveAllProfiles(updated);
+    handleCabinetAddSearch('');
+  };
+
+  const handleUndoDose = async (log, lIdx) => {
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const nextCab = (p.cabinet || []).map(item => {
+          if (item.brandName === log.medName) {
+            return { ...item, pillCount: (item.pillCount || 0) + 1 };
+          }
+          return item;
+        });
+        const nextHistory = (p.doseHistory || []).filter((_, idx) => idx !== lIdx);
+        return { ...p, cabinet: nextCab, doseHistory: nextHistory };
+      }
+      return p;
+    });
+    await saveAllProfiles(updated);
+  };
+
+  const handleManualAddSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualAddForm.brandName || !manualAddForm.saltComposition) {
+      alert("Please fill in both the Medicine Name and Salt Composition.");
+      return;
+    }
+    const newItem = {
+      brandName: manualAddForm.brandName.trim(),
+      saltComposition: manualAddForm.saltComposition.trim(),
+      strength: parseInt(manualAddForm.strength) || 500,
+      strengthUnit: manualAddForm.strengthUnit || 'mg',
+      form: manualAddForm.form || 'Tablet',
+      frequency: parseInt(manualAddForm.frequency) || 3,
+      pillCount: parseInt(manualAddForm.pillCount) || 30,
+      notificationsEnabled: true,
+      expiryDate: manualAddForm.expiryDate || '',
+      mfgDate: manualAddForm.mfgDate || '',
+      batchNumber: manualAddForm.batchNumber.trim() || '',
+      productType: manualAddForm.form === 'Syrup' || manualAddForm.form === 'Drops' ? 'ALLOPATHIC' : (manualAddForm.brandName.toLowerCase().includes('ayur') ? 'AYURVEDIC' : 'ALLOPATHIC'),
+      meta: {
+        idealTime: manualAddForm.idealTime,
+        foodRelation: manualAddForm.foodRelation,
+        rationale: 'Manually added dosage schedule.'
+      }
+    };
+    
+    const updated = profiles.map(p => {
+      if (p.id === activeProfileId) {
+        const cab = p.cabinet || [];
+        return { ...p, cabinet: [...cab, newItem] };
+      }
+      return p;
+    });
+    
+    await saveAllProfiles(updated);
+    setShowManualAddModal(false);
+    setManualAddForm({
+      brandName: '',
+      saltComposition: '',
+      strength: 500,
+      strengthUnit: 'mg',
+      form: 'Tablet',
+      pillCount: 30,
+      mfgDate: '',
+      expiryDate: '',
+      batchNumber: '',
+      idealTime: 'Morning',
+      foodRelation: 'With or without food',
+      frequency: 3
+    });
+  };
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
 
@@ -1937,7 +2195,7 @@ function HomeView({
                     }}
                   >
                     <div 
-                      onClick={(e) => toggleCabinetItem(b, e)} 
+                      onClick={(e) => { e.stopPropagation(); toggleCabinetItem(b, e); }} 
                       title="Add/remove from interaction check cabinet"
                       style={{ 
                         display: 'flex', 
@@ -2057,203 +2315,1157 @@ function HomeView({
           {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
             <div>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                💊 {t.cabinetTitle || 'My Medicine Cabinet'}
-              </h4>
+              <style>{`
+                .cabinet-3d-container {
+                  perspective: 1200px;
+                  background: #0f172a;
+                  border-radius: 20px;
+                  padding: 24px 24px 36px;
+                  box-shadow: inset 0 4px 20px rgba(0,0,0,0.6), var(--shadowmd);
+                  display: flex;
+                  flex-direction: column;
+                  gap: 44px;
+                  border: 2px solid #334155;
+                  margin-bottom: 24px;
+                }
+                .cabinet-shelf-3d {
+                  position: relative;
+                  height: 90px;
+                  border-bottom: 8px solid #475569;
+                  transform-style: preserve-3d;
+                  transform: rotateX(20deg);
+                  box-shadow: 0 10px 15px rgba(0,0,0,0.5);
+                  display: flex;
+                  align-items: flex-end;
+                  justify-content: space-around;
+                  padding-bottom: 2px;
+                }
+                .cabinet-shelf-ledge {
+                  position: absolute;
+                  bottom: -8px;
+                  left: 0;
+                  right: 0;
+                  height: 8px;
+                  background: #334155;
+                  transform: rotateX(-90deg);
+                  transform-origin: bottom;
+                }
+                .med-box-hoverable:hover {
+                  transform: translate3d(0, -10px, 20px) rotateY(-10deg) !important;
+                  box-shadow: -6px 12px 18px rgba(0,0,0,0.4) !important;
+                }
+                .slot-empty-dotted {
+                  width: 65px;
+                  height: 85px;
+                  border: 2px dashed #475569;
+                  border-radius: 6px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                  background: rgba(255,255,255,0.02);
+                }
+                .slot-empty-dotted:hover {
+                  border-color: #10b981;
+                  background: rgba(16,185,129,0.05);
+                  transform: scale(1.05);
+                }
+                .capsule-wrapper {
+                  position: relative;
+                  width: 50px;
+                  height: 50px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                }
+                .capsule-3d-split {
+                  width: 12px;
+                  height: 28px;
+                  position: relative;
+                  transform-style: preserve-3d;
+                  transition: transform 0.4s ease;
+                  cursor: pointer;
+                  animation: rotateCapsule 5s linear infinite;
+                }
+                .capsule-wrapper:hover .capsule-3d-split {
+                  animation-play-state: paused;
+                }
+                .capsule-wrapper:hover .capsule-half-top {
+                  transform: translateY(-10px) rotateY(180deg);
+                }
+                .capsule-wrapper:hover .capsule-half-bottom {
+                  transform: translateY(10px);
+                }
+                .capsule-particle {
+                  position: absolute;
+                  width: 5px;
+                  height: 5px;
+                  border-radius: 50%;
+                  opacity: 0;
+                  pointer-events: none;
+                  background: #10b981;
+                }
+                .capsule-wrapper:hover .capsule-particle {
+                  animation: floatParticle 1.5s ease-out infinite;
+                }
+                @keyframes rotateCapsule {
+                  0% { transform: rotateX(20deg) rotateY(0deg); }
+                  100% { transform: rotateX(20deg) rotateY(360deg); }
+                }
+                @keyframes floatParticle {
+                  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+                  50% { opacity: 0.8; }
+                  100% { transform: translateY(-30px) translateX(var(--px)); scale(1.2); opacity: 0; }
+                }
+                @keyframes pulseBorder {
+                  0%, 100% { border-color: #ef4444; box-shadow: 0 0 5px rgba(239,68,68,0.2); }
+                  50% { border-color: #f87171; box-shadow: 0 0 12px rgba(239,68,68,0.5); }
+                }
+                .danger-overdose-banner {
+                  animation: pulseBorder 1.5s infinite;
+                }
+              `}</style>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  💊 {t.cabinetTitle || 'My Medicine Cabinet'}
+                </h4>
+                
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button 
+                    onClick={() => setShowCabinet3D(!showCabinet3D)}
+                    style={{ fontSize: 11.5, fontWeight: 700, padding: '6px 12px', background: showCabinet3D ? 'var(--navy)' : 'var(--bgsoft)', color: showCabinet3D ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    {showCabinet3D ? '📋 Switch to List View' : '🖥️ Switch to 3D Shelves'}
+                  </button>
+                  <button 
+                    onClick={() => setShowManualAddModal(true)}
+                    style={{ fontSize: 11.5, fontWeight: 700, padding: '6px 12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', boxShadow: '0 4px 10px rgba(13,138,104,0.15)' }}
+                  >
+                    ➕ Add Custom Medicine
+                  </button>
+                </div>
+              </div>
+
+              {/* Direct Cabinet Add Search Box */}
+              <div style={{ position: 'relative', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    value={cabinetAddQuery}
+                    onChange={(e) => handleCabinetAddSearch(e.target.value)}
+                    placeholder="🔍 Search CDSCO/Jan Aushadhi database to add immediately..."
+                    style={{ flex: 1, height: 42, padding: '0 12px', borderRadius: 10, border: '1.5px solid var(--bordermd)', fontSize: 13, color: 'var(--navy)', background: '#fff', outline: 'none' }}
+                  />
+                  {cabinetAddQuery && (
+                    <button 
+                      onClick={() => handleCabinetAddSearch('')} 
+                      style={{ padding: '0 12px', background: 'var(--bgsoft)', color: 'var(--textmd)', border: '1.5px solid var(--border)', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {cabinetAddQuery && (
+                  <div style={{ position: 'absolute', top: '46px', left: 0, right: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 12, maxHeight: 220, overflowY: 'auto', padding: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.08)', zIndex: 10 }}>
+                    {isCabinetAddSearching ? (
+                      <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '12px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--border)', borderTopColor: 'var(--green)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                        Querying database indexes...
+                      </div>
+                    ) : (!cabinetAddResults || (cabinetAddResults.cdsco.length === 0 && cabinetAddResults.ja.length === 0)) ? (
+                      <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '12px 0', textAlign: 'center' }}>
+                        No exact match. Click "Add Custom Medicine" to enter details manually.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {cabinetAddResults.cdsco.length > 0 && (
+                          <div>
+                            <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '2px 4px', borderBottom: '1px solid var(--border)', marginBottom: 4, textAlign: 'left' }}>
+                              CDSCO Approved Salts
+                            </div>
+                            {cabinetAddResults.cdsco.slice(0, 3).map((res, rid) => (
+                              <div key={rid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--bgsoft)', borderRadius: 8, marginBottom: 4 }}>
+                                <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{res.row['Drug Name']}</div>
+                                  <div style={{ fontSize: 10, color: 'var(--textlt)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Composition: {res.row['Drug Name']} | Indication: {res.row['Indication'] || 'Maintenance'}</div>
+                                </div>
+                                <button 
+                                  onClick={() => handleQuickAdd(res.row['Drug Name'], res.row['Drug Name'])} 
+                                  style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                                >
+                                  ➕ Add
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {cabinetAddResults.ja.length > 0 && (
+                          <div>
+                            <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '2px 4px', borderBottom: '1px solid var(--border)', marginBottom: 4, marginTop: 4, textAlign: 'left' }}>
+                              Jan Aushadhi Generics
+                            </div>
+                            {cabinetAddResults.ja.slice(0, 3).map((res, rid) => (
+                              <div key={rid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--safflt)', borderRadius: 8, marginBottom: 4 }}>
+                                <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{res.row['Generic Name']}</div>
+                                  <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>Govt Generic | MRP: ₹{res.row['MRP']} ({res.row['Unit Size']})</div>
+                                </div>
+                                <button 
+                                  onClick={() => handleQuickAdd(res.row['Generic Name'], res.row['Generic Name'])} 
+                                  style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                                >
+                                  ➕ Add
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {cabinet.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6 }}>
-                  Your medicine cabinet is empty. Once you scan a medicine or search for one, you can save it here to keep track of remaining pills and safety alerts.
-                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {showCabinet3D ? (
+                    <div className="cabinet-3d-container">
+                      <div className="cabinet-shelf-3d">
+                        <div className="cabinet-shelf-ledge"></div>
+                        <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
+                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                        </div>
+                        <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
+                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                        </div>
+                        <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
+                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6, textAlign: 'left' }}>
+                    Your medicine cabinet is empty. Use the quick search above or click "+ Add Custom Medicine" to populate your cabinet inventory immediately.
+                  </p>
+                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                  {cabinet.map((item, idx) => {
-                    const maxPills = 30;
-                    const stockPct = Math.min(100, Math.max(0, ((item.pillCount || 0) / maxPills) * 100));
-                    const isLowStock = (item.pillCount || 0) <= 5;
-                    const barColor = isLowStock ? 'var(--red)' : 'var(--green)';
+                <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start' }}>
+                  
+                  {/* Left Column: Inventory List or 3D shelves grid */}
+                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    
+                    {showCabinet3D ? (
+                      /* 3D Shelves View */
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, textAlign: 'left' }}>
+                          🖥️ Virtual Cabinet Shelves
+                        </div>
+                        
+                        <div className="cabinet-3d-container">
+                          {(() => {
+                            const itemsPerShelf = 3;
+                            const numShelves = Math.max(1, Math.ceil(cabinet.length / itemsPerShelf));
+                            const shelvesRows = [];
+                            for (let i = 0; i < numShelves; i++) {
+                              shelvesRows.push(cabinet.slice(i * itemsPerShelf, (i + 1) * itemsPerShelf));
+                            }
+                            
+                            return shelvesRows.map((shelfItems, sIdx) => (
+                              <div key={sIdx} className="cabinet-shelf-3d">
+                                <div className="cabinet-shelf-ledge"></div>
+                                {shelfItems.map((item, idx) => {
+                                  const realIdx = sIdx * itemsPerShelf + idx;
+                                  const maxPills = 30;
+                                  const stockPct = Math.min(100, Math.max(0, ((item.pillCount || 0) / maxPills) * 100));
+                                  const isLowStock = (item.pillCount || 0) <= 5;
+                                  const isExpired = item.expiryDate && new Date(item.expiryDate) < new Date();
+                                  const isSelected = selectedCabinetIndex === realIdx;
+                                  
+                                  const saltLower = (item.saltComposition || '').toLowerCase();
+                                  const isAntibiotic = saltLower.includes('amoxicillin') || saltLower.includes('penicillin') || saltLower.includes('cef') || saltLower.includes('cipro');
+                                  const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen');
+                                  const isAyurvedic = item.productType === 'AYURVEDIC';
+                                  const isSupplement = item.productType === 'SUPPLEMENT';
+                                  let boxGradient = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+                                  if (isAyurvedic || isSupplement) {
+                                    boxGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                                  } else if (isAntibiotic) {
+                                    boxGradient = 'linear-gradient(135deg, #ef4444 0%, #3b82f6 100%)';
+                                  } else if (isPainKiller) {
+                                    boxGradient = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)';
+                                  }
+
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      onClick={() => setSelectedCabinetIndex(realIdx)}
+                                      className="med-box-hoverable"
+                                      style={{
+                                        width: '65px',
+                                        height: '85px',
+                                        background: boxGradient,
+                                        borderRadius: '6px',
+                                        position: 'relative',
+                                        transformStyle: 'preserve-3d',
+                                        transform: isSelected ? 'translate3d(0, -12px, 30px) rotateY(-15deg)' : 'translate3d(0, 0, 5px) rotateY(-5deg)',
+                                        transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                        cursor: 'pointer',
+                                        boxShadow: isSelected ? '0 15px 25px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.6)' : '-4px 4px 8px rgba(0,0,0,0.3)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        padding: '8px',
+                                        color: '#fff',
+                                        border: isSelected ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.25)',
+                                        boxSizing: 'border-box'
+                                      }}
+                                      title={`${item.brandName} - ${item.saltComposition} (${item.pillCount} pills)`}
+                                    >
+                                      {/* skew 3D edge */}
+                                      <div style={{ position: 'absolute', top: 0, right: '-6px', width: '6px', height: '100%', background: 'rgba(0,0,0,0.2)', transform: 'skewY(45deg)', transformOrigin: 'left' }} />
+                                      
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <span style={{ fontSize: '12px' }}>
+                                          {isAyurvedic || isSupplement ? '🌿' : isAntibiotic ? '🧬' : isPainKiller ? '⚡' : '💊'}
+                                        </span>
+                                        {isLowStock && <span style={{ fontSize: '9px', color: '#fca5a5', animation: 'pulse 1.5s infinite' }}>⚠️</span>}
+                                        {isExpired && <span style={{ fontSize: '7px', background: '#ef4444', color: '#fff', padding: '1px 3px', borderRadius: 3, fontWeight: 900 }}>EXP</span>}
+                                      </div>
+                                      
+                                      <div style={{ textAlign: 'left', overflow: 'hidden' }}>
+                                        <div style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
+                                          {item.brandName}
+                                        </div>
+                                        <div style={{ fontSize: '6.5px', opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {item.saltComposition}
+                                        </div>
+                                      </div>
+
+                                      <div style={{ height: '3.5px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', overflow: 'hidden', marginTop: '3px' }}>
+                                        <div style={{ height: '100%', width: `${stockPct}%`, background: isLowStock ? '#ef4444' : '#10b981' }} />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                
+                                {/* Fill remainder slots to keep layout balanced */}
+                                {shelfItems.length < itemsPerShelf && Array.from({ length: itemsPerShelf - shelfItems.length }).map((_, emptyIdx) => (
+                                  <div key={`empty-${emptyIdx}`} className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
+                                    <span style={{ fontSize: '20px', color: '#475569' }}>＋</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Flat List View */
+                      <>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, textAlign: 'left' }}>
+                          Cabinet Inventory List ({cabinet.length})
+                        </div>
+                        {cabinet.map((item, idx) => {
+                          const maxPills = 30;
+                          const stockPct = Math.min(100, Math.max(0, ((item.pillCount || 0) / maxPills) * 100));
+                          const isLowStock = (item.pillCount || 0) <= 5;
+                          const barColor = isLowStock ? 'var(--red)' : 'var(--green)';
+                          const isSelected = selectedCabinetIndex === idx;
+
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => setSelectedCabinetIndex(idx)}
+                              style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: 8, 
+                                padding: '14px 16px', 
+                                background: isSelected ? 'rgba(13,138,104,0.04)' : 'var(--bgcard)', 
+                                border: isSelected ? '2px solid var(--green)' : '1.5px solid var(--border)', 
+                                borderRadius: 16,
+                                boxShadow: isSelected ? '0 4px 12px rgba(13,138,104,0.1)' : 'var(--shadow)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                position: 'relative'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                                <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                                  <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.brandName}</span>
+                                    {isSelected && <span style={{ fontSize: 9, background: 'var(--green)', color: '#fff', padding: '1px 5px', borderRadius: 10, fontWeight: 800, flexShrink: 0 }}>ACTIVE</span>}
+                                  </div>
+                                  <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.saltComposition}</div>
+                                </div>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleCabinetItem(item, e);
+                                  }} 
+                                  style={{ 
+                                    width: 24, 
+                                    height: 24, 
+                                    borderRadius: '50%', 
+                                    background: 'var(--redlt)', 
+                                    color: 'var(--red)', 
+                                    fontWeight: 800, 
+                                    fontSize: 13, 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+
+                              {/* Visual stock progress meter */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: 11.5, color: 'var(--textmd)', fontWeight: 700 }}>
+                                    📦 Stock Level: {item.pillCount || 0} / {maxPills} pills
+                                  </span>
+                                  {isLowStock && (
+                                    <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 800, animation: 'pulse 1.5s infinite' }}>
+                                      ⚠️ Low Stock
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="stock-bar-container" style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                                  <div className="stock-bar-fill" style={{ height: '100%', width: `${stockPct}%`, backgroundColor: barColor, transition: 'width 0.3s' }}></div>
+                                </div>
+                              </div>
+
+                              {/* Dosing Actions and notifications */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdatePillCount(item, -1);
+                                    }} 
+                                    title="Take 1 pill"
+                                    style={{ 
+                                      width: 28, 
+                                      height: 28, 
+                                      background: '#fff', 
+                                      border: '1.5px solid var(--border)', 
+                                      borderRadius: '50%', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      fontSize: 15, 
+                                      fontWeight: 800, 
+                                      cursor: 'pointer',
+                                      boxShadow: 'var(--shadow)' 
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdatePillCount(item, 30);
+                                    }} 
+                                    style={{ 
+                                      padding: '0 10px', 
+                                      height: 28, 
+                                      background: 'var(--bgsoft)', 
+                                      border: '1.5px solid var(--border)', 
+                                      borderRadius: 14, 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      fontSize: 11, 
+                                      fontWeight: 700, 
+                                      color: 'var(--navy)',
+                                      cursor: 'pointer',
+                                      boxShadow: 'var(--shadow)' 
+                                    }}
+                                  >
+                                    +30 pills
+                                  </button>
+                                </div>
+
+                                <label style={{ fontSize: 11.5, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 700 }} onClick={e => e.stopPropagation()}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={!!item.notificationsEnabled} 
+                                    onChange={() => handleToggleNotification(item)}
+                                    style={{ accentColor: 'var(--green)', width: 14, height: 14 }} 
+                                  />
+                                  Reminders On
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Interaction Warning Sub-Panel */}
+                    {cabinet.length >= 2 && (
+                      <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {activeInteractions.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'left' }}>
+                              ⚠️ Dangerous Combinations Found:
+                            </div>
+                            {activeInteractions.map((col, idx) => (
+                              <div key={idx} style={{ 
+                                padding: '12px 14px', 
+                                background: 'var(--redlt)', 
+                                border: '1.5px solid #FECACA', 
+                                borderLeft: '5px solid var(--red)',
+                                borderRadius: 14,
+                                boxShadow: 'var(--shadow)',
+                                textAlign: 'left'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--red)' }}>{col.title}</span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff' }}>{col.severity}</span>
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#991B1B', fontWeight: 700, marginBottom: 6 }}>Clash: {col.saltA} + {col.saltB}</div>
+                                <p style={{ fontSize: 12.5, color: '#7F1D1D', margin: 0, lineHeight: 1.5 }}>{col.explanation}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeDuplications.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'left' }}>
+                              ⚠️ Double Dosing Warning:
+                            </div>
+                            {activeDuplications.map((dup, idx) => (
+                              <div key={idx} style={{ 
+                                padding: '12px 14px', 
+                                background: 'var(--safflt)', 
+                                border: '1.5px solid #FCD34D', 
+                                borderLeft: '5px solid var(--saffron)',
+                                borderRadius: 14,
+                                boxShadow: 'var(--shadow)',
+                                textAlign: 'left'
+                              }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>
+                                  {dup.title} ({dup.className})
+                                </div>
+                                <p style={{ fontSize: 12.5, color: '#78350F', margin: 0, lineHeight: 1.5 }}>{dup.explanation}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeInteractions.length === 0 && activeDuplications.length === 0 && (
+                          <div style={{ 
+                            padding: '12px 14px', 
+                            background: 'var(--greenlt)', 
+                            border: '1.5px solid #86EFAC', 
+                            borderRadius: 14, 
+                            fontSize: 13, 
+                            color: 'var(--greendk)', 
+                            fontWeight: 700, 
+                            textAlign: 'center',
+                            boxShadow: 'var(--shadow)'
+                          }}>
+                            ✅ Safe: No drug clashes or overlaps found in your cabinet.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: Smart Cabinet Hub Details */}
+                  {selectedMed && (() => {
+                    const pkParams = getPKParameters(selectedMed.saltComposition || selectedMed.brandName);
+                    
+                    const saltLower = (selectedMed.saltComposition || '').toLowerCase();
+                    const isAntibiotic = saltLower.includes('amoxicillin') || saltLower.includes('penicillin') || saltLower.includes('cef') || saltLower.includes('cipro');
+                    const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen');
+                    const isAyurvedic = selectedMed.productType === 'AYURVEDIC';
+                    const isSupplement = selectedMed.productType === 'SUPPLEMENT';
+                    let capTopColor = '#f59e0b';
+                    let capBottomColor = '#f8fafc';
+                    if (isAyurvedic || isSupplement) {
+                      capTopColor = '#10b981';
+                    } else if (isAntibiotic) {
+                      capTopColor = '#ef4444';
+                      capBottomColor = '#3b82f6';
+                    } else if (isPainKiller) {
+                      capTopColor = '#ef4444';
+                    }
+
+                    const parsedDose = (() => {
+                      const m = (selectedMed.saltComposition || '').match(/(\d+)\s*(mg|mcg|g)/i);
+                      return m ? parseInt(m[1]) : 500;
+                    })();
+
+                    // Simulated PK data
+                    const cabDoseTimes = cabDoseFreq === 1 ? [0] 
+                                    : cabDoseFreq === 2 ? [0, 12] 
+                                    : cabDoseFreq === 3 ? [0, 8, 16] 
+                                    : [0, 6, 12, 18];
+                    const cabPkData = pkParams ? simulatePharmacokinetics(
+                      pkParams, 
+                      cabDoseStrength, 
+                      cabDoseTimes, 
+                      activeProfile.weight || 70, 
+                      activeProfile.height || 170, 
+                      activeProfile.age || 30, 
+                      activeProfile.gender || 'male', 
+                      24
+                    ) : [];
+                    
+                    const maxConc = pkParams ? Math.max(...cabPkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10;
+                    const currentPoint = cabPkData.find(d => d.time === cabScrubTime) || cabPkData[0] || { time: 0, conc: 0 };
+                    const currentConc = currentPoint.conc;
+
+                    // Expiry check
+                    const isExpired = selectedMed.expiryDate && new Date(selectedMed.expiryDate) < new Date();
+                    const isExpiringSoon = selectedMed.expiryDate && !isExpired && (new Date(selectedMed.expiryDate) - new Date()) < (30 * 24 * 60 * 60 * 1000);
+
+                    // Adherence Compliance Score
+                    const ad = activeProfile.adherence || {};
+                    let totalDoseSlotsLogged = 0;
+                    let totalDaysWithLogs = 0;
+                    Object.entries(ad).forEach(([dateStr, slotObj]) => {
+                      const slots = Object.values(slotObj);
+                      if (slots.some(v => v === true)) {
+                        totalDaysWithLogs++;
+                        totalDoseSlotsLogged += slots.filter(v => v === true).length;
+                      }
+                    });
+                    const compliancePct = totalDaysWithLogs > 0 ? Math.min(100, Math.round((totalDoseSlotsLogged / (totalDaysWithLogs * 3)) * 100)) : 100;
+
+                    const getX = (t) => 35 + (t / 24) * 290;
+                    const getY = (c) => 15 + (1 - (c / maxConc)) * 140;
+
+                    const pathD = cabPkData.length > 0 ? cabPkData.map((d, idx) => {
+                      return `${idx === 0 ? 'M' : 'L'} ${getX(d.time)} ${getY(d.conc)}`;
+                    }).join(' ') : '';
+                    const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : '';
+
+                    // Adaptive safety result
+                    const safetyResult = checkDosageSafety(
+                      selectedMed.saltComposition || selectedMed.brandName,
+                      cabDoseStrength,
+                      cabDoseFreq,
+                      activeProfile.weight || 70,
+                      activeProfile.height || 170,
+                      activeProfile.age || 30,
+                      activeProfile.gender || 'male'
+                    );
 
                     return (
-                      <div key={idx} style={{ 
+                      <div style={{ 
+                        flex: '2 2 400px', 
                         display: 'flex', 
                         flexDirection: 'column', 
-                        gap: 8, 
-                        padding: '14px 16px', 
-                        background: 'var(--bgcard)', 
+                        gap: 16, 
+                        background: '#fff', 
                         border: '1.5px solid var(--border)', 
-                        borderRadius: 16,
-                        boxShadow: 'var(--shadow)'
+                        borderRadius: 18, 
+                        padding: 20, 
+                        boxShadow: 'var(--shadow)',
+                        animation: 'fadeUp 0.3s ease'
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy)' }}>{item.brandName}</div>
-                            <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginTop: 2 }}>{item.saltComposition}</div>
+                        
+                        {/* Header Row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+                          <div style={{ textAlign: 'left' }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 SMART CABINET HUB</span>
+                            <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', margin: '4px 0 2px' }}>{selectedMed.brandName}</h3>
+                            <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
+                          </div>
+                          
+                          {/* 3D Interactive Splitting Capsule */}
+                          <div className="capsule-wrapper" title="Hover to inspect active ingredients!">
+                            <div className="capsule-3d-split">
+                              <div className="capsule-half-top" style={{ position: 'absolute', top: 0, width: '100%', height: '50%', borderRadius: '6px 6px 0 0', border: '0.5px solid rgba(0,0,0,0.15)', boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4)', transition: 'all 0.3s ease', backgroundColor: capTopColor }}></div>
+                              <div className="capsule-half-bottom" style={{ position: 'absolute', bottom: 0, width: '100%', height: '50%', borderRadius: '0 0 6px 6px', border: '0.5px solid rgba(0,0,0,0.15)', boxShadow: 'inset 0 -1px 2px rgba(255,255,255,0.4)', transition: 'all 0.3s ease', backgroundColor: capBottomColor }}></div>
+                            </div>
+                            
+                            {/* Particles that float out on hover */}
+                            {Array.from({ length: 6 }).map((_, pIdx) => {
+                              const xOffset = -15 + Math.random() * 30;
+                              return (
+                                <div 
+                                  key={pIdx} 
+                                  className="capsule-particle" 
+                                  style={{ 
+                                    '--px': `${xOffset}px`, 
+                                    animationDelay: `${pIdx * 0.25}s`,
+                                    background: pIdx % 2 === 0 ? capTopColor : 'var(--green)'
+                                  }} 
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Expiry & Batch Tracker Section */}
+                        <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 14, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 Batch & Expiry Tracker</span>
+                          
+                          {isExpired && (
+                            <div style={{ padding: '8px 10px', background: 'var(--redlt)', border: '1px solid #FCA5A5', color: 'var(--red)', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
+                              ❌ EXPIRED! Please dispose of this medication safely. Do not consume.
+                            </div>
+                          )}
+                          {isExpiringSoon && (
+                            <div style={{ padding: '8px 10px', background: 'var(--safflt)', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
+                              ⚠️ EXPIRING SOON: This medicine expires in less than 30 days!
+                            </div>
+                          )}
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                              <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>BATCH NO.</label>
+                              <input 
+                                type="text" 
+                                value={selectedMed.batchNumber || ''} 
+                                onChange={e => handleUpdateCabinetItem(selectedMed, { batchNumber: e.target.value })}
+                                placeholder="e.g. B2502"
+                                style={{ height: 32, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, outline: 'none', background: '#fff' }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                              <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>MFG. DATE</label>
+                              <input 
+                                type="date" 
+                                value={selectedMed.mfgDate || ''} 
+                                onChange={e => handleUpdateCabinetItem(selectedMed, { mfgDate: e.target.value })}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                              <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>EXP. DATE</label>
+                              <input 
+                                type="date" 
+                                value={selectedMed.expiryDate || ''} 
+                                onChange={e => handleUpdateCabinetItem(selectedMed, { expiryDate: e.target.value })}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Adherence Intake Logger */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ textAlign: 'left' }}>
+                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 Medication Adherence Rate</div>
+                              <div style={{ fontSize: 18, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>{compliancePct}% compliance</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 800 }}>📦 Stock Level</div>
+                              <div id="cabinet-stock-level" style={{ fontSize: 16, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>Stock Level: {selectedMed.pillCount || 0} / 30 pills</div>
+                            </div>
                           </div>
                           <button 
-                            onClick={(e) => toggleCabinetItem(item, e)} 
+                            onClick={async () => {
+                              const currentCount = selectedMed.pillCount || 0;
+                              if (currentCount <= 0) {
+                                alert("No pills left in stock! Please add pills before logging intake.");
+                                return;
+                              }
+                              const nextCount = Math.max(0, currentCount - 1);
+                              const dateStr = new Date().toDateString();
+                              const now = new Date();
+                              const hours = now.getHours();
+                              let slot = 'Morning';
+                              if (hours >= 12 && hours < 16) slot = 'Afternoon';
+                              else if (hours >= 16 && hours < 21) slot = 'Evening';
+                              else if (hours >= 21 || hours < 6) slot = 'Bedtime';
+
+                              const nextHistory = [
+                                {
+                                  medName: selectedMed.brandName,
+                                  saltName: selectedMed.saltComposition,
+                                  timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+                                  date: dateStr,
+                                  slot: slot
+                                },
+                                ...(activeProfile.doseHistory || [])
+                              ].slice(0, 50);
+
+                              const updated = profiles.map(p => {
+                                if (p.id === activeProfileId) {
+                                  const nextCab = (p.cabinet || []).map(item => {
+                                    if (item.brandName === selectedMed.brandName && item.saltComposition === selectedMed.saltComposition) {
+                                      return { ...item, pillCount: nextCount };
+                                    }
+                                    return item;
+                                  });
+                                  const ad = p.adherence || {};
+                                  const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
+                                  const nextTodayAd = { ...todayAd, [slot]: true };
+                                  return { 
+                                    ...p, 
+                                    cabinet: nextCab, 
+                                    adherence: { ...ad, [dateStr]: nextTodayAd },
+                                    doseHistory: nextHistory
+                                  };
+                                }
+                                return p;
+                              });
+                              await saveAllProfiles(updated);
+                            }}
                             style={{ 
-                              width: 24, 
-                              height: 24, 
-                              borderRadius: '50%', 
-                              background: 'var(--redlt)', 
-                              color: 'var(--red)', 
+                              padding: '10px 16px', 
+                              background: '#2563eb', 
+                              color: '#fff', 
+                              borderRadius: 10, 
+                              fontSize: 12.5, 
                               fontWeight: 800, 
-                              fontSize: 13, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              cursor: 'pointer' 
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 4px 10px rgba(37,99,235,0.2)'
                             }}
                           >
-                            ×
+                            ✔️ Log Dose Taken
                           </button>
                         </div>
 
-                        {/* Visual stock progress meter */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                        {/* Dosage Safety Warnings Panel */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 12, color: 'var(--textmd)', fontWeight: 700 }}>
-                              📦 Stock Level: {item.pillCount || 0} / {maxPills} pills
+                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ Daily Safety Check</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: safetyResult.safe ? '#166534' : '#991b1b', background: safetyResult.safe ? '#dcfce7' : '#fef2f2', padding: '1px 8px', borderRadius: 10 }}>
+                              {safetyResult.safe ? 'SAFE LIMIT' : 'LIMIT EXCEEDED'}
                             </span>
-                            {isLowStock && (
-                              <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 800, animation: 'pulse 1.5s infinite' }}>
-                                ⚠️ Low Stock
-                              </span>
-                            )}
                           </div>
-                          <div className="stock-bar-container">
-                            <div className="stock-bar-fill" style={{ width: `${stockPct}%`, backgroundColor: barColor }}></div>
-                          </div>
+                          
+                          {!safetyResult.safe ? (
+                            <div className="danger-overdose-banner" style={{ background: '#fef2f2', border: '2px solid #ef4444', borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <span style={{ fontSize: 16 }}>⚠️</span>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>DANGEROUS OVERDOSE WARNING</span>
+                              </div>
+                              <p style={{ fontSize: 12.5, color: '#b91c1c', margin: 0, lineHeight: 1.4, fontWeight: 600, textAlign: 'left' }}>
+                                {safetyResult.reason}
+                              </p>
+                            </div>
+                          ) : (
+                            <div style={{ background: 'var(--greenlt)', border: '1px solid #a7d9ca', borderRadius: 14, padding: '10px 12px', fontSize: 12, color: 'var(--greendk)', fontWeight: 700, textAlign: 'left' }}>
+                              ✅ {safetyResult.reason}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Dosing Actions and notifications */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <button 
-                              onClick={() => handleUpdatePillCount(item, -1)} 
-                              title="Take 1 pill"
-                              style={{ 
-                                width: 28, 
-                                height: 28, 
-                                background: '#fff', 
-                                border: '1.5px solid var(--border)', 
-                                borderRadius: '50%', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                fontSize: 15, 
-                                fontWeight: 800, 
-                                cursor: 'pointer',
-                                boxShadow: 'var(--shadow)' 
-                              }}
-                            >
-                              -
-                            </button>
-                            <button 
-                              onClick={() => handleUpdatePillCount(item, 30)} 
-                              style={{ 
-                                padding: '0 10px', 
-                                height: 28, 
-                                background: 'var(--bgsoft)', 
-                                border: '1.5px solid var(--border)', 
-                                borderRadius: 14, 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                fontSize: 11, 
-                                fontWeight: 700, 
-                                color: 'var(--navy)',
-                                cursor: 'pointer',
-                                boxShadow: 'var(--shadow)' 
-                              }}
-                            >
-                              +30 pills
-                            </button>
+                        {/* Adaptive Pharmacokinetics Graph */}
+                        {pkParams && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>🩸 Active Bloodstream Simulation</span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '1px 8px', borderRadius: 10 }}>ADAPTIVE PK</span>
+                            </div>
+                            
+                            <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+                              <svg width="100%" height="150" viewBox="0 0 340 150" style={{ maxWidth: 340 }}>
+                                <defs>
+                                  <linearGradient id="cab-curve-grad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#0D8A68" stopOpacity="0.25" />
+                                    <stop offset="100%" stopColor="#0D8A68" stopOpacity="0.0" />
+                                  </linearGradient>
+                                </defs>
+
+                                {/* Grid Lines & Ticks */}
+                                {[0, 6, 12, 18, 24].map(t => (
+                                  <g key={t}>
+                                    <line x1={getX(t)} y1="15" x2={getX(t)} y2="125" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
+                                    <text x={getX(t)} y="140" fontSize="9" fill="var(--textlt)" textAnchor="middle">{t}h</text>
+                                  </g>
+                                ))}
+
+                                {/* Therapeutic Band */}
+                                {pkParams.minEffectiveConc < maxConc && (
+                                  <rect
+                                    x="35"
+                                    y={getY(Math.min(maxConc, pkParams.minToxicConc))}
+                                    width="290"
+                                    height={Math.max(0, getY(pkParams.minEffectiveConc) - getY(Math.min(maxConc, pkParams.minToxicConc)))}
+                                    fill="var(--greenlt)"
+                                    opacity="0.95"
+                                  />
+                                )}
+
+                                <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="var(--amber)" strokeWidth="1" strokeDasharray="3,3" />
+                                
+                                {areaD && <path d={areaD} fill="url(#cab-curve-grad)" />}
+                                {pathD && <path d={pathD} fill="none" stroke="#0d8a68" strokeWidth="2.5" />}
+
+                                {/* Scrubber Indicator */}
+                                <line x1={getX(cabScrubTime)} y1="15" x2={getX(cabScrubTime)} y2="125" stroke="#3b82f6" strokeWidth="1" strokeDasharray="2,2" />
+                                <circle cx={getX(cabScrubTime)} cy={getY(currentConc)} r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1" />
+
+                                <line x1="35" y1="15" x2="35" y2="125" stroke="var(--border)" strokeWidth="1.2" />
+                                <line x1="35" y1="125" x2="325" y2="125" stroke="var(--border)" strokeWidth="1.2" />
+                              </svg>
+                            </div>
+
+                            {/* Scrubber Timeline */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#1e293b', padding: 12, borderRadius: 12 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {cabScrubTime.toFixed(1)}h</span>
+                                <span style={{ fontSize: '11px', fontWeight: 900, color: currentConc > pkParams.minToxicConc ? '#ef4444' : currentConc > pkParams.minEffectiveConc ? '#10b981' : '#f59e0b' }}>
+                                  {currentConc.toFixed(1)} mcg/mL
+                                </span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="0" 
+                                max="24" 
+                                step="0.25" 
+                                value={cabScrubTime} 
+                                onChange={e => setCabScrubTime(parseFloat(e.target.value))} 
+                                style={{ width: '100%', accentColor: '#10b981', cursor: 'pointer' }} 
+                              />
+                            </div>
+
+                            {/* Segmented Strength & Freq Controls */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--bgsoft)', padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--navy)' }}>Strength:</label>
+                                <select 
+                                  value={cabDoseStrength}
+                                  onChange={e => setCabDoseStrength(parseInt(e.target.value))}
+                                  style={{ height: 26, fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid var(--border)', background: '#fff', color: 'var(--navy)' }}
+                                >
+                                  {[Math.round(parsedDose / 2), parsedDose, parsedDose * 2].filter(v => v > 0).map(v => (
+                                    <option key={v} value={v}>{v}mg</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--navy)' }}>Frequency:</label>
+                                <select 
+                                  value={cabDoseFreq}
+                                  onChange={e => setCabDoseFreq(parseInt(e.target.value))}
+                                  style={{ height: 26, fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid var(--border)', background: '#fff', color: 'var(--navy)' }}
+                                >
+                                  <option value="1">Once a day</option>
+                                  <option value="2">2x a day</option>
+                                  <option value="3">3x a day</option>
+                                  <option value="4">4x a day</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Clinical Bio-Parameter Info Box */}
+                            <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 12px', textAlign: 'left' }}>
+                              <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>📈 Scientific Dosing Parameters:</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
+                                <div>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
+                                <div>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
+                                <div>• <strong>Bioavailability (F):</strong> {Math.round(pkParams.bioavailability * 100)}%</div>
+                                <div>• <strong>Active Composition:</strong> {pkParams.partition === 'lipophilic' ? 'Lipophilic (Fat solubility)' : 'Hydrophilic (Water solubility)'}</div>
+                              </div>
+                            </div>
+
+                          </div>
+                        )}
+
+                        {/* Jan Aushadhi Savings Finder */}
+                        <div style={{ borderTop: '1.5px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>🏛 Jan Aushadhi generic equivalents</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--greenlt)', padding: '1px 8px', borderRadius: 8 }}>SAVINGS FINDER</span>
                           </div>
 
-                          <label style={{ fontSize: 12, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 700 }}>
-                            <input 
-                              type="checkbox" 
-                              checked={!!item.notificationsEnabled} 
-                              onChange={() => handleToggleNotification(item)}
-                              style={{ accentColor: 'var(--green)', width: 14, height: 14 }} 
-                            />
-                            🔔 Reminders On
-                          </label>
+                          {isCabinetSearching ? (
+                            <div style={{ fontSize: 12, color: 'var(--textlt)', fontStyle: 'italic', padding: '6px 0', textAlign: 'left' }}>🔍 Searching local CDSCO & BPPI databases...</div>
+                          ) : cabinetSearchResults && cabinetSearchResults.ja && cabinetSearchResults.ja.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {cabinetSearchResults.ja.slice(0, 2).map((jaMed, jIdx) => {
+                                return (
+                                  <div key={jIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--greenlt)', border: '1px solid #a7d9ca', borderRadius: 10, padding: '8px 12px' }}>
+                                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{jaMed.row['Generic Name']}</div>
+                                      <div style={{ fontSize: 10.5, color: '#166534', marginTop: 1 }}>Govt Price: ₹{jaMed.row['MRP']} ({jaMed.row['Unit Size']})</div>
+                                    </div>
+                                    <a 
+                                      href="https://janaushadhi.gov.in/near-by-kendra" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer" 
+                                      style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', textDecoration: 'none', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}
+                                    >
+                                      📍 Store
+                                    </a>
+                                  </div>
+                                );
+                              })}
+                              
+                              <div style={{ fontSize: 11, color: 'var(--textmd)', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4, textAlign: 'left' }}>
+                                💡 Tip: You can legally substitute {selectedMed.brandName} with these government-approved generics. Find nearest Kendra store link above.
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: 'var(--textlt)', fontStyle: 'italic', textAlign: 'left' }}>
+                              No generic alternatives found in the offline Jan Aushadhi catalog. Please ask your local pharmacist for equivalent options.
+                            </div>
+                          )}
                         </div>
+
                       </div>
                     );
-                  })}
+                  })()}
+
                 </div>
               )}
 
-              {/* Interaction Warning Sub-Panel */}
-              {cabinet.length >= 2 && (
-                <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {activeInteractions.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        ⚠️ Dangerous Combinations Found:
-                      </div>
-                      {activeInteractions.map((col, idx) => (
-                        <div key={idx} style={{ 
-                          padding: '12px 14px', 
-                          background: 'var(--redlt)', 
-                          border: '1.5px solid #FECACA', 
-                          borderLeft: '5px solid var(--red)',
-                          borderRadius: 14,
-                          boxShadow: 'var(--shadow)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--red)' }}>{col.title}</span>
-                            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff' }}>{col.severity}</span>
+              {/* Recent Doses History Logs Timeline */}
+              <div style={{ marginTop: 24, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
+                <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
+                  ⏳ Recent Intake Logs ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
+                </h4>
+                
+                {!activeProfile.doseHistory || activeProfile.doseHistory.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', textAlign: 'left' }}>
+                    No intake logs recorded yet. Tap "Log Dose Taken" inside a cabinet medicine card to record.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', paddingRight: 4 }}>
+                    {activeProfile.doseHistory.map((log, lIdx) => (
+                      <div key={lIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bgsoft)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+                        <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>
+                            Logged 1 dose of {log.medName}
                           </div>
-                          <div style={{ fontSize: 11.5, color: '#991B1B', fontWeight: 700, marginBottom: 6 }}>Clash: {col.saltA} + {col.saltB}</div>
-                          <p style={{ fontSize: 12.5, color: '#7F1D1D', margin: 0, lineHeight: 1.5 }}>{col.explanation}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {activeDuplications.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        ⚠️ Double Dosing Warning:
-                      </div>
-                      {activeDuplications.map((dup, idx) => (
-                        <div key={idx} style={{ 
-                          padding: '12px 14px', 
-                          background: 'var(--safflt)', 
-                          border: '1.5px solid #FCD34D', 
-                          borderLeft: '5px solid var(--saffron)',
-                          borderRadius: 14,
-                          boxShadow: 'var(--shadow)'
-                        }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>
-                            {dup.title} ({dup.className})
+                          <div style={{ fontSize: 11, color: 'var(--textlt)', marginTop: 1 }}>
+                            Slot: {log.slot} | {log.date} at {log.timestamp}
                           </div>
-                          <p style={{ fontSize: 12.5, color: '#78350F', margin: 0, lineHeight: 1.5 }}>{dup.explanation}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <button 
+                          onClick={() => handleUndoDose(log, lIdx)}
+                          style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', background: 'var(--redlt)', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer' }}
+                        >
+                          Undo
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                  {activeInteractions.length === 0 && activeDuplications.length === 0 && (
-                    <div style={{ 
-                      padding: '12px 14px', 
-                      background: 'var(--greenlt)', 
-                      border: '1.5px solid #86EFAC', 
-                      borderRadius: 14, 
-                      fontSize: 13, 
-                      color: 'var(--greendk)', 
-                      fontWeight: 700, 
-                      textAlign: 'center',
-                      boxShadow: 'var(--shadow)'
-                    }}>
-                      ✅ Safe: No drug clashes or overlaps found in your cabinet.
+              {/* Manual Add Medicine Modal dialog Overlay */}
+              {showManualAddModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+                  <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>➕ Add Custom Medicine</h4>
+                      <button onClick={() => setShowManualAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--textlt)' }}>×</button>
                     </div>
-                  )}
+                    
+                    <form onSubmit={handleManualAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>MEDICINE BRAND NAME *</label>
+                        <input id="cabinet-brand-name" type="text" value={manualAddForm.brandName} onChange={e => setManualAddForm({...manualAddForm, brandName: e.target.value})} placeholder="e.g. Crocin, Lipitor" style={{ height: 38, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13 }} required />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>ACTIVE SALT COMPOSITION *</label>
+                        <input id="cabinet-salt-composition" type="text" value={manualAddForm.saltComposition} onChange={e => setManualAddForm({...manualAddForm, saltComposition: e.target.value})} placeholder="e.g. Paracetamol, Atorvastatin" style={{ height: 38, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13 }} required />
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>STRENGTH VALUE</label>
+                          <input id="cabinet-strength-value" type="number" value={manualAddForm.strength} onChange={e => setManualAddForm({...manualAddForm, strength: parseInt(e.target.value) || 0})} style={{ height: 36, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13 }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>UNIT</label>
+                          <select id="cabinet-strength-unit" value={manualAddForm.strengthUnit} onChange={e => setManualAddForm({...manualAddForm, strengthUnit: e.target.value})} style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                            <option value="mg">mg</option>
+                            <option value="mcg">mcg</option>
+                            <option value="g">g</option>
+                            <option value="ml">ml</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>FORM</label>
+                          <select id="cabinet-form" value={manualAddForm.form} onChange={e => setManualAddForm({...manualAddForm, form: e.target.value})} style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                            <option value="Tablet">Tablet</option>
+                            <option value="Capsule">Capsule</option>
+                            <option value="Syrup">Syrup</option>
+                            <option value="Drops">Drops</option>
+                            <option value="Cream">Cream</option>
+                            <option value="Injection">Injection</option>
+                            <option value="Inhaler">Inhaler</option>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>INITIAL PILL COUNT</label>
+                          <input id="cabinet-pill-count" type="number" value={manualAddForm.pillCount} onChange={e => setManualAddForm({...manualAddForm, pillCount: parseInt(e.target.value) || 0})} style={{ height: 36, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13 }} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>MFG. DATE</label>
+                          <input id="cabinet-mfg-date" type="date" value={manualAddForm.mfgDate} onChange={e => setManualAddForm({...manualAddForm, mfgDate: e.target.value})} style={{ height: 36, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12 }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>EXP. DATE</label>
+                          <input id="cabinet-expiry-date" type="date" value={manualAddForm.expiryDate} onChange={e => setManualAddForm({...manualAddForm, expiryDate: e.target.value})} style={{ height: 36, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12 }} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>BATCH NUMBER</label>
+                          <input id="cabinet-batch-number" type="text" value={manualAddForm.batchNumber} onChange={e => setManualAddForm({...manualAddForm, batchNumber: e.target.value})} placeholder="e.g. B2502" style={{ height: 36, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13 }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>INTAKE RELATION</label>
+                          <select id="cabinet-food-relation" value={manualAddForm.foodRelation} onChange={e => setManualAddForm({...manualAddForm, foodRelation: e.target.value})} style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                            <option value="Before food">Before food</option>
+                            <option value="With food">With food</option>
+                            <option value="After food">After food</option>
+                            <option value="With or without food">With or without food</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>DAILY SLOT</label>
+                          <select id="cabinet-ideal-time" value={manualAddForm.idealTime} onChange={e => setManualAddForm({...manualAddForm, idealTime: e.target.value})} style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                            <option value="Morning">Morning</option>
+                            <option value="Afternoon">Afternoon</option>
+                            <option value="Evening">Evening</option>
+                            <option value="Bedtime">Bedtime</option>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>DAILY FREQ</label>
+                          <select id="cabinet-frequency" value={manualAddForm.frequency} onChange={e => setManualAddForm({...manualAddForm, frequency: parseInt(e.target.value) || 1})} style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, background: '#fff' }}>
+                            <option value="1">1x a day</option>
+                            <option value="2">2x a day</option>
+                            <option value="3">3x a day</option>
+                            <option value="4">4x a day</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <button type="submit" style={{ height: 44, background: 'linear-gradient(135deg, var(--green), #0d9488)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8, boxShadow: '0 4px 12px rgba(13,138,104,0.2)' }}>
+                        Save Medicine to Cabinet
+                      </button>
+                    </form>
+                  </div>
                 </div>
               )}
+
             </div>
           )}
 
