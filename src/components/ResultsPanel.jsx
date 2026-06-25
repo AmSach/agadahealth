@@ -1776,7 +1776,9 @@ function AltRow({ med, highlight, dimmed }) {
           {med.unitSize || med.packSize || ''}
         </div>
         {isDavaIndia && !isJA && (
-          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>📦 Live price · 1mg</div>
+          <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>
+            📦 Live price · {(med.priceSource || '1mg').replace(/\s*\(.*\)/, '')}
+          </div>
         )}
         {!isDavaIndia && med.aiEstimated && (
           <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>

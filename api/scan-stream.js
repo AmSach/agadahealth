@@ -107,6 +107,7 @@ function lookupJanAushadhi(saltQuery) {
       priceSource: 'Jan Aushadhi (Backend DB)',
       highConfidence: true,
       aiEstimated: false,
+      isJanAushadhi: true,
     };
   }
   return null;
@@ -343,6 +344,7 @@ export default async function handler(req, res) {
         priceSource: jaRes.priceSource,
         highConfidence: true,
         aiEstimated: false,
+        isJanAushadhi: true,
       });
     }
 
