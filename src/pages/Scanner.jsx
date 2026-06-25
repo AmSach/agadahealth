@@ -17,6 +17,7 @@ import { getSecureLogs, saveSecureLogs, cacheCSVDatabase, getCachedCSVDatabase, 
 import { startReminderLoop, stopReminderLoop } from '../services/notificationService.js'
 import SearchWorker from '../wasm/search.worker.js?worker'
 import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '../services/pharmacokineticsService.js'
+import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer.jsx'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
@@ -2879,6 +2880,7 @@ function HomeView({
                             ✅ Safe: No drug clashes or overlaps found in your cabinet.
                           </div>
                         )}
+                        <InteractionGraphVisualizer cabinet={cabinet} />
                       </div>
                     )}
                   </div>
