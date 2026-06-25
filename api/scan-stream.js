@@ -150,7 +150,7 @@ async function callVisionAPI(imageBase64) {
   Return as JSON only: {"brandName": "...", "saltName": "...", "doseStr": "...", "manufacturer": "...", "batchNumber": "...", "expiryDate": "...", "manufacturingDate": "..."}`;
 
   const payload = {
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    model: 'llama-3.2-11b-vision-preview',
     max_tokens: 400,
     temperature: 0.0,
     messages: [{
