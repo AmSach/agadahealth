@@ -968,30 +968,29 @@ export default function Scanner() {
           candidates.map(c => getSearchResultsPromise(c))
         );
 
-        // Find the best match across all candidates
+        // Find the best match across all candidates by identifying the single candidate with the highest overall score in either database
         let bestCdscoMatch = null;
         let bestJaMatch = null;
         let bestCdscoScore = 0;
         let bestJaScore = 0;
         let bestCandidate = '';
+        let highestOverallScore = 0;
 
         allSearchResults.forEach((res, idx) => {
           const cand = candidates[idx];
-          if (res.cdsco && res.cdsco.length > 0) {
-            const first = res.cdsco[0];
-            if (first.score > bestCdscoScore) {
-              bestCdscoScore = first.score;
-              bestCdscoMatch = first;
-              bestCandidate = cand;
-            }
-          }
-          if (res.ja && res.ja.length > 0) {
-            const first = res.ja[0];
-            if (first.score > bestJaScore) {
-              bestJaScore = first.score;
-              bestJaMatch = first;
-              bestCandidate = cand;
-            }
+          const candCdscoMatch = (res.cdsco && res.cdsco.length > 0) ? res.cdsco[0] : null;
+          const candJaMatch = (res.ja && res.ja.length > 0) ? res.ja[0] : null;
+          const candCdscoScore = candCdscoMatch ? candCdscoMatch.score : 0;
+          const candJaScore = candJaMatch ? candJaMatch.score : 0;
+          const candMaxScore = Math.max(candCdscoScore, candJaScore);
+
+          if (candMaxScore > highestOverallScore) {
+            highestOverallScore = candMaxScore;
+            bestCandidate = cand;
+            bestCdscoMatch = candCdscoMatch;
+            bestCdscoScore = candCdscoScore;
+            bestJaMatch = candJaMatch;
+            bestJaScore = candJaScore;
           }
         });
 
@@ -1002,10 +1001,10 @@ export default function Scanner() {
 
         // Determine salt composition and brand name
         let saltName = '';
-        if (bestCdscoMatch) {
-          saltName = bestCdscoMatch.row['Drug Name'];
-        } else if (bestJaMatch) {
+        if (bestJaMatch) {
           saltName = bestJaMatch.row['Generic Name'];
+        } else if (bestCdscoMatch) {
+          saltName = bestCdscoMatch.row['Drug Name'];
         }
 
         let brandName = '';
@@ -1018,6 +1017,8 @@ export default function Scanner() {
         );
         if (otherCandidates.length > 0) {
           brandName = otherCandidates[0].split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        } else if (bestJaMatch) {
+          brandName = 'Jan Aushadhi';
         } else {
           brandName = bestCandidate.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
