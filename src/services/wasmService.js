@@ -46,94 +46,98 @@ export async function processImageWasm(imageSource, filterType = 1) {
     const objectUrl = typeof imageSource === 'string' ? imageSource : URL.createObjectURL(imageSource);
     
     img.onload = () => {
-      if (typeof imageSource !== 'string') {
-        URL.revokeObjectURL(objectUrl);
-      }
-
-      // Keep dimensions within WASM bounds (max 2048x2048)
-      let { width, height } = img;
-      const MAX_DIM = 1200; // Optimal speed / resolution trade-off
-      if (width > MAX_DIM || height > MAX_DIM) {
-        if (width > height) {
-          height = Math.round((height / width) * MAX_DIM);
-          width = MAX_DIM;
-        } else {
-          width = Math.round((width / height) * MAX_DIM);
-          height = MAX_DIM;
+      try {
+        if (typeof imageSource !== 'string') {
+          URL.revokeObjectURL(objectUrl);
         }
-      }
 
-      // Draw onto temporary canvas to retrieve RGBA pixel buffer
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
+        // Keep dimensions within WASM bounds (max 2048x2048)
+        let { width, height } = img;
+        const MAX_DIM = 1200; // Optimal speed / resolution trade-off
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height / width) * MAX_DIM);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width / height) * MAX_DIM);
+            height = MAX_DIM;
+          }
+        }
 
-      const imgData = ctx.getImageData(0, 0, width, height);
-      const data = imgData.data; // Uint8ClampedArray representing RGBA
+        // Draw onto temporary canvas to retrieve RGBA pixel buffer
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
 
-      // Get WASM exports
-      const exports = instance.exports;
-      const bufferPtr = exports.getBufferPtr();
-      const bufferSize = exports.getBufferSize();
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data; // Uint8ClampedArray representing RGBA
 
-      // Ensure data fits in WASM memory
-      if (data.length > bufferSize) {
-        reject(new Error("Image size exceeds WebAssembly memory limit."));
-        return;
-      }
+        // Get WASM exports
+        const exports = instance.exports;
+        const bufferPtr = exports.getBufferPtr();
+        const bufferSize = exports.getBufferSize();
 
-      // Copy JS image data to WASM linear memory
-      const wasmMemory = new Uint8Array(exports.memory.buffer);
-      wasmMemory.set(data, bufferPtr);
+        // Ensure data fits in WASM memory
+        if (data.length > bufferSize) {
+          reject(new Error("Image size exceeds WebAssembly memory limit."));
+          return;
+        }
 
-      // Execute WASM filter (in-place modification of WASM memory)
-      exports.processImage(width, height, filterType);
+        // Copy JS image data to WASM linear memory
+        const wasmMemory = new Uint8Array(exports.memory.buffer);
+        wasmMemory.set(data, bufferPtr);
 
-      // Detect bounding box of the medicine strip
-      const packedCoords = exports.detectBoundingBox(width, height);
-      let cropCoords = null;
-      if (packedCoords !== 0n) {
-        // Unpack coordinates from 64-bit integer
-        // format: (minY << 48) | (minX << 32) | (maxY << 16) | maxX
-        const minY = Number((packedCoords >> 48n) & 0xFFFFn);
-        const minX = Number((packedCoords >> 32n) & 0xFFFFn);
-        const maxY = Number((packedCoords >> 16n) & 0xFFFFn);
-        const maxX = Number(packedCoords & 0xFFFFn);
+        // Execute WASM filter (in-place modification of WASM memory)
+        exports.processImage(width, height, filterType);
+
+        // Detect bounding box of the medicine strip
+        const packedCoords = exports.detectBoundingBox(width, height);
+        let cropCoords = null;
+        if (packedCoords !== 0n) {
+          // Unpack coordinates from 64-bit integer
+          // format: (minY << 48) | (minX << 32) | (maxY << 16) | maxX
+          const minY = Number((packedCoords >> 48n) & 0xFFFFn);
+          const minX = Number((packedCoords >> 32n) & 0xFFFFn);
+          const maxY = Number((packedCoords >> 16n) & 0xFFFFn);
+          const maxX = Number(packedCoords & 0xFFFFn);
+          
+          cropCoords = { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+        }
+
+        // Copy results back from WASM memory to Canvas
+        const outputBuffer = wasmMemory.subarray(bufferPtr, bufferPtr + data.length);
+        const outputImgData = new ImageData(new Uint8ClampedArray(outputBuffer), width, height);
         
-        cropCoords = { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
-      }
+        // If crop coordinates are valid, crop the canvas to just the medicine strip
+        let finalCanvas = canvas;
+        if (cropCoords && cropCoords.w > 50 && cropCoords.h > 50) {
+          finalCanvas = document.createElement('canvas');
+          finalCanvas.width = cropCoords.w;
+          finalCanvas.height = cropCoords.h;
+          const cropCtx = finalCanvas.getContext('2d');
+          
+          // Put the processed image data first, then crop
+          ctx.putImageData(outputImgData, 0, 0);
+          cropCtx.drawImage(canvas, cropCoords.minX, cropCoords.minY, cropCoords.w, cropCoords.h, 0, 0, cropCoords.w, cropCoords.h);
+        } else {
+          ctx.putImageData(outputImgData, 0, 0);
+        }
 
-      // Copy results back from WASM memory to Canvas
-      const outputBuffer = wasmMemory.subarray(bufferPtr, bufferPtr + data.length);
-      const outputImgData = new ImageData(new Uint8ClampedArray(outputBuffer), width, height);
-      
-      // If crop coordinates are valid, crop the canvas to just the medicine strip
-      let finalCanvas = canvas;
-      if (cropCoords && cropCoords.w > 50 && cropCoords.h > 50) {
-        finalCanvas = document.createElement('canvas');
-        finalCanvas.width = cropCoords.w;
-        finalCanvas.height = cropCoords.h;
-        const cropCtx = finalCanvas.getContext('2d');
+        // Convert cropped/processed canvas to ultra-compact JPEG (aggressive compression for network payload)
+        // Compression ratio 0.65 for high readability of text, but extremely small kilobyte footprints.
+        const base64 = finalCanvas.toDataURL('image/jpeg', 0.65).split(',')[1];
         
-        // Put the processed image data first, then crop
-        ctx.putImageData(outputImgData, 0, 0);
-        cropCtx.drawImage(canvas, cropCoords.minX, cropCoords.minY, cropCoords.w, cropCoords.h, 0, 0, cropCoords.w, cropCoords.h);
-      } else {
-        ctx.putImageData(outputImgData, 0, 0);
+        resolve({
+          base64,
+          width: finalCanvas.width,
+          height: finalCanvas.height,
+          cropCoords
+        });
+      } catch (err) {
+        reject(err);
       }
-
-      // Convert cropped/processed canvas to ultra-compact JPEG (aggressive compression for network payload)
-      // Compression ratio 0.65 for high readability of text, but extremely small kilobyte footprints.
-      const base64 = finalCanvas.toDataURL('image/jpeg', 0.65).split(',')[1];
-      
-      resolve({
-        base64,
-        width: finalCanvas.width,
-        height: finalCanvas.height,
-        cropCoords
-      });
     };
 
     img.onerror = () => {

@@ -36,6 +36,24 @@ const loadTesseract = async () => {
   });
 };
 
+// Global cached Tesseract worker promise to prevent double creation and keep it warm
+let tesseractWorkerPromise = null;
+
+const getTesseractWorker = async () => {
+  if (tesseractWorkerPromise) return tesseractWorkerPromise;
+  tesseractWorkerPromise = (async () => {
+    try {
+      const Tesseract = await loadTesseract();
+      const worker = await Tesseract.createWorker('eng');
+      return worker;
+    } catch (err) {
+      tesseractWorkerPromise = null;
+      throw err;
+    }
+  })();
+  return tesseractWorkerPromise;
+};
+
 const NOISE_WORDS = new Set([
   'tablets', 'capsules', 'capsule', 'tablet', 'mg', 'mcg', 'ml', 'g', 'b.no', 'batch', 'expiry', 
   'exp', 'mfg', 'mrp', 'manufacturing', 'date', 'rs', 'price', 'rx', 'only', 'composition', 
@@ -328,6 +346,11 @@ export default function Scanner() {
   React.useEffect(() => {
     let active = true;
     let worker = null;
+
+    // Pre-warm Tesseract worker in the background
+    getTesseractWorker().catch(err => {
+      console.warn("Tesseract pre-warm failed (will retry on scan):", err);
+    });
 
     async function initSearch() {
       try {
@@ -890,11 +913,9 @@ export default function Scanner() {
         
         let extractedText = '';
         try {
-          const Tesseract = await loadTesseract();
-          const worker = await Tesseract.createWorker('eng');
+          const worker = await getTesseractWorker();
           const { data: { text } } = await worker.recognize(`data:image/jpeg;base64,${finalBase64}`);
           extractedText = text;
-          await worker.terminate();
         } catch (tessErr) {
           console.error("Local Tesseract OCR failed:", tessErr);
           throw new Error("Local OCR Engine failed. Please verify internet connection or toggle settings.");
