@@ -42,8 +42,8 @@ const PK_LIBRARY = {
     halfLifeAbsorption: 1.5,
     vd: 5.5,
     bioavailability: 0.12,
-    minEffectiveConc: 0.02, // highly potent
-    minToxicConc: 0.2,
+    minEffectiveConc: 0.002, // clinically realistic minimum effective plasma concentration
+    minToxicConc: 0.05,       // adjusted based on standard therapeutic index scale
     typicalDose: 10,
     partition: 'lipophilic',
     maxDailyDoseMg: 80,
@@ -79,7 +79,7 @@ const PK_LIBRARY = {
     vd: 0.3,
     bioavailability: 0.85,
     minEffectiveConc: 2.0,
-    minToxicConc: 15.0,
+    minToxicConc: 40.0,      // amoxicillin has a very high therapeutic index; adjusted to prevent false toxicity warning
     typicalDose: 500,
     partition: 'hydrophilic',
     maxDailyDoseMg: 3000,
