@@ -159,8 +159,8 @@ STRICT RULES — violating any rule means the product must be excluded:
 3. If a brand name sounds similar but contains a different salt — EXCLUDE IT.
 4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
 5. EACH item must be from a DIFFERENT manufacturer.
+6. The "brand" field MUST contain ONLY the clean, official manufacturer name (e.g. "GlaxoSmithKline", "Cipla", "Sun Pharma"). Do NOT include any explanations, justifications, meta-reasoning, or "for this example" comments. It must be a short name.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
-Manufacturers: Cipla, Sun Pharma, Dr Reddy's, Lupin, Mankind, Alkem, Intas, Zydus, Abbott India, Torrent, Glenmark, Micro Labs, FDC, Macleods, Aristo, Cadila, Hetero, Alembic, Ipca.
 JSON array only, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }

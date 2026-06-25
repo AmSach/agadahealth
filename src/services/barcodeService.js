@@ -17,11 +17,14 @@ async function getZXing() {
   return ZXing
 }
 
-export async function readBarcode(file) {
+export async function readBarcode(fileOrString) {
+  if (typeof fileOrString === 'string') {
+    return parseAll(fileOrString.trim())
+  }
   try {
     const { BrowserMultiFormatReader } = await getZXing()
     const reader = new BrowserMultiFormatReader()
-    const url = URL.createObjectURL(file)
+    const url = URL.createObjectURL(fileOrString)
     try {
       const result = await reader.decodeFromImageUrl(url)
       if (!result?.text) return null
@@ -32,9 +35,48 @@ export async function readBarcode(file) {
   } catch { return null }
 }
 
+export async function decodeBarcodeFromCanvas(canvas) {
+  try {
+    const { BrowserMultiFormatReader } = await getZXing()
+    const reader = new BrowserMultiFormatReader()
+    const result = await reader.decodeFromCanvas(canvas)
+    return result?.text || null
+  } catch {
+    return null
+  }
+}
+
+function parseEmergencyQR(raw) {
+  if (!raw.includes('AGADA EMERGENCY MEDICAL ID')) return null
+  const result = { isEmergencyCard: true }
+  
+  for (const line of raw.split('\n')) {
+    const cleanLine = line.trim()
+    if (cleanLine.startsWith('Patient:')) {
+      result.name = cleanLine.slice(8).trim()
+    } else if (cleanLine.startsWith('Blood Group:')) {
+      result.bloodGroup = cleanLine.slice(12).trim()
+    } else if (cleanLine.startsWith('Allergies:')) {
+      result.allergies = cleanLine.slice(10).trim()
+    } else if (cleanLine.startsWith('Chronic Conditions:')) {
+      result.chronicConditions = cleanLine.slice(19).trim()
+    } else if (cleanLine.startsWith('Emergency Contact:')) {
+      const contactVal = cleanLine.slice(18).trim()
+      const phoneMatch = contactVal.match(/\((.+?)\)/)
+      if (phoneMatch) {
+        result.emergencyPhone = phoneMatch[1].trim()
+        result.emergencyName = contactVal.replace(phoneMatch[0], '').trim()
+      } else {
+        result.emergencyName = contactVal
+      }
+    }
+  }
+  return result
+}
+
 function parseAll(raw) {
   if (!raw) return null
-  const parsed = parseGS1(raw) || parsePipeText(raw) || parseKVText(raw) || parseURLQR(raw)
+  const parsed = parseEmergencyQR(raw) || parseGS1(raw) || parsePipeText(raw) || parseKVText(raw) || parseURLQR(raw)
   if (!parsed || !Object.keys(parsed).length) return null
   if (parsed.expiryDate) parsed.isExpired = isExpired(parsed.expiryDate)
   if (parsed.saltFromQR) {

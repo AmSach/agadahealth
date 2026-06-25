@@ -28,25 +28,25 @@ export default function HealthCard({ profile, onSaveProfile }) {
   }, [profile]);
 
   useEffect(() => {
-    // Generate emergency QR payload (JSON subset for quick emergency scans)
-    const qrPayload = JSON.stringify({
-      n: formData.name,
-      b: formData.bloodGroup,
-      a: formData.allergies,
-      c: formData.chronicConditions,
-      en: formData.emergencyName,
-      ep: formData.emergencyPhone,
-      app: "Agada Medicine OS"
-    });
+    // Generate emergency QR payload (Formatted plain-text for universal scanner readability)
+    const qrPayload = `--- AGADA EMERGENCY MEDICAL ID ---
+Patient: ${formData.name || 'Not Specified'}
+Blood Group: ${formData.bloodGroup || 'N/A'}
+Allergies: ${formData.allergies || 'None Logged'}
+Chronic Conditions: ${formData.chronicConditions || 'None Logged'}
+Emergency Contact: ${formData.emergencyName || 'Not Set'} ${formData.emergencyPhone ? `(${formData.emergencyPhone})` : ''}
+---------------------------------
+Zero-Knowledge Offline Medical Pass`;
 
     QRCode.toDataURL(
       qrPayload,
       {
-        errorCorrectionLevel: 'M',
-        margin: 2,
+        errorCorrectionLevel: 'H',
+        margin: 4,
+        width: 300,
         color: {
-          dark: '#1e293b', // slate-800
-          light: '#f8fafc' // slate-50
+          dark: '#000000', // pure black
+          light: '#ffffff' // pure white
         }
       },
       (err, url) => {
@@ -82,62 +82,91 @@ export default function HealthCard({ profile, onSaveProfile }) {
         <p className="card-subtitle">Offline scannable card for doctors & first responders</p>
       </div>
 
-      <div className="health-card-body">
+      <div className="health-card-body" style={{ animation: 'fadeUp 0.4s ease' }}>
         {!isEditing ? (
-          <div className="glass-card health-display-card">
-            <div className="card-top-accent"></div>
-            <div className="health-card-main-info">
-              <div className="info-row name-section">
-                <span className="info-label">PATIENT NAME</span>
-                <span className="info-val highlight-text">{formData.name || 'Not Set'}</span>
-              </div>
-              <div className="info-grid">
-                <div className="info-cell">
-                  <span className="info-label">BLOOD GROUP</span>
-                  <span className="info-val blood-badge">{formData.bloodGroup || 'N/A'}</span>
-                </div>
-                <div className="info-cell">
-                  <span className="info-label">ALLERGIES</span>
-                  <span className="info-val alert-badge">{formData.allergies || 'None Logged'}</span>
-                </div>
-              </div>
-              
-              <div className="info-row">
-                <span className="info-label">CHRONIC CONDITIONS</span>
-                <span className="info-val">{formData.chronicConditions || 'None Logged'}</span>
+          <div>
+            <div className="emergency-wallet-card">
+              <div className="wallet-card-overlay"></div>
+              <div className="wallet-header">
+                <span className="wallet-logo">
+                  <span className="wallet-logo-icon"></span>
+                  MEDICAL EMERGENCY CARD
+                </span>
+                <span className="wallet-type">OFFLINE VAULT</span>
               </div>
 
-              <div className="emergency-contact-box">
-                <span className="info-label">EMERGENCY CONTACT</span>
-                <div className="contact-details">
-                  <span className="contact-name">{formData.emergencyName || 'None'}</span>
-                  <span className="contact-phone">{formData.emergencyPhone || ''}</span>
+              <div className="wallet-body">
+                <div className="wallet-info-side">
+                  <div className="wallet-field">
+                    <span className="wallet-label">PATIENT NAME</span>
+                    <span className="wallet-value highlight">{formData.name || 'NOT SET'}</span>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="wallet-field">
+                      <span className="wallet-label">BLOOD TYPE</span>
+                      <div>
+                        <span className="wallet-blood-badge">{formData.bloodGroup || 'N/A'}</span>
+                      </div>
+                    </div>
+                    <div className="wallet-field">
+                      <span className="wallet-label">ALLERGIES</span>
+                      <div>
+                        <span className="wallet-allergies-badge" style={{ backgroundColor: formData.allergies ? '#E11D48' : '#64748B' }}>
+                          {formData.allergies || 'None Logged'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="wallet-field">
+                    <span className="wallet-label">CHRONIC CONDITIONS</span>
+                    <span className="wallet-value" style={{ fontSize: '12.5px' }}>{formData.chronicConditions || 'None Logged'}</span>
+                  </div>
                 </div>
+
+                <div className="wallet-qr-side">
+                  {qrUrl ? (
+                    <div className="wallet-qr-box" onClick={() => setShowQrModal(true)}>
+                      <img src={qrUrl} alt="Emergency QR Code" className="wallet-qr-img" />
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Generating QR...</div>
+                  )}
+                  <span className="wallet-qr-caption">🔍 Tap to expand</span>
+                </div>
+              </div>
+
+              <div className="wallet-footer">
+                <div className="wallet-field">
+                  <span className="wallet-label">EMERGENCY CONTACT</span>
+                  <span className="wallet-contact-name">{formData.emergencyName || 'NOT SET'}</span>
+                </div>
+                {formData.emergencyPhone && (
+                  <div className="wallet-field" style={{ alignItems: 'flex-end' }}>
+                    <span className="wallet-label">CALL PHONE</span>
+                    <span className="wallet-contact-phone">{formData.emergencyPhone}</span>
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="health-card-qr-side">
-              {qrUrl ? (
-                <div className="qr-preview-box" onClick={() => setShowQrModal(true)}>
-                  <img src={qrUrl} alt="Emergency QR Code" className="qr-img" />
-                  <span className="qr-caption">🔍 Tap to enlarge</span>
-                </div>
-              ) : (
-                <div className="qr-loading">Generating Offline QR...</div>
-              )}
-            </div>
-
-            <div className="card-action-bar">
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
               <button className="btn-secondary" onClick={() => setIsEditing(true)}>
-                ✏️ Edit Profile Card
+                ✏️ Edit Emergency Card
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="health-card-form glass-card">
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--navy)', marginBottom: '4px' }}>
+              ✏️ Edit Emergency Profile Card
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '10px' }}>
+              All medical information is saved privately on your device.
+            </p>
             <div className="form-grid">
               <div className="form-group">
-                <label htmlFor="card-name">Full Name</label>
+                <label htmlFor="card-name">👤 Full Name</label>
                 <input
                   id="card-name"
                   type="text"
@@ -150,7 +179,7 @@ export default function HealthCard({ profile, onSaveProfile }) {
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-blood">Blood Group</label>
+                <label htmlFor="card-blood">🩸 Blood Group</label>
                 <select
                   id="card-blood"
                   name="bloodGroup"
@@ -170,7 +199,7 @@ export default function HealthCard({ profile, onSaveProfile }) {
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-allergies">Allergies</label>
+                <label htmlFor="card-allergies">⚠️ Allergies (medications or foods)</label>
                 <input
                   id="card-allergies"
                   type="text"
@@ -182,19 +211,19 @@ export default function HealthCard({ profile, onSaveProfile }) {
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-chronic">Chronic Conditions</label>
+                <label htmlFor="card-chronic">🩺 Chronic Conditions</label>
                 <input
                   id="card-chronic"
                   type="text"
                   name="chronicConditions"
                   value={formData.chronicConditions}
                   onChange={handleInputChange}
-                  placeholder="e.g. Hypertension, Diabetes"
+                  placeholder="e.g. Asthma, Diabetes"
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-em-name">Emergency Contact Name</label>
+                <label htmlFor="card-em-name">📞 Emergency Contact Name</label>
                 <input
                   id="card-em-name"
                   type="text"
@@ -206,7 +235,7 @@ export default function HealthCard({ profile, onSaveProfile }) {
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-em-phone">Emergency Phone</label>
+                <label htmlFor="card-em-phone">📱 Emergency Phone</label>
                 <input
                   id="card-em-phone"
                   type="tel"
@@ -229,18 +258,44 @@ export default function HealthCard({ profile, onSaveProfile }) {
       {showQrModal && (
         <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
           <div className="modal-content qr-large-modal" onClick={e => e.stopPropagation()}>
-            <h4>Medical Emergency QR Card</h4>
-            <p>Scan in case of emergency for blood group, allergies, and contact info.</p>
-            <div className="large-qr-wrapper">
-              <img src={qrUrl} alt="Emergency QR Code" />
+            <h4 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--navy)', marginBottom: '8px' }}>
+              🚨 Emergency Responder QR Card
+            </h4>
+            <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '16px' }}>
+              First responders can scan this to read your critical medical profiles offline.
+            </p>
+            <div className="large-qr-wrapper" style={{ 
+              boxShadow: 'var(--shadowmd)',
+              background: '#ffffff',
+              padding: '16px',
+              borderRadius: '16px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '0 auto 16px',
+              width: '260px',
+              height: '260px'
+            }}>
+              <img 
+                src={qrUrl} 
+                alt="Emergency QR Code" 
+                style={{ 
+                  display: 'block', 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'contain',
+                  imageRendering: 'pixelated'
+                }} 
+              />
             </div>
-            <div className="qr-card-data-summary">
-              <p><strong>Name:</strong> {formData.name || 'N/A'}</p>
-              <p><strong>Blood Group:</strong> {formData.bloodGroup || 'N/A'}</p>
-              <p><strong>Allergies:</strong> {formData.allergies || 'None logged'}</p>
-              <p><strong>Emergency Contact:</strong> {formData.emergencyName} ({formData.emergencyPhone})</p>
+            <div className="qr-card-data-summary" style={{ boxShadow: 'var(--shadow)' }}>
+              <p><strong>👤 Name:</strong> {formData.name || 'N/A'}</p>
+              <p><strong>🩸 Blood Group:</strong> {formData.bloodGroup || 'N/A'}</p>
+              <p><strong>⚠️ Allergies:</strong> {formData.allergies || 'None logged'}</p>
+              <p><strong>🩺 Conditions:</strong> {formData.chronicConditions || 'None logged'}</p>
+              <p><strong>📞 Emergency Contact:</strong> {formData.emergencyName} ({formData.emergencyPhone})</p>
             </div>
-            <button className="btn-primary" onClick={() => setShowQrModal(false)}>Close</button>
+            <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowQrModal(false)}>Close</button>
           </div>
         </div>
       )}

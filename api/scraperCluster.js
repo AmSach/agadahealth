@@ -203,6 +203,43 @@ async function scrapeDavaIndia(q, timeoutMs = 4000) {
 }
 
 /**
+ * Scrapes 1mg (High reliability e-pharmacy API)
+ */
+async function scrape1mg(q, timeoutMs = 4000) {
+  const url = `https://www.1mg.com/pharmacy_api_gateway/v4/drugs/search_by_name?name=${encodeURIComponent(q)}&per_page=10&page=1`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': USER_AGENTS[0]
+      },
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const records = data?.data?.attributes?.records || data?.records || data?.data || [];
+    if (!Array.isArray(records)) return [];
+
+    return records.map(r => {
+      const mrp = parseFloat(r.mrp || r.price) || 0;
+      const packSize = r.pack_size_label || r.pack_size || '10 tablets';
+      return {
+        name: r.name,
+        brand: '1mg Brand',
+        mrp,
+        packSize,
+        url: r.slug ? `https://www.1mg.com/drugs/${r.slug}` : null,
+        source: '1mg'
+      };
+    }).filter(p => p.mrp > 0);
+  } catch (err) {
+    console.error("1mg API fetch failed:", err.message);
+  }
+  return [];
+}
+
+/**
  * Co-ordinates parallel scraping and returns unified list
  */
 export async function scrapeMarketPrices(q) {
@@ -212,7 +249,8 @@ export async function scrapeMarketPrices(q) {
   const results = await Promise.allSettled([
     scrapeDavaIndia(q, 3000),
     scrapeApollo(q, 3500),
-    scrapeNetmeds(q, 3500)
+    scrapeNetmeds(q, 3500),
+    scrape1mg(q, 3500)
   ]);
 
   const allProducts = [];

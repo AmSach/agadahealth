@@ -600,9 +600,20 @@ export default function Scanner() {
     }
   };
 
-  // Unified Scanner backend analysis coordinator
   const startAnalysis = useCallback(async (finalBase64, barcodeData) => {
     try {
+      if (barcodeData && barcodeData.isEmergencyCard) {
+        setStep(3)
+        const mockResult = {
+          isEmergencyCard: true,
+          emergencyProfile: barcodeData,
+          preview: `data:image/jpeg;base64,${finalBase64}`
+        }
+        setResults(mockResult)
+        setView(VIEWS.RESULTS)
+        return
+      }
+
       if (!useAsyncQueue) {
         // Fallback to synchronous OCR handler
         let res
@@ -706,8 +717,19 @@ export default function Scanner() {
     }
   }, [scanMode, useAsyncQueue])
 
+// Base64 helper to convert camera capture to Blob for QR/barcode scanner
+function base64ToBlob(base64, mime = 'image/jpeg') {
+  const byteString = atob(base64)
+  const ab = new ArrayBuffer(byteString.length)
+  const ia = new Uint8Array(ab)
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i)
+  }
+  return new Blob([ab], { type: mime })
+}
+
   // Handle image capture from live WebRTC stream
-  const handleCapturedFrame = useCallback(async (base64) => {
+  const handleCapturedFrame = useCallback(async (base64, directBarcodeText = null) => {
     setView(VIEWS.LOADING)
     setError(null)
     setStep(1)
@@ -717,7 +739,22 @@ export default function Scanner() {
     setActiveStepId(null)
     setPreview(`data:image/jpeg;base64,${base64}`)
     
-    await startAnalysis(base64, null)
+    let barcodeData = null
+    if (directBarcodeText) {
+      console.log("Using direct barcode text from camera stream:", directBarcodeText)
+      barcodeData = await readBarcode(directBarcodeText)
+    } else {
+      try {
+        const blob = base64ToBlob(base64)
+        barcodeData = await readBarcode(blob)
+      } catch (e) {
+        console.error("Barcode reading error from captured frame:", e)
+      }
+    }
+    
+    if (barcodeData) setBarcodeHit(true)
+    
+    await startAnalysis(base64, barcodeData)
   }, [startAnalysis])
 
   // Handle standard file selection
@@ -896,7 +933,9 @@ export default function Scanner() {
         />
       )}
       {view === VIEWS.RESULTS && (
-        results?.isPrescription ? (
+        results?.isEmergencyCard ? (
+          <EmergencyCardResultView results={results} onReset={reset} t={t} />
+        ) : results?.isPrescription ? (
           <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
         ) : (
           <ResultsPanel 
@@ -918,6 +957,159 @@ export default function Scanner() {
   )
 }
 
+function FAQItem({ question, answer }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div style={{ border: '1.5px solid var(--border)', borderRadius: 10, background: '#fff', overflow: 'hidden', marginBottom: 8, boxShadow: 'var(--shadow)' }}>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'none',
+          padding: '10px 12px',
+          fontSize: '12.5px',
+          fontWeight: 700,
+          color: 'var(--navy)',
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span>{question}</span>
+        <span style={{ fontSize: 10, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+      </button>
+      {isOpen && (
+        <div style={{ padding: '10px 12px', fontSize: '11.5px', color: 'var(--textmd)', borderTop: '1.5px solid var(--border)', background: 'var(--bgsoft)', lineHeight: 1.5 }}>
+          {answer}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmergencyCardResultView({ results, onReset, t }) {
+  const profile = results.emergencyProfile || {};
+  return (
+    <div style={{ padding: '20px', maxWidth: '480px', margin: '0 auto', animation: 'fadeUp 0.4s ease' }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #E11D48 0%, #9F1239 100%)',
+        color: '#fff',
+        borderRadius: '20px 20px 0 0',
+        padding: '24px 20px',
+        textAlign: 'center',
+        boxShadow: 'var(--shadowmd)'
+      }}>
+        <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚨</div>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '0.05em', margin: 0 }}>EMERGENCY MEDICAL ID</h2>
+        <p style={{ fontSize: '11px', opacity: 0.85, margin: '4px 0 0' }}>DECODED OFFLINE VIA AGADA SECURE SCANNER</p>
+      </div>
+
+      <div style={{
+        background: '#fff',
+        border: '1.5px solid var(--border)',
+        borderTop: 'none',
+        borderRadius: '0 0 20px 20px',
+        padding: '20px',
+        boxShadow: 'var(--shadowmd)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        {/* Patient Name */}
+        <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', textAlign: 'left' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PATIENT NAME</span>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--navy)', marginTop: '2px' }}>{profile.name || 'Not Specified'}</div>
+        </div>
+
+        {/* Blood Group & Allergies */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', textAlign: 'left' }}>
+          <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase' }}>BLOOD GROUP</span>
+            <div>
+              <span style={{
+                background: 'var(--red)',
+                color: '#fff',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontWeight: 800,
+                fontSize: '14px',
+                display: 'inline-block'
+              }}>{profile.bloodGroup || 'N/A'}</span>
+            </div>
+          </div>
+
+          <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase' }}>ALLERGIES</span>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              color: profile.allergies && profile.allergies.toLowerCase() !== 'none' && profile.allergies.toLowerCase() !== 'none logged' ? 'var(--red)' : 'var(--textlt)'
+            }}>{profile.allergies || 'None Logged'}</div>
+          </div>
+        </div>
+
+        {/* Chronic Conditions */}
+        <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '14px', textAlign: 'left' }}>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>CHRONIC CONDITIONS</span>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.4 }}>{profile.chronicConditions || 'None Logged'}</div>
+        </div>
+
+        {/* Emergency Contact */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EMERGENCY CONTACT</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--navy)' }}>{profile.emergencyName || 'Not Specified'}</div>
+              <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--green)', marginTop: '2px' }}>{profile.emergencyPhone || 'N/A'}</div>
+            </div>
+            {profile.emergencyPhone && (
+              <a 
+                href={`tel:${profile.emergencyPhone.replace(/\s+/g, '')}`} 
+                style={{
+                  background: 'var(--green)',
+                  color: '#fff',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  boxShadow: 'var(--shadow)'
+                }}
+              >
+                📞
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <button 
+          onClick={onReset}
+          style={{
+            marginTop: '8px',
+            width: '100%',
+            height: '44px',
+            background: 'var(--navy)',
+            color: '#fff',
+            borderRadius: '12px',
+            fontSize: '14px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow)'
+          }}
+        >
+          🏥 Return to Scanner
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function HomeView({ 
   t, setPage, bookmarks, handleSelectBookmark, handleDeleteBookmark, onCamera, onUpload,
   wasmEnabled, setWasmEnabled, wasmFilter, setWasmFilter, useAsyncQueue, setUseAsyncQueue,
@@ -933,6 +1125,8 @@ function HomeView({
   handleToggleNotification, handleUpdatePillCount, handleUpdateReminderTime, handleToggleAdherence,
   handleAddProfile, handleDeleteProfile
 }) {
+  const [showPrivacySchool, setShowPrivacySchool] = useState(false)
+  const [schoolTab, setSchoolTab] = useState('diary')
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
 
@@ -1166,17 +1360,20 @@ function HomeView({
         </h3>
         
         {/* WASM Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={wasmEnabled} onChange={e => setWasmEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-              Client WASM Pre-processing
+              📸 Smart Camera Enhancer
             </label>
-            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>WASM</span>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>WASM (LOCAL)</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
+            Runs image filters directly on your device to clean up blurry medicine labels. Your photos are never uploaded or sent to the cloud.
           </div>
           {wasmEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22 }}>
-              <span style={{ fontSize: 11, color: 'var(--textlt)' }}>Filter Mode:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22, marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--textlt)', fontWeight: 600 }}>Filter Mode:</span>
               <select value={wasmFilter} onChange={e => setWasmFilter(parseInt(e.target.value))} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--navy)', background: '#fff', fontWeight: 600 }}>
                 <option value={1}>Adaptive Binarization</option>
                 <option value={2}>Sobel Edge Detection</option>
@@ -1187,51 +1384,498 @@ function HomeView({
         </div>
         
         {/* Async Stream Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-          <label style={{ fontSize: 13, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-            <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-            Async Background Worker Stream
-          </label>
-          <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>SSE</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
+              ⚡ Fast Analysis Mode
+            </label>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>ASYNC STREAM</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
+            Streams medicine scans in the background so you can continue scanning without freeze screens or lag.
+          </div>
         </div>
 
         {/* ZK Vault Toggle / Control */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔒 Zero-Knowledge Storage
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              🔒 Private Local Lock (PIN)
             </span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: vaultPin ? 'var(--greenlt)' : 'var(--bgsoft)', color: vaultPin ? 'var(--green)' : 'var(--textlt)' }}>
-              {vaultPin ? 'ENCRYPTED' : 'UNENCRYPTED'}
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: vaultPin ? 'var(--greenlt)' : 'var(--bgsoft)', color: vaultPin ? 'var(--green)' : 'var(--textlt)' }}>
+              {vaultPin ? 'SECURED (AES-256)' : 'UNLOCKED (PLAIN)'}
             </span>
           </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.4 }}>
+            Scrambles your saved medicine history under military-grade math encryption. Access it only using your 4-digit PIN.
+          </div>
 
-          <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
             {!vaultPin ? (
-              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, background: 'var(--greenlt)', color: 'var(--green)', fontWeight: 600 }}>
-                Set Vault PIN
+              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--greenlt)', color: 'var(--green)', fontWeight: 700 }}>
+                🔑 Setup Lock PIN
               </button>
             ) : (
               <>
-                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--navy)', fontWeight: 600 }}>
-                  Lock Vault
+                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--navy)', fontWeight: 700 }}>
+                  🔒 Lock History Now
                 </button>
-                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, background: 'var(--redlt)', color: 'var(--red)', fontWeight: 600 }}>
-                  Disable Encryption
+                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--redlt)', color: 'var(--red)', fontWeight: 700 }}>
+                  🔓 Remove PIN Lock
                 </button>
               </>
             )}
           </div>
 
           {showPinSetup && (
-            <div style={{ padding: '8px 8px 8px 22px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.25s' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--navy)' }}>Set a 4-Digit Security PIN:</div>
+            <div style={{ margin: '8px 0 0 22px', padding: '10px', border: '1.5px solid var(--border)', borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.25s' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--navy)' }}>Create a 4-Digit Security PIN:</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input type="password" maxLength={4} pattern="\d*" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,''))} placeholder="1234" style={{ width: 80, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--bordermd)', fontSize: 12, textAlign: 'center', letterSpacing: '0.2em' }} />
-                <button onClick={() => handleSetupPin(newPin)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: 'var(--green)', color: '#fff', fontWeight: 600 }}>Save</button>
-                <button onClick={() => { setShowPinSetup(false); setNewPin(''); setPinError('') }} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: '#fff', border: '1px solid var(--border)', color: 'var(--textlt)' }}>Cancel</button>
+                <input type="password" maxLength={4} pattern="\d*" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,''))} placeholder="1234" style={{ width: 80, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bordermd)', fontSize: 12, textAlign: 'center', letterSpacing: '0.2em' }} />
+                <button onClick={() => handleSetupPin(newPin)} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: 'var(--green)', color: '#fff', fontWeight: 700 }}>Save</button>
+                <button onClick={() => { setShowPinSetup(false); setNewPin(''); setPinError('') }} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: '#fff', border: '1px solid var(--border)', color: 'var(--textlt)' }}>Cancel</button>
               </div>
-              {pinError && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600 }}>{pinError}</div>}
+              {pinError && <div style={{ fontSize: 10.5, color: 'var(--red)', fontWeight: 700 }}>{pinError}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Interactive Privacy & Security Guide (Privacy School) */}
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+          <button 
+            type="button"
+            onClick={() => setShowPrivacySchool(!showPrivacySchool)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--greenlt)',
+              border: '1.5px solid rgba(13,138,104,0.15)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 800,
+              color: 'var(--greendk)'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🏫 Privacy & Security School</span>
+            <span>{showPrivacySchool ? '▲ Hide Guide' : '▼ Learn How It Works'}</span>
+          </button>
+          
+          {showPrivacySchool && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, animation: 'fadeIn 0.3s ease' }}>
+              <style>{`
+                .scene-container {
+                  position: relative;
+                  width: 140px;
+                  height: 140px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  perspective: 600px;
+                  background: radial-gradient(circle at center, rgba(13,138,104,0.12) 0%, transparent 70%);
+                  border-radius: 12px;
+                  overflow: hidden;
+                  border: 1px solid rgba(13,138,104,0.1);
+                  box-shadow: inset 0 0 10px rgba(13,138,104,0.05);
+                }
+                .diary-scene {
+                  position: relative;
+                  width: 120px;
+                  height: 120px;
+                  transform-style: preserve-3d;
+                  transform: rotateX(25deg) rotateY(-20deg);
+                  animation: floatBook 4s ease-in-out infinite;
+                }
+                .pillow-3d {
+                  position: absolute;
+                  width: 90px;
+                  height: 60px;
+                  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+                  border-radius: 18px 18px 8px 8px;
+                  box-shadow: inset 0 4px 8px rgba(255,255,255,0.7), 0 6px 12px rgba(0,0,0,0.12);
+                  top: 35px;
+                  left: 15px;
+                  transform: translateZ(-15px);
+                }
+                .book-3d {
+                  position: absolute;
+                  width: 55px;
+                  height: 75px;
+                  background: linear-gradient(135deg, #0d8a68 0%, #085e46 100%);
+                  border-radius: 4px 10px 10px 4px;
+                  box-shadow: 2px 4px 10px rgba(0,0,0,0.25);
+                  top: 25px;
+                  left: 32px;
+                  transform-style: preserve-3d;
+                  transform: translateZ(5px) rotateZ(-12deg);
+                  transition: transform 0.3s ease;
+                }
+                .book-3d:hover {
+                  transform: translateZ(20px) rotateZ(-3deg) rotateX(-5deg);
+                }
+                .book-spine-3d {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 5px;
+                  height: 100%;
+                  background: #054030;
+                  border-radius: 3px 0 0 3px;
+                }
+                .book-pages-3d {
+                  position: absolute;
+                  right: 2px;
+                  top: 3px;
+                  width: 6px;
+                  height: calc(100% - 6px);
+                  background: #f8fafc;
+                  border-radius: 0 3px 3px 0;
+                  box-shadow: inset -1px 0 2px rgba(0,0,0,0.15);
+                }
+                .book-bookmark-3d {
+                  position: absolute;
+                  bottom: -5px;
+                  right: 15px;
+                  width: 6px;
+                  height: 12px;
+                  background: #ef4444;
+                  border-radius: 0 0 2px 2px;
+                  transform: rotateZ(-4deg);
+                }
+                .vault-scene {
+                  position: relative;
+                  width: 120px;
+                  height: 120px;
+                  transform-style: preserve-3d;
+                  transform: rotateX(15deg) rotateY(-15deg);
+                  animation: floatSafe 4.5s ease-in-out infinite;
+                }
+                .safe-body-3d {
+                  position: absolute;
+                  width: 80px;
+                  height: 80px;
+                  background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
+                  border-radius: 10px;
+                  box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), 0 8px 16px rgba(0,0,0,0.25);
+                  top: 20px;
+                  left: 20px;
+                  transform-style: preserve-3d;
+                }
+                .safe-door-3d {
+                  position: absolute;
+                  width: 70px;
+                  height: 70px;
+                  background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+                  border-radius: 6px;
+                  top: 5px;
+                  left: 5px;
+                  box-shadow: 0 3px 6px rgba(0,0,0,0.25);
+                  transform: translateZ(6px);
+                  transform-style: preserve-3d;
+                }
+                .safe-dial-3d {
+                  position: absolute;
+                  width: 36px;
+                  height: 36px;
+                  background: radial-gradient(circle at center, #cbd5e1 0%, #475569 80%, #0f172a 100%);
+                  border-radius: 50%;
+                  top: 17px;
+                  left: 17px;
+                  box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+                  transform: translateZ(10px);
+                  transform-style: preserve-3d;
+                  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+                  cursor: pointer;
+                }
+                .safe-dial-3d:hover {
+                  transform: translateZ(14px) rotate(180deg);
+                }
+                .safe-dial-ticks-3d {
+                  position: absolute;
+                  width: 100%;
+                  height: 100%;
+                  border: 2px dashed rgba(255,255,255,0.3);
+                  border-radius: 50%;
+                  box-sizing: border-box;
+                }
+                .safe-dial-handle-3d {
+                  position: absolute;
+                  width: 3px;
+                  height: 12px;
+                  background: #e2e8f0;
+                  top: 3px;
+                  left: 16px;
+                  border-radius: 1.5px;
+                  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+                }
+                .camera-scene {
+                  position: relative;
+                  width: 120px;
+                  height: 120px;
+                  transform-style: preserve-3d;
+                  transform: rotateX(20deg) rotateY(-10deg);
+                }
+                .magnifier-lens-3d {
+                  position: absolute;
+                  width: 50px;
+                  height: 50px;
+                  border: 3.5px solid #94a3b8;
+                  background: radial-gradient(circle at center, rgba(16,185,129,0.15) 0%, rgba(13,138,104,0.05) 50%, rgba(255,255,255,0.15) 100%);
+                  border-radius: 50%;
+                  top: 25px;
+                  left: 25px;
+                  box-shadow: inset 0 0 8px rgba(16,185,129,0.25), 0 6px 12px rgba(0,0,0,0.12);
+                  transform-style: preserve-3d;
+                  transform: translateZ(15px);
+                  animation: hoverLens 3s ease-in-out infinite;
+                  transition: transform 0.3s ease;
+                }
+                .magnifier-lens-3d:hover {
+                  transform: translateZ(28px) scale(1.08);
+                }
+                .magnifier-handle-3d {
+                  position: absolute;
+                  width: 7px;
+                  height: 30px;
+                  background: linear-gradient(to right, #475569, #1e293b);
+                  border-radius: 0 0 3px 3px;
+                  top: 70px;
+                  left: 47px;
+                  transform: rotateZ(-45deg);
+                  box-shadow: 1.5px 1.5px 4px rgba(0,0,0,0.2);
+                }
+                .laser-beam-3d {
+                  position: absolute;
+                  width: 42px;
+                  height: 48px;
+                  background: linear-gradient(to bottom, rgba(16,185,129,0.35) 0%, rgba(16,185,129,0) 100%);
+                  clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
+                  top: 50px;
+                  left: 29px;
+                  transform: translateZ(8px) rotateX(15deg);
+                  animation: pulseBeam 1.5s ease-in-out infinite alternate;
+                  pointer-events: none;
+                }
+                @keyframes floatBook {
+                  0%, 100% { transform: rotateX(25deg) rotateY(-20deg) translateY(0); }
+                  50% { transform: rotateX(20deg) rotateY(-15deg) translateY(-6px); }
+                }
+                @keyframes floatSafe {
+                  0%, 100% { transform: rotateX(15deg) rotateY(-15deg) translateY(0); }
+                  50% { transform: rotateX(18deg) rotateY(-10deg) translateY(-5px); }
+                }
+                @keyframes hoverLens {
+                  0%, 100% { transform: translateZ(15px) translateY(0) rotateX(0); }
+                  50% { transform: translateZ(22px) translateY(-5px) rotateX(-4deg); }
+                }
+                @keyframes pulseBeam {
+                  0% { opacity: 0.25; transform: translateZ(8px) rotateX(15deg) scaleX(0.92); }
+                  100% { opacity: 0.7; transform: translateZ(8px) rotateX(15deg) scaleX(1.08); }
+                }
+              `}</style>
+
+              <div style={{ fontSize: 11.5, color: 'var(--greendk)', lineHeight: 1.5, background: 'var(--greenlt)', padding: 12, borderRadius: 8, fontWeight: 600 }}>
+                🛡️ <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
+              </div>
+
+              {/* Tab Selector */}
+              <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                {[
+                  { id: 'diary', label: '📓 Local Diary', sub: 'Data Location' },
+                  { id: 'vault', label: '🔑 Secret Vault', sub: 'PIN Encryption' },
+                  { id: 'camera', label: '🔍 Magnifying Glass', sub: 'On-Device Vision' }
+                ].map(tab => {
+                  const active = schoolTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSchoolTab(tab.id)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 4px',
+                        borderRadius: 8,
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        border: active ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                        background: active ? 'var(--greenlt)' : '#fff',
+                        color: active ? 'var(--greendk)' : 'var(--textmd)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.15s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 2
+                      }}
+                    >
+                      <span style={{ fontSize: '11px' }}>{tab.label}</span>
+                      <span style={{ fontSize: '9px', fontWeight: 500, opacity: 0.75 }}>{tab.sub}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Tab Content */}
+              <div style={{ background: 'var(--bgsoft)', border: '1.5px solid var(--border)', borderRadius: 12, padding: 14 }}>
+                {schoolTab === 'diary' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          Most health apps send your scanned prescriptions, symptom logs, and medication searches to cloud databases, where they can be leaked, hacked, or sold to insurance companies.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>📓 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Private Notebook Under Your Pillow</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
+                          Think of Agada like writing in a physical paper diary and hiding it under your mattress. We do not have user accounts, profile registers, or database servers in the cloud. Your scans, family profiles, and alarm times remain strictly inside your phone.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>Isolated Sandbox:</strong> Health records are stored locally using the browser's sandbox <code>localStorage</code> and <code>IndexedDB</code> key-value caches.<br />
+                          - <strong>Zero-Server Architecture:</strong> The application is fully serverless. All search lookups run in a local off-thread Web Worker.<br />
+                          - <strong>Permanent Shredding:</strong> Because there is no database server, deleting your browser cache or cookies permanently shreds and deletes your records.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green)' }}>🟢 LIVE SECURITY AUDIT:</span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          Local Database active. Saved scans: {bookmarks ? bookmarks.length : 0} | Cabinet items: {cabinet ? cabinet.length : 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container">
+                        <div className="diary-scene">
+                          <div className="pillow-3d"></div>
+                          <div className="book-3d">
+                            <div className="book-spine-3d"></div>
+                            <div className="book-pages-3d"></div>
+                            <div className="book-bookmark-3d"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {schoolTab === 'vault' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          If someone gains access to your unlocked phone, they can open this page and inspect all your confidential medical history, prescriptions, and symptoms.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔑 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Secret Cipher Steel Safe</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
+                          Setting a PIN puts your health history in an unbreakable digital safe. We scramble your saved list into random gibberish. Only typing your secret PIN unlocks and decrypts the data.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>PBKDF2 Key Derivation:</strong> Your 4-digit PIN is stretched 100,000 times using a cryptographically secure 16-byte random salt and the HMAC-SHA-256 algorithm to generate a strong 256-bit key.<br />
+                          - <strong>AES-GCM Authenticated Encryption:</strong> Data is encrypted client-side using the Web Crypto API's hardware-accelerated AES-GCM 256-bit cipher before storage.<br />
+                          - <strong>Zero-Knowledge:</strong> The PIN is never saved. If lost, your key is permanently gone—no backdoor reset exists.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: vaultPin ? 'var(--green)' : 'var(--orange)' }}>
+                          {vaultPin ? '🔒 VAULT ACTIVE:' : '🔓 UNSECURED:'}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          {vaultPin ? 'Your history is encrypted on-device with AES-256.' : 'No PIN lock is set. History is stored in plain text.'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container">
+                        <div className="vault-scene">
+                          <div className="safe-body-3d">
+                            <div className="safe-door-3d">
+                              <div className="safe-dial-3d">
+                                <div className="safe-dial-ticks-3d"></div>
+                                <div className="safe-dial-handle-3d"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {schoolTab === 'camera' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          Most photo-enhancing scanner apps upload your raw photos and video streams to cloud server farms for pre-processing, exposing your camera feed.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
+                          Instead of uploading photos, Agada runs a digital 'magnifying glass' directly inside your browser. It sharpens, cleans, and binarizes blurry medicine strips offline.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>WebAssembly (Wasm) Engine:</strong> Image filters are compiled to a binary file and loaded dynamically in the browser sandbox.<br />
+                          - <strong>Real-time Computer Vision:</strong> Runs Adaptive Binarization (adaptive thresholding) and Sobel edge detection in a separate background Web Worker thread.<br />
+                          - <strong>WebRTC Stream Analysis:</strong> Auto-capture is triggered only when the focus metric reaches a high threshold, filtering out blurry frames locally.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: wasmEnabled ? 'var(--green)' : 'var(--textlt)' }}>
+                          {wasmEnabled ? '🟢 WASM ACTIVE:' : '⚪ WASM OFF:'}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          {wasmEnabled ? 'Camera frames pre-processed locally in WebAssembly.' : 'WASM enhancer is disabled. Using raw capture fallback.'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container">
+                        <div className="camera-scene">
+                          <div className="laser-beam-3d"></div>
+                          <div className="magnifier-lens-3d"></div>
+                          <div className="magnifier-handle-3d"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1404,105 +2048,208 @@ function HomeView({
 
           {/* Dashboard Navigation Tabs */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet & Stock</button>
-            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>📅 Alarms & Adherence</button>
-            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Health Card</button>
-            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Symptoms & ADR</button>
+            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet</button>
+            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>⏰ Daily Schedule</button>
+            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Medical ID</button>
+            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Track Symptoms</button>
           </div>
 
           {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
             <div>
-              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 10 }}>Active Cabinet Inventory</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                💊 {t.cabinetTitle || 'My Medicine Cabinet'}
+              </h4>
               {cabinet.length === 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
-                  No medicines in cabinet. Add from search autocomplete or check bookmark boxes above to add scans to this user's cabinet.
+                <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6 }}>
+                  Your medicine cabinet is empty. Once you scan a medicine or search for one, you can save it here to keep track of remaining pills and safety alerts.
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                  {cabinet.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'var(--bgsoft)', borderRadius: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{item.brandName}</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{item.saltComposition}</div>
-                        </div>
-                        <button onClick={(e) => toggleCabinetItem(item, e)} style={{ fontSize: 16, color: 'var(--red)', fontWeight: 800 }}>×</button>
-                      </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                  {cabinet.map((item, idx) => {
+                    const maxPills = 30;
+                    const stockPct = Math.min(100, Math.max(0, ((item.pillCount || 0) / maxPills) * 100));
+                    const isLowStock = (item.pillCount || 0) <= 5;
+                    const barColor = isLowStock ? 'var(--red)' : 'var(--green)';
 
-                      {/* Stock & Notifications control row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderTop: '1px dashed var(--border)', paddingTop: 6, marginTop: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 11, color: 'var(--textmd)', fontWeight: 600 }}>Stock:</span>
-                          <span style={{ 
-                            fontSize: 11, 
-                            fontWeight: 700, 
-                            color: (item.pillCount || 0) <= 5 ? 'var(--red)' : 'var(--navy)',
-                            background: (item.pillCount || 0) <= 5 ? 'var(--redlt)' : 'transparent',
-                            padding: '1px 5px',
-                            borderRadius: 4
-                          }}>
-                            {item.pillCount || 0} pills {(item.pillCount || 0) <= 5 && '⚠️ Low stock!'}
-                          </span>
-                          <button onClick={() => handleUpdatePillCount(item, -1)} style={{ fontSize: 11, padding: '2px 6px', background: '#fff', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 800 }}>-1</button>
-                          <button onClick={() => handleUpdatePillCount(item, 30)} style={{ fontSize: 11, padding: '2px 6px', background: '#fff', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 800 }}>+30</button>
+                    return (
+                      <div key={idx} style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: 8, 
+                        padding: '14px 16px', 
+                        background: 'var(--bgcard)', 
+                        border: '1.5px solid var(--border)', 
+                        borderRadius: 16,
+                        boxShadow: 'var(--shadow)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--navy)' }}>{item.brandName}</div>
+                            <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginTop: 2 }}>{item.saltComposition}</div>
+                          </div>
+                          <button 
+                            onClick={(e) => toggleCabinetItem(item, e)} 
+                            style={{ 
+                              width: 24, 
+                              height: 24, 
+                              borderRadius: '50%', 
+                              background: 'var(--redlt)', 
+                              color: 'var(--red)', 
+                              fontWeight: 800, 
+                              fontSize: 13, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              cursor: 'pointer' 
+                            }}
+                          >
+                            ×
+                          </button>
                         </div>
 
-                        <label style={{ fontSize: 11, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={!!item.notificationsEnabled} 
-                            onChange={() => handleToggleNotification(item)}
-                            style={{ accentColor: 'var(--green)' }} 
-                          />
-                          🔔 Alerts
-                        </label>
+                        {/* Visual stock progress meter */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, color: 'var(--textmd)', fontWeight: 700 }}>
+                              📦 Stock Level: {item.pillCount || 0} / {maxPills} pills
+                            </span>
+                            {isLowStock && (
+                              <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 800, animation: 'pulse 1.5s infinite' }}>
+                                ⚠️ Low Stock
+                              </span>
+                            )}
+                          </div>
+                          <div className="stock-bar-container">
+                            <div className="stock-bar-fill" style={{ width: `${stockPct}%`, backgroundColor: barColor }}></div>
+                          </div>
+                        </div>
+
+                        {/* Dosing Actions and notifications */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button 
+                              onClick={() => handleUpdatePillCount(item, -1)} 
+                              title="Take 1 pill"
+                              style={{ 
+                                width: 28, 
+                                height: 28, 
+                                background: '#fff', 
+                                border: '1.5px solid var(--border)', 
+                                borderRadius: '50%', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: 15, 
+                                fontWeight: 800, 
+                                cursor: 'pointer',
+                                boxShadow: 'var(--shadow)' 
+                              }}
+                            >
+                              -
+                            </button>
+                            <button 
+                              onClick={() => handleUpdatePillCount(item, 30)} 
+                              style={{ 
+                                padding: '0 10px', 
+                                height: 28, 
+                                background: 'var(--bgsoft)', 
+                                border: '1.5px solid var(--border)', 
+                                borderRadius: 14, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: 11, 
+                                fontWeight: 700, 
+                                color: 'var(--navy)',
+                                cursor: 'pointer',
+                                boxShadow: 'var(--shadow)' 
+                              }}
+                            >
+                              +30 pills
+                            </button>
+                          </div>
+
+                          <label style={{ fontSize: 12, color: 'var(--textmd)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 700 }}>
+                            <input 
+                              type="checkbox" 
+                              checked={!!item.notificationsEnabled} 
+                              onChange={() => handleToggleNotification(item)}
+                              style={{ accentColor: 'var(--green)', width: 14, height: 14 }} 
+                            />
+                            🔔 Reminders On
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* Interaction Warning Sub-Panel */}
               {cabinet.length >= 2 && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {activeInteractions.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        ⚠️ Contraindications Warning:
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ⚠️ Dangerous Combinations Found:
                       </div>
                       {activeInteractions.map((col, idx) => (
-                        <div key={idx} style={{ padding: '10px 12px', background: col.severity === 'CRITICAL' ? 'var(--redlt)' : '#FFFBEB', border: `1.5px solid ${col.severity === 'CRITICAL' ? '#FECACA' : '#FCD34D'}`, borderRadius: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: col.severity === 'CRITICAL' ? 'var(--red)' : '#92400E' }}>{col.title}</span>
-                            <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: col.severity === 'CRITICAL' ? 'var(--red)' : 'var(--saffron)', color: '#fff' }}>{col.severity}</span>
+                        <div key={idx} style={{ 
+                          padding: '12px 14px', 
+                          background: 'var(--redlt)', 
+                          border: '1.5px solid #FECACA', 
+                          borderLeft: '5px solid var(--red)',
+                          borderRadius: 14,
+                          boxShadow: 'var(--shadow)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--red)' }}>{col.title}</span>
+                            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff' }}>{col.severity}</span>
                           </div>
-                          <div style={{ fontSize: 10.5, color: col.severity === 'CRITICAL' ? '#991B1B' : '#78350F', fontWeight: 600, marginBottom: 4 }}>Collision: {col.saltA} + {col.saltB}</div>
-                          <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.45 }}>{col.explanation}</p>
+                          <div style={{ fontSize: 11.5, color: '#991B1B', fontWeight: 700, marginBottom: 6 }}>Clash: {col.saltA} + {col.saltB}</div>
+                          <p style={{ fontSize: 12.5, color: '#7F1D1D', margin: 0, lineHeight: 1.5 }}>{col.explanation}</p>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {activeDuplications.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        ⚠️ Therapeutic Overlaps:
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        ⚠️ Double Dosing Warning:
                       </div>
                       {activeDuplications.map((dup, idx) => (
-                        <div key={idx} style={{ padding: '10px 12px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#92400E' }}>{dup.title} ({dup.className})</span>
+                        <div key={idx} style={{ 
+                          padding: '12px 14px', 
+                          background: 'var(--safflt)', 
+                          border: '1.5px solid #FCD34D', 
+                          borderLeft: '5px solid var(--saffron)',
+                          borderRadius: 14,
+                          boxShadow: 'var(--shadow)'
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#92400E', marginBottom: 4 }}>
+                            {dup.title} ({dup.className})
                           </div>
-                          <p style={{ fontSize: 11.5, color: 'var(--textmd)', margin: 0, lineHeight: 1.45 }}>{dup.explanation}</p>
+                          <p style={{ fontSize: 12.5, color: '#78350F', margin: 0, lineHeight: 1.5 }}>{dup.explanation}</p>
                         </div>
                       ))}
                     </div>
                   )}
 
                   {activeInteractions.length === 0 && activeDuplications.length === 0 && (
-                    <div style={{ padding: '8px 12px', background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 10, fontSize: 11.5, color: '#15803D', fontWeight: 600, textAlign: 'center' }}>
-                      ✓ No interactions or therapeutic duplications found in cabinet.
+                    <div style={{ 
+                      padding: '12px 14px', 
+                      background: 'var(--greenlt)', 
+                      border: '1.5px solid #86EFAC', 
+                      borderRadius: 14, 
+                      fontSize: 13, 
+                      color: 'var(--greendk)', 
+                      fontWeight: 700, 
+                      textAlign: 'center',
+                      boxShadow: 'var(--shadow)'
+                    }}>
+                      ✅ Safe: No drug clashes or overlaps found in your cabinet.
                     </div>
                   )}
                 </div>
@@ -1514,112 +2261,215 @@ function HomeView({
           {activeTab === 'reminders' && (
             <div>
               {/* Daily Reminder Time Pickers */}
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Set Reminder Times</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => (
-                  <div key={slot} style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'var(--bgsoft)', padding: '6px 10px', borderRadius: 8 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--textlt)' }}>{slot}</span>
-                    <input 
-                      type="time" 
-                      value={time} 
-                      onChange={(e) => handleUpdateReminderTime(slot, e.target.value)} 
-                      style={{ fontSize: 12, padding: '2px', border: '1px solid var(--border)', borderRadius: 4, background: '#fff', width: '100%', outline: 'none' }}
-                    />
-                  </div>
-                ))}
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ Set Your Daily Pill Times</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => {
+                  let slotLabel = slot;
+                  let slotIcon = '🌅';
+                  if (slot === 'Morning') { slotLabel = 'Morning'; slotIcon = '🌅'; }
+                  if (slot === 'Afternoon') { slotLabel = 'Afternoon'; slotIcon = '☀️'; }
+                  if (slot === 'Evening') { slotLabel = 'Evening'; slotIcon = '🌇'; }
+                  if (slot === 'Bedtime') { slotLabel = 'Bedtime'; slotIcon = '🌙'; }
+
+                  return (
+                    <div key={slot} style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: 4, 
+                      background: 'var(--bgcard)', 
+                      border: '1.5px solid var(--border)',
+                      padding: '10px 12px', 
+                      borderRadius: 14,
+                      boxShadow: 'var(--shadow)'
+                    }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--textlt)' }}>{slotIcon} {slotLabel}</span>
+                      <input 
+                        type="time" 
+                        value={time} 
+                        onChange={(e) => handleUpdateReminderTime(slot, e.target.value)} 
+                        style={{ 
+                          fontSize: 13, 
+                          padding: '6px 8px', 
+                          border: '1.5px solid var(--border)', 
+                          borderRadius: 8, 
+                          background: '#fff', 
+                          width: '100%', 
+                          outline: 'none',
+                          color: 'var(--navy)',
+                          fontWeight: 600
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Daily Adherence Grid */}
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Daily Adherence Check-off</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--greenlt)', padding: 12, borderRadius: 10, marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--greendk)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Dose Adherence checklist:</span>
-                  <span>{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                  {['Morning', 'Afternoon', 'Evening', 'Bedtime'].map(slot => {
-                    const dateStr = new Date().toDateString();
-                    const ad = activeProfile.adherence || {};
-                    const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
-                    const isChecked = !!todayAd[slot];
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
+              {(() => {
+                const dateStr = new Date().toDateString();
+                const ad = activeProfile.adherence || {};
+                const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
+                
+                // Check if all scheduled slots are done
+                const activeSlots = ['Morning', 'Afternoon', 'Evening', 'Bedtime'];
+                const completedAll = activeSlots.every(slot => !!todayAd[slot]);
 
-                    return (
-                      <button 
-                        key={slot}
-                        onClick={() => handleToggleAdherence(dateStr, slot)}
-                        style={{
-                          padding: '8px 4px',
-                          borderRadius: 8,
-                          border: `1.5px solid ${isChecked ? 'var(--green)' : 'var(--border)'}`,
-                          background: isChecked ? 'var(--green)' : '#fff',
-                          color: isChecked ? '#fff' : 'var(--textmd)',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          textAlign: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {isChecked ? '✓ ' : ''}{slot}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--greenlt)', border: '1.5px solid #86EFAC', padding: 14, borderRadius: 16, marginBottom: 16, boxShadow: 'var(--shadow)' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--greendk)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Did you take your medicine today?</span>
+                      <span style={{ opacity: 0.8 }}>{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                    </div>
+
+                    {completedAll ? (
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        gap: 8, 
+                        background: '#fff', 
+                        border: '1.5px solid var(--green)', 
+                        padding: '10px 14px', 
+                        borderRadius: 12, 
+                        color: 'var(--greendk)', 
+                        fontWeight: 800, 
+                        fontSize: 13,
+                        textAlign: 'center',
+                        animation: 'popIn 0.3s ease'
+                      }}>
+                        <span>🎉</span> All done for today! Great job taking your meds.
+                      </div>
+                    ) : null}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                      {activeSlots.map(slot => {
+                        const isChecked = !!todayAd[slot];
+                        let slotIcon = '🌅';
+                        if (slot === 'Afternoon') slotIcon = '☀️';
+                        if (slot === 'Evening') slotIcon = '🌇';
+                        if (slot === 'Bedtime') slotIcon = '🌙';
+
+                        return (
+                          <button 
+                            key={slot}
+                            onClick={() => handleToggleAdherence(dateStr, slot)}
+                            style={{
+                              padding: '10px 4px',
+                              borderRadius: 12,
+                              border: `1.5px solid ${isChecked ? 'var(--green)' : 'var(--border)'}`,
+                              background: isChecked ? 'var(--green)' : '#fff',
+                              color: isChecked ? '#fff' : 'var(--textmd)',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              transition: 'all 0.2s',
+                              cursor: 'pointer',
+                              boxShadow: 'var(--shadow)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 2
+                            }}
+                          >
+                            <span style={{ fontSize: 16 }}>{slotIcon}</span>
+                            <span>{isChecked ? '✓' : ''} {slot}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Chronotherapy Daily Schedule Timeline */}
               {activeSchedule && activeSchedule.schedule && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    📅 Orchestrated Daily Dosing Timeline:
+                <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    📅 Your Pill Schedule for Today:
                   </div>
                   
                   {activeSchedule.notes && activeSchedule.notes.map((note, nidx) => (
-                    <div key={nidx} style={{ padding: '8px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11.5, color: '#1E40AF', marginBottom: 12, fontWeight: 600 }}>
-                      {note.message}
+                    <div key={nidx} style={{ 
+                      padding: '10px 14px', 
+                      background: 'var(--safflt)', 
+                      border: '1px solid #FCD34D', 
+                      borderRadius: 12, 
+                      fontSize: 12.5, 
+                      color: '#92400E', 
+                      marginBottom: 12, 
+                      fontWeight: 700, 
+                      lineHeight: 1.5,
+                      boxShadow: 'var(--shadow)'
+                    }}>
+                      💡 {note.message}
                     </div>
                   ))}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', paddingLeft: 12 }}>
-                    <div style={{ position: 'absolute', left: 4, top: 8, bottom: 8, width: 2, background: 'linear-gradient(180deg, var(--green) 0%, var(--saffron) 50%, var(--navy) 100%)', borderRadius: 1 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', paddingLeft: 16 }}>
+                    <div style={{ position: 'absolute', left: 4, top: 8, bottom: 8, width: 3, background: 'linear-gradient(180deg, var(--green) 0%, var(--saffron) 50%, var(--navy) 100%)', borderRadius: 2 }} />
                     
                     {Object.entries(activeSchedule.schedule).map(([timeOfDay, meds]) => {
-                      let icon = '☀️';
+                      let icon = '🌅';
                       let bulletColor = 'var(--green)';
-                      if (timeOfDay === 'Afternoon') { icon = '🌤️'; bulletColor = 'var(--saffron)'; }
-                      if (timeOfDay === 'Evening') { icon = '🌇'; bulletColor = 'var(--orange)'; }
-                      if (timeOfDay === 'Bedtime') { icon = '🌙'; bulletColor = 'var(--navy)'; }
+                      if (timeOfDay === 'Morning') { icon = '🌅 Morning'; bulletColor = 'var(--green)'; }
+                      if (timeOfDay === 'Afternoon') { icon = '☀️ Afternoon'; bulletColor = 'var(--saffron)'; }
+                      if (timeOfDay === 'Evening') { icon = '🌇 Evening'; bulletColor = 'var(--saffron)'; }
+                      if (timeOfDay === 'Bedtime') { icon = '🌙 Bedtime'; bulletColor = 'var(--navy)'; }
 
                       return (
-                        <div key={timeOfDay} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ position: 'absolute', left: -14, top: 4, width: 8, height: 8, borderRadius: '50%', background: bulletColor, border: '2px solid #fff', boxShadow: '0 0 0 1.5px ' + bulletColor }} />
+                        <div key={timeOfDay} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ 
+                            position: 'absolute', 
+                            left: -20, 
+                            top: 4, 
+                            width: 11, 
+                            height: 11, 
+                            borderRadius: '50%', 
+                            background: bulletColor, 
+                            border: '2.5px solid #fff', 
+                            boxShadow: '0 0 0 1.5px ' + bulletColor 
+                          }} />
                           
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{icon} {timeOfDay}</span>
-                            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--bgsoft)', color: 'var(--textmd)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>{icon}</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--textmd)' }}>
                               {meds.length} {meds.length === 1 ? 'med' : 'meds'}
                             </span>
                           </div>
 
                           {meds.length === 0 ? (
-                            <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 4, fontStyle: 'italic' }}>
+                            <div style={{ fontSize: 12, color: 'var(--textlt)', paddingLeft: 4, fontStyle: 'italic' }}>
                               No medicines scheduled.
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
-                              {meds.map((med, midx) => (
-                                <div key={midx} style={{ padding: '8px 10px', background: 'var(--bgcard)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>{med.brandName}</span>
-                                    <span style={{ fontSize: 9.5, fontWeight: 700, color: med.foodRelation.includes('Empty') ? 'var(--red)' : 'var(--green)', background: med.foodRelation.includes('Empty') ? 'var(--redlt)' : 'var(--greenlt)', padding: '2px 5px', borderRadius: 4 }}>
-                                      {med.foodRelation}
-                                    </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 4 }}>
+                              {meds.map((med, midx) => {
+                                let friendlyFood = med.foodRelation;
+                                if (med.foodRelation.includes('Empty')) friendlyFood = '🍽️ Take on empty stomach';
+                                if (med.foodRelation.includes('After')) friendlyFood = '🍲 Take after eating';
+
+                                return (
+                                  <div key={midx} style={{ 
+                                    padding: '10px 12px', 
+                                    background: 'var(--bgcard)', 
+                                    border: '1.5px solid var(--border)', 
+                                    borderRadius: 12,
+                                    boxShadow: 'var(--shadow)'
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)' }}>{med.brandName}</span>
+                                      <span style={{ fontSize: 10, fontWeight: 800, color: med.foodRelation.includes('Empty') ? 'var(--red)' : 'var(--green)', background: med.foodRelation.includes('Empty') ? 'var(--redlt)' : 'var(--greenlt)', padding: '2px 8px', borderRadius: 6 }}>
+                                        {friendlyFood}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--textmd)', marginTop: 6, borderTop: '1px dashed var(--border)', paddingTop: 6, fontStyle: 'italic', lineHeight: 1.45 }}>
+                                      💡 {med.rationale}
+                                    </div>
                                   </div>
-                                  <div style={{ fontSize: 10.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
-                                  <div style={{ fontSize: 10.5, color: 'var(--textmd)', marginTop: 4, borderTop: '1px dashed var(--border)', paddingTop: 4, fontStyle: 'italic' }}>
-                                    💡 {med.rationale}
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -1639,19 +2489,44 @@ function HomeView({
           {/* TAB 4: Symptoms & ADR Warnings */}
           {activeTab === 'symptoms' && (
             <div>
-              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Log Symptoms & Track Side Effects</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 10 }}>⚠️ Track How You Feel (Side Effects)</h4>
               
               {/* Symptom logger input form */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <input 
                   type="text" 
                   value={symptomInput} 
                   onChange={e => setSymptomInput(e.target.value)} 
-                  placeholder="Enter symptom (e.g. Dry cough, muscle pain)..." 
-                  style={{ flex: 1, height: 38, padding: '0 10px', borderRadius: 8, border: '1.5px solid var(--bordermd)', fontSize: 13 }}
+                  placeholder="e.g. Headache, feeling dizzy, stomach pain..." 
+                  style={{ 
+                    flex: 1, 
+                    height: 44, 
+                    padding: '0 12px', 
+                    borderRadius: 10, 
+                    border: '1.5px solid var(--border)', 
+                    fontSize: 13.5,
+                    outline: 'none',
+                    color: 'var(--navy)'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
                   onKeyDown={e => { if (e.key === 'Enter') handleLogSymptom(symptomInput) }}
                 />
-                <button onClick={() => handleLogSymptom(symptomInput)} style={{ padding: '0 14px', background: 'var(--green)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Log</button>
+                <button 
+                  onClick={() => handleLogSymptom(symptomInput)} 
+                  style={{ 
+                    padding: '0 16px', 
+                    background: 'var(--green)', 
+                    color: '#fff', 
+                    borderRadius: 10, 
+                    fontSize: 13.5, 
+                    fontWeight: 700, 
+                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow)' 
+                  }}
+                >
+                  ➕ Add
+                </button>
               </div>
 
               {/* Flagged ADR Side-effect alert warnings */}
@@ -1662,15 +2537,28 @@ function HomeView({
 
                 if (warnings.length > 0) {
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        🚨 Potential Side Effect Overlaps Flagged:
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        🚨 Warnings: A pill you take might be causing this!
                       </div>
                       {warnings.map((w, idx) => (
-                        <div key={idx} style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1.5px solid #FECACA', borderRadius: 10, fontSize: 12, color: '#991B1B', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div key={idx} style={{ 
+                          padding: '12px 14px', 
+                          background: 'var(--redlt)', 
+                          border: '1.5px solid #FECACA', 
+                          borderLeft: '5px solid var(--red)',
+                          borderRadius: 14, 
+                          fontSize: 13, 
+                          color: '#991B1B', 
+                          fontWeight: 600, 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: 4,
+                          boxShadow: 'var(--shadow)'
+                        }}>
                           <div>{w.explanation}</div>
-                          <div style={{ fontSize: 10, color: 'var(--textlt)', fontStyle: 'italic' }}>
-                            Linked drug: {w.salt} causes {w.symptom}. We recommend consulting a pharmacist to adjust dosage.
+                          <div style={{ fontSize: 11.5, color: 'var(--textmd)', fontStyle: 'italic', marginTop: 4, borderTop: '1px dashed rgba(225,29,72,0.15)', paddingTop: 4 }}>
+                            💡 Your medicine with <strong>{w.salt}</strong> can cause <strong>{w.symptom}</strong>. We recommend talking to your doctor or pharmacist.
                           </div>
                         </div>
                       ))}
@@ -1681,18 +2569,29 @@ function HomeView({
               })()}
 
               {/* Symptoms history log */}
-              <h5 style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Symptom History</h5>
+              <h5 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>📋 My Logged Symptoms</h5>
               {(!activeProfile.symptoms || activeProfile.symptoms.length === 0) ? (
-                <p style={{ fontSize: 11.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic' }}>No logged symptoms. Enter symptoms above to check for adverse drug reactions.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
+                  No symptoms logged. Type how you are feeling above to check if any of your medicines are causing it.
+                </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
                   {activeProfile.symptoms.map((s, sidx) => (
-                    <div key={sidx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bgsoft)', padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
+                    <div key={sidx} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      background: 'var(--bgsoft)', 
+                      padding: '8px 12px', 
+                      borderRadius: 10, 
+                      fontSize: 13,
+                      boxShadow: 'var(--shadow)'
+                    }}>
                       <div>
                         <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{s.text}</span>
-                        <span style={{ fontSize: 10, color: 'var(--textlt)', marginLeft: 8 }}>({s.date})</span>
+                        <span style={{ fontSize: 10.5, color: 'var(--textlt)', marginLeft: 8 }}>({s.date})</span>
                       </div>
-                      <button onClick={() => handleDeleteSymptom(sidx)} style={{ color: 'var(--red)', fontSize: 12 }}>🗑️</button>
+                      <button onClick={() => handleDeleteSymptom(sidx)} style={{ color: 'var(--red)', fontSize: 14, fontWeight: 700, border: 'none', background: 'transparent', cursor: 'pointer' }}>🗑️</button>
                     </div>
                   ))}
                 </div>

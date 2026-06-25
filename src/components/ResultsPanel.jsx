@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { checkRecallStatus, generateReportingKeys, signCounterfeitReport } from '../services/verificationService.js'
 import { getPKParameters, simulatePharmacokinetics } from '../services/pharmacokineticsService.js'
 
@@ -687,9 +687,151 @@ function AuthCard({
   )
 }
 
+// ─── BLOODSTREAM SIMULATOR (Real-Time 2.5D visualizer) ───────────────────────
+function BloodstreamSimulator({ concentration, minEffective, minToxic, maxConc }) {
+  const canvasRef = useRef(null)
+  
+  useEffect(() => {
+    let animId
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    
+    // Red blood cells parameters
+    const rbcs = []
+    for (let i = 0; i < 6; i++) {
+      rbcs.push({
+        x: Math.random() * 180,
+        y: 12 + Math.random() * 26,
+        r: 6 + Math.random() * 3,
+        speed: 0.4 + Math.random() * 0.4
+      })
+    }
+    
+    const drugParticles = []
+    let frame = 0
+    
+    const render = () => {
+      frame++
+      const width = canvas.width = 180
+      const height = canvas.height = 50
+      
+      // Deep medical dark backdrop
+      ctx.fillStyle = '#0f172a'
+      ctx.fillRect(0, 0, width, height)
+      
+      const tubeY = 10
+      const tubeH = 30
+      
+      let statusColor = '#3b82f6'
+      let glow = 4
+      if (concentration > minToxic) {
+        statusColor = '#ef4444' // toxic red
+        glow = 12 + Math.sin(frame * 0.15) * 4
+      } else if (concentration > minEffective) {
+        statusColor = '#10b981' // therapeutic green
+        glow = 6 + Math.sin(frame * 0.1) * 2
+      } else {
+        statusColor = '#f59e0b' // sub-therapeutic amber
+        glow = 3
+      }
+      
+      // Draw cylinder walls with glow
+      ctx.shadowBlur = glow
+      ctx.shadowColor = statusColor
+      ctx.strokeStyle = statusColor
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(0, tubeY)
+      ctx.lineTo(width, tubeY)
+      ctx.moveTo(0, tubeY + tubeH)
+      ctx.lineTo(width, tubeY + tubeH)
+      ctx.stroke()
+      ctx.shadowBlur = 0 // reset glow for cells
+      
+      // Glass body glare
+      const grad = ctx.createLinearGradient(0, tubeY, 0, tubeY + tubeH)
+      grad.addColorStop(0, 'rgba(255,255,255,0.06)')
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.0)')
+      grad.addColorStop(1, 'rgba(255,255,255,0.06)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, tubeY, width, tubeH)
+      
+      // Move and draw Red Blood Cells (3D-shaded biconcave spheres)
+      for (const rbc of rbcs) {
+        rbc.x += rbc.speed
+        if (rbc.x - rbc.r > width) {
+          rbc.x = -rbc.r
+          rbc.y = tubeY + 4 + Math.random() * (tubeH - 8)
+        }
+        
+        const rbcGrad = ctx.createRadialGradient(
+          rbc.x - rbc.r * 0.2, rbc.y - rbc.r * 0.2, rbc.r * 0.1,
+          rbc.x, rbc.y, rbc.r
+        )
+        rbcGrad.addColorStop(0, '#fca5a5')
+        rbcGrad.addColorStop(0.3, '#f43f5e')
+        rbcGrad.addColorStop(1, '#be123c')
+        
+        ctx.fillStyle = rbcGrad
+        ctx.beginPath()
+        ctx.arc(rbc.x, rbc.y, rbc.r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      
+      // Draw floating drug particles
+      const maxParticles = 35
+      const targetParticles = Math.min(maxParticles, Math.round((concentration / maxConc) * maxParticles))
+      
+      while (drugParticles.length < targetParticles) {
+        drugParticles.push({
+          x: Math.random() * width,
+          y: tubeY + 3 + Math.random() * (tubeH - 6),
+          r: 1.2 + Math.random() * 1.5,
+          speed: 1.0 + Math.random() * 1.2,
+          phase: Math.random() * Math.PI * 2
+        })
+      }
+      while (drugParticles.length > targetParticles) {
+        drugParticles.pop()
+      }
+      
+      for (const p of drugParticles) {
+        p.x += p.speed
+        if (p.x > width) {
+          p.x = 0
+          p.y = tubeY + 3 + Math.random() * (tubeH - 6)
+        }
+        p.phase += 0.05
+        p.y = Math.max(tubeY + 2, Math.min(tubeY + tubeH - 2, p.y + Math.sin(p.phase) * 0.12))
+        
+        ctx.fillStyle = '#ffffff'
+        ctx.shadowBlur = 3
+        ctx.shadowColor = statusColor
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowBlur = 0
+      }
+      
+      animId = requestAnimationFrame(render)
+    }
+    
+    render()
+    return () => cancelAnimationFrame(animId)
+  }, [concentration, minEffective, minToxic, maxConc])
+  
+  return (
+    <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', width: '180px', height: '50px' }}>
+      <canvas ref={canvasRef} style={{ display: 'block', width: '180px', height: '50px' }} />
+    </div>
+  )
+}
+
 // ─── CARD 2: MEDICINE INFO ────────────────────────────────────────────────────
 function InfoCard({ info, results, translating }) {
   const [showSide, setShowSide] = useState(false)
+  const [scrubTime, setScrubTime] = useState(0.0)
   const isAyurvedic   = results.productType === 'AYURVEDIC'
   const isSupplement  = results.productType === 'SUPPLEMENT'
 
@@ -712,6 +854,9 @@ function InfoCard({ info, results, translating }) {
   const pkData = pkParams ? simulatePharmacokinetics(pkParams, doseStrength, doseTimes, doseWeight, 24) : []
   const maxConc = pkParams ? Math.max(...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10
   const peakConc = pkParams ? Math.max(...pkData.map(d => d.conc)) : 0
+
+  const currentPoint = pkData.find(d => d.time === scrubTime) || pkData[0] || { time: 0, conc: 0 }
+  const currentConc = currentPoint.conc
 
   let warningMsg = "✅ Safe Dosing: The amount of medicine in your body looks correct and safe."
   let warningColor = "#166534"
@@ -832,107 +977,207 @@ function InfoCard({ info, results, translating }) {
           <div style={{
             background: '#fff',
             border: '1.5px solid var(--border)',
-            borderRadius: 12,
-            padding: '14px',
-            marginTop: 6,
+            borderRadius: 16,
+            padding: '16px',
+            marginTop: 8,
             display: 'flex',
             flexDirection: 'column',
-            gap: 12
+            gap: 14,
+            boxShadow: 'var(--shadow)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
-              <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
+              <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 Safety Monitor
               </span>
             </div>
 
-            <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
-              This chart shows how much <strong>{pkParams.name}</strong> is in your body over 24 hours. The goal is to keep the green curve inside the green safety zone.
+            <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.55 }}>
+              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks.
             </p>
 
-            {/* Simulated graph */}
-            <div style={{ background: 'var(--bgsoft)', borderRadius: 10, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
-              <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
-                <defs>
-                  <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+            {/* Simulated graph & 3D Bloodstream Simulation row */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              
+              {/* SVG concentration chart */}
+              <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+                <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
+                  <defs>
+                    <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0D8A68" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#0D8A68" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
 
-                {/* Grid Lines & Ticks */}
-                {[0, 6, 12, 18, 24].map(t => (
-                  <g key={t}>
-                    <line x1={getX(t)} y1="15" x2={getX(t)} y2="155" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
-                    <text x={getX(t)} y="170" fontSize="9" fill="var(--textlt)" textAnchor="middle">{t}h</text>
-                  </g>
-                ))}
+                  {/* Grid Lines & Ticks */}
+                  {[0, 6, 12, 18, 24].map(t => (
+                    <g key={t}>
+                      <line x1={getX(t)} y1="15" x2={getX(t)} y2="155" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
+                      <text x={getX(t)} y="170" fontSize="9" fill="var(--textlt)" textAnchor="middle">{t}h</text>
+                    </g>
+                  ))}
 
-                {/* Therapeutic Window Range shaded background */}
-                {pkParams.minEffectiveConc < maxConc && (
-                  <rect
-                    x="35"
-                    y={getY(Math.min(maxConc, pkParams.minToxicConc))}
-                    width="290"
-                    height={Math.max(0, getY(pkParams.minEffectiveConc) - getY(Math.min(maxConc, pkParams.minToxicConc)))}
-                    fill="#F0FDF4"
-                    opacity="0.8"
+                  {/* Range Band 1: TOO STRONG (Toxic Zone above minToxicConc) */}
+                  {pkParams.minToxicConc < maxConc && (
+                    <rect
+                      x="35"
+                      y="15"
+                      width="290"
+                      height={Math.max(0, getY(pkParams.minToxicConc) - 15)}
+                      fill="var(--redlt)"
+                      opacity="0.95"
+                    />
+                  )}
+
+                  {/* Range Band 2: Safe & Works (Therapeutic Zone) */}
+                  {pkParams.minEffectiveConc < maxConc && (
+                    <rect
+                      x="35"
+                      y={getY(Math.min(maxConc, pkParams.minToxicConc))}
+                      width="290"
+                      height={Math.max(0, getY(pkParams.minEffectiveConc) - getY(Math.min(maxConc, pkParams.minToxicConc)))}
+                      fill="var(--greenlt)"
+                      opacity="0.95"
+                    />
+                  )}
+
+                  {/* Range Band 3: Too Weak (Sub-therapeutic Zone below minEffectiveConc) */}
+                  {pkParams.minEffectiveConc > 0 && (
+                    <rect
+                      x="35"
+                      y={getY(pkParams.minEffectiveConc)}
+                      width="290"
+                      height={Math.max(0, 155 - getY(pkParams.minEffectiveConc))}
+                      fill="var(--amberlt)"
+                      opacity="0.95"
+                    />
+                  )}
+
+                  {/* Threshold line 1: Too Weak Limit */}
+                  <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="var(--amber)" strokeWidth="1.2" strokeDasharray="3,3" />
+                  <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8.5" fill="var(--amber)" fontWeight="800">Too Weak</text>
+
+                  {/* Threshold line 2: Safe & Works Limit */}
+                  <line x1="35" y1={getY(pkParams.minEffectiveConc) - 0.5} x2="325" y2={getY(pkParams.minEffectiveConc) - 0.5} stroke="var(--green)" strokeWidth="1.2" strokeDasharray="3,3" />
+                  <text x="328" y={getY(pkParams.minEffectiveConc) - 4} fontSize="8.5" fill="var(--green)" fontWeight="800">Safe & Active</text>
+
+                  {/* Threshold line 3: Too Strong Limit */}
+                  {pkParams.minToxicConc < maxConc && (
+                    <>
+                      <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="var(--red)" strokeWidth="1.2" strokeDasharray="3,3" />
+                      <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8.5" fill="var(--red)" fontWeight="800">⚠️ TOO STRONG</text>
+                    </>
+                  )}
+
+                  {/* Area under curve */}
+                  {areaD && <path d={areaD} fill="url(#curve-grad)" />}
+
+                  {/* Curve path backing glow */}
+                  {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.15" />}
+
+                  {/* Curve path */}
+                  {pathD && <path d={pathD} fill="none" stroke="#0D8A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+
+                  {/* Vertical scanning bar for time scrubber */}
+                  <line 
+                    x1={getX(scrubTime)} 
+                    y1="15" 
+                    x2={getX(scrubTime)} 
+                    y2="155" 
+                    stroke="#3b82f6" 
+                    strokeWidth="1.5" 
+                    strokeDasharray="2,2" 
                   />
-                )}
+                  <circle 
+                    cx={getX(scrubTime)} 
+                    cy={getY(currentConc)} 
+                    r="4.5" 
+                    fill="#3b82f6" 
+                    stroke="#fff" 
+                    strokeWidth="1.5" 
+                  />
 
-                {/* Min Effective Limit */}
-                <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="#3B82F6" strokeWidth="1.2" strokeDasharray="3,3" />
-                <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8.5" fill="#3B82F6" fontWeight="700">😊 Safe & Works</text>
+                  {/* Interactive Peak concentration dot */}
+                  {pkData.length > 0 && (() => {
+                    const peakPoint = pkData.reduce((max, p) => p.conc > max.conc ? p : max, pkData[0]);
+                    return (
+                      <g>
+                        <circle cx={getX(peakPoint.time)} cy={getY(peakPoint.conc)} r="5" fill="#0D8A68" stroke="#fff" strokeWidth="1.5" />
+                        <circle cx={getX(peakPoint.time)} cy={getY(peakPoint.conc)} r="10" fill="#0D8A68" stroke="none" opacity="0.25" style={{ animation: 'pulse 1.5s infinite' }} />
+                      </g>
+                    );
+                  })()}
 
-                {/* Min Toxic Limit */}
-                {pkParams.minToxicConc < maxConc && (
-                  <>
-                    <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="#EF4444" strokeWidth="1.2" strokeDasharray="3,3" />
-                    <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8.5" fill="#EF4444" fontWeight="700">⚠️ TOO STRONG</text>
-                  </>
-                )}
+                  {/* Axes */}
+                  <line x1="35" y1="15" x2="35" y2="155" stroke="var(--border)" strokeWidth="1.5" />
+                  <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
 
-                {/* Area under curve */}
-                {areaD && <path d={areaD} fill="url(#curve-grad)" />}
+                  {/* Y Axis Ticks */}
+                  <text x="30" y={getY(0)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Low</text>
+                  <text x="30" y={getY(maxConc / 2)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Medium</text>
+                  <text x="30" y={getY(maxConc)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">High</text>
+                  
+                  {/* Y Axis Label */}
+                  <text x="12" y="85" fontSize="10" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle" fontWeight="700">Medicine Level</text>
+                </svg>
+              </div>
 
-                {/* Curve path */}
-                {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+              {/* Time Scrubber Slider and Bloodstream Simulator Visualizer Row */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#1e293b', padding: 12, borderRadius: 14, border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                  
+                  {/* Time Slider */}
+                  <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {scrubTime.toFixed(1)}h</span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: 900, 
+                        color: currentConc > pkParams.minToxicConc ? '#ef4444' : currentConc > pkParams.minEffectiveConc ? '#10b981' : '#f59e0b' 
+                      }}>
+                        {currentConc.toFixed(1)} mcg/mL ({currentConc > pkParams.minToxicConc ? 'TOXIC' : currentConc > pkParams.minEffectiveConc ? 'ACTIVE' : 'WEAK'})
+                      </span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="24" 
+                      step="0.25" 
+                      value={scrubTime} 
+                      onChange={e => setScrubTime(parseFloat(e.target.value))} 
+                      style={{ width: '100%', accentColor: '#10b981', cursor: 'pointer' }} 
+                    />
+                  </div>
 
-                {/* Axes */}
-                <line x1="35" y1="15" x2="35" y2="155" stroke="var(--border)" strokeWidth="1.5" />
-                <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
+                  {/* 3D Bloodstream Visualizer */}
+                  <div style={{ flex: '0 0 180px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.04em' }}>🔴 BLOODSTREAM DENSITY</span>
+                    <BloodstreamSimulator 
+                      concentration={currentConc} 
+                      minEffective={pkParams.minEffectiveConc} 
+                      minToxic={pkParams.minToxicConc} 
+                      maxConc={maxConc} 
+                    />
+                  </div>
 
-                {/* Y Axis Ticks */}
-                <text x="30" y={getY(0)} fontSize="9" fill="var(--textlt)" textAnchor="end">Low</text>
-                <text x="30" y={getY(maxConc / 2)} fontSize="9" fill="var(--textlt)" textAnchor="end">Medium</text>
-                <text x="30" y={getY(maxConc)} fontSize="9" fill="var(--textlt)" textAnchor="end">High</text>
-                
-                {/* Y Axis Label */}
-                <text x="12" y="85" fontSize="9" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle">Medicine Level</text>
-              </svg>
+                </div>
+              </div>
+
             </div>
 
-            {/* Controls */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bgsoft)', padding: 10, borderRadius: 8, border: '1px solid var(--border)' }}>
+            {/* Controls (Segmented Control Bars) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bgsoft)', padding: 12, borderRadius: 14, border: '1px solid var(--border)' }}>
+              
               {/* Strength selector */}
-              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>💊 Pill Strength:</span>
-                <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>💊 Pill Strength:</span>
+                <div className="segmented-control">
                   {[Math.round(parsedDose / 2), parsedDose, parsedDose * 2].filter(v => v > 0).map(v => (
                     <button
                       key={v}
                       type="button"
+                      className={`segmented-btn ${doseStrength === v ? 'active' : ''}`}
                       onClick={() => setDoseStrength(v)}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: doseStrength === v ? 'var(--navy)' : '#fff',
-                        color: doseStrength === v ? '#fff' : 'var(--textmd)',
-                        cursor: 'pointer'
-                      }}
                     >
                       {v}mg
                     </button>
@@ -941,24 +1186,15 @@ function InfoCard({ info, results, translating }) {
               </div>
 
               {/* Frequency selector */}
-              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>⏰ How often a day?:</span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {[[1, '1 time'], [2, '2 times'], [3, '3 times'], [4, '4 times']].map(([val, label]) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⏰ Dosing Frequency:</span>
+                <div className="segmented-control">
+                  {[[1, 'Once a day'], [2, '2x a day'], [3, '3x a day'], [4, '4x a day']].map(([val, label]) => (
                     <button
                       key={val}
                       type="button"
+                      className={`segmented-btn ${doseFreq === val ? 'active' : ''}`}
                       onClick={() => setDoseFreq(val)}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: doseFreq === val ? 'var(--navy)' : '#fff',
-                        color: doseFreq === val ? '#fff' : 'var(--textmd)',
-                        cursor: 'pointer'
-                      }}
                     >
                       {label}
                     </button>
@@ -967,24 +1203,15 @@ function InfoCard({ info, results, translating }) {
               </div>
 
               {/* Weight selector */}
-              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>⚖️ Who is taking it?:</span>
-                <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ Dosing Patient:</span>
+                <div className="segmented-control">
                   {[[25, 'Child (25kg)'], [70, 'Adult (70kg)'], [100, 'Heavy (100kg)']].map(([val, label]) => (
                     <button
                       key={val}
                       type="button"
+                      className={`segmented-btn ${doseWeight === val ? 'active' : ''}`}
                       onClick={() => setDoseWeight(val)}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: doseWeight === val ? 'var(--navy)' : '#fff',
-                        color: doseWeight === val ? '#fff' : 'var(--textmd)',
-                        cursor: 'pointer'
-                      }}
                     >
                       {label}
                     </button>
@@ -997,13 +1224,14 @@ function InfoCard({ info, results, translating }) {
             <div style={{
               padding: '12px 14px',
               background: warningBg,
-              border: `1px solid ${warningBorder}`,
-              borderRadius: 10,
+              border: `1.5px solid ${warningBorder}`,
+              borderRadius: 14,
               fontSize: 13,
               color: warningColor,
-              fontWeight: 600,
+              fontWeight: 700,
               lineHeight: 1.5,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+              boxShadow: 'var(--shadow)',
+              animation: 'fadeIn 0.3s ease'
             }}>
               {warningMsg}
             </div>

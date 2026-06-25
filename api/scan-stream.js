@@ -144,7 +144,10 @@ async function callVisionAPI(imageBase64) {
   - saltName: Active ingredient salt name (no dosage numbers)
   - doseStr: Strength (e.g. 500mg, 10mg)
   - manufacturer: Company name if visible
-  Return as JSON only: {"brandName": "...", "saltName": "...", "doseStr": "...", "manufacturer": "..."}`;
+  - batchNumber: Batch number or Lot number if visible (e.g. B.No. 1234, Lot ABCD)
+  - expiryDate: Expiry date if visible (e.g. Exp 12/28, Expiry 2027)
+  - manufacturingDate: Manufacturing date if visible (e.g. Mfg 12/24)
+  Return as JSON only: {"brandName": "...", "saltName": "...", "doseStr": "...", "manufacturer": "...", "batchNumber": "...", "expiryDate": "...", "manufacturingDate": "..."}`;
 
   const payload = {
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -348,8 +351,9 @@ export default async function handler(req, res) {
       manufacturer: extracted.manufacturer || 'Unknown',
       mrp: barcodeData?.mrpFromQR || null,
       unitSize: jaRes?.packSize || '10 tablets',
-      batchNumber: barcodeData?.batchNumber || null,
-      expiryDate: barcodeData?.expiryDate || null,
+      batchNumber: barcodeData?.batchNumber || extracted.batchNumber || null,
+      expiryDate: barcodeData?.expiryDate || extracted.expiryDate || null,
+      manufacturingDate: extracted.manufacturingDate || null,
       isExpired: false,
       confidence: 95,
       saltSource: barcodeData?.saltFromQR ? 'QR_BARCODE' : 'AI_VISION',

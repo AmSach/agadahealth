@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import ImageProcessorWorker from '../wasm/image_processor.worker.js?worker'
+import { decodeBarcodeFromCanvas } from '../services/barcodeService.js'
 
 export default function ARScanner({ onCapture, onCancel, t }) {
   const videoRef = useRef(null)
@@ -17,6 +18,22 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   const lastCoordsRef = useRef(null) // For smoothing coordinates (EMA)
   const stableFramesCountRef = useRef(0)
   const workerBusyRef = useRef(false)
+
+  const barcodeDetectorRef = useRef(null)
+  const hasCapturedRef = useRef(false)
+  const zxingFrameCountRef = useRef(0)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        barcodeDetectorRef.current = new window.BarcodeDetector({
+          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e']
+        })
+      } catch (e) {
+        console.error("BarcodeDetector init failed:", e)
+      }
+    }
+  }, [])
 
   // Initialize Worker and camera stream
   useEffect(() => {
@@ -165,6 +182,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
 
   const handleWorkerProcessed = (data) => {
     workerBusyRef.current = false
+    if (hasCapturedRef.current) return
     
     const canvas = canvasRef.current
     if (!canvas) return
@@ -179,6 +197,46 @@ export default function ARScanner({ onCapture, onCancel, t }) {
       // Re-draw raw video frame
       const video = videoRef.current
       if (video) ctx.drawImage(video, 0, 0, width, height)
+    }
+
+    // --- Real-time Barcode/QR Code Scanner ---
+    if (barcodeDetectorRef.current) {
+      barcodeDetectorRef.current.detect(canvas)
+        .then(barcodes => {
+          if (barcodes.length > 0 && !hasCapturedRef.current) {
+            const rawText = barcodes[0].rawValue
+            if (rawText) {
+              console.log("Barcode detected natively in stream:", rawText)
+              hasCapturedRef.current = true
+              setStatusText("Barcode Detected! Decoding...")
+              // Visual feedback: green flash
+              ctx.fillStyle = 'rgba(16, 185, 129, 0.45)'
+              ctx.fillRect(0, 0, width, height)
+              setTimeout(() => {
+                triggerCapture(null, rawText)
+              }, 150)
+            }
+          }
+        })
+        .catch(err => console.error("Native detector error:", err))
+    } else {
+      // Fallback: poll ZXing every 18 frames (~300ms)
+      zxingFrameCountRef.current++
+      if (zxingFrameCountRef.current % 18 === 0) {
+        decodeBarcodeFromCanvas(canvas).then(rawText => {
+          if (rawText && !hasCapturedRef.current) {
+            console.log("Barcode decoded via ZXing fallback:", rawText)
+            hasCapturedRef.current = true
+            setStatusText("Barcode Detected! Decoding...")
+            // Visual feedback: green flash
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.45)'
+            ctx.fillRect(0, 0, width, height)
+            setTimeout(() => {
+              triggerCapture(null, rawText)
+            }, 150)
+          }
+        })
+      }
     }
     
     // Smooth crop coordinates using EMA
@@ -260,7 +318,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   }
 
   // Trigger frame extraction and capture
-  const triggerCapture = (cropCoords) => {
+  const triggerCapture = (cropCoords, directBarcodeText = null) => {
     // Cancel loop
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     animFrameRef.current = null
@@ -277,8 +335,8 @@ export default function ARScanner({ onCapture, onCancel, t }) {
 
     let finalCanvas = canvas
     
-    // Crop if a valid coordinates box is available
-    if (cropCoords && cropCoords.w > 100 && cropCoords.h > 100) {
+    // Crop if a valid coordinates box is available and we don't have direct barcode text
+    if (!directBarcodeText && cropCoords && cropCoords.w > 100 && cropCoords.h > 100) {
       const cropCanvas = document.createElement('canvas')
       cropCanvas.width = cropCoords.w
       cropCanvas.height = cropCoords.h
@@ -290,10 +348,12 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     }
 
     const base64 = finalCanvas.toDataURL('image/jpeg', 0.7).split(',')[1]
-    onCapture(base64)
+    onCapture(base64, directBarcodeText)
   }
 
   const handleManualCapture = () => {
+    if (hasCapturedRef.current) return
+    hasCapturedRef.current = true
     triggerCapture(lastCoordsRef.current)
   }
 
