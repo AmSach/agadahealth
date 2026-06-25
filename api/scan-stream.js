@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { scrapeMarketPrices } from './scraperCluster.js';
+import { parseSalts, matchQuality } from '../src/services/dbService.js';
 
 // Lazily loaded databases
 let jaDB = null;
@@ -75,28 +76,29 @@ function normalizeSalt(salt) {
 
 // Lookup Jan Aushadhi generic equivalent
 function lookupJanAushadhi(saltQuery) {
-  if (!jaDB) return null;
-  const q = normalizeSalt(saltQuery);
-  if (!q) return null;
-  const qWords = q.split(' ').filter(w => w.length > 2);
-  
-  let best = null;
-  let bestScore = 0;
-  
+  if (!jaDB || !saltQuery) return null;
+  const qSalts = parseSalts(saltQuery);
+  if (!qSalts.length) return null;
+
+  let exactMatch = null;
+  let doseMismatchMatch = null;
+
   for (const item of jaDB) {
-    const saltName = item['Generic Name'] || '';
-    const itemNorm = normalizeSalt(saltName);
-    let score = 0;
-    for (const w of qWords) {
-      if (itemNorm.includes(w)) score++;
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = item;
+    const pSalts = parseSalts(item['Generic Name'] || '');
+    const quality = matchQuality(qSalts, pSalts);
+    if (quality === 'exact') {
+      if (!exactMatch || (parseFloat(item['MRP']) || 0) < (parseFloat(exactMatch['MRP']) || 0)) {
+        exactMatch = item;
+      }
+    } else if (quality === 'dose_mismatch') {
+      if (!doseMismatchMatch || (parseFloat(item['MRP']) || 0) < (parseFloat(doseMismatchMatch['MRP']) || 0)) {
+        doseMismatchMatch = item;
+      }
     }
   }
-  
-  if (bestScore > 0 && best) {
+
+  const best = exactMatch || doseMismatchMatch;
+  if (best) {
     const mrp = parseFloat(best['MRP']) || 0;
     const unitSizeStr = best['Unit Size'] || '';
     const numMatch = unitSizeStr.match(/(\d+)/);
@@ -122,22 +124,31 @@ function lookupJanAushadhi(saltQuery) {
 
 // Lookup CDSCO registry approval
 function lookupCDSCO(saltQuery) {
-  if (!cdscoDB) return { found: false, badge: null };
-  const q = normalizeSalt(saltQuery);
-  if (!q) return { found: false, badge: null };
-  
-  const match = cdscoDB.find(row => {
-    const drugName = (row['Drug Name'] || '').toLowerCase();
-    return drugName.includes(q) || q.includes(drugName);
+  if (!cdscoDB || !saltQuery) return { found: false, badge: null };
+  const qSalts = parseSalts(saltQuery);
+  if (!qSalts.length) return { found: false, badge: null };
+
+  const matches = [];
+  const allApproved = qSalts.every(qs => {
+    const foundRow = cdscoDB.find(row => {
+      const drugName = (row['Drug Name'] || '').toLowerCase();
+      return drugName.includes(qs.name) || qs.name.includes(drugName);
+    });
+    if (foundRow) {
+      matches.push(foundRow);
+      return true;
+    }
+    return false;
   });
 
-  if (match) {
+  if (allApproved && matches.length > 0) {
     const displayName = saltQuery.charAt(0).toUpperCase() + saltQuery.slice(1);
+    const primaryMatch = matches[0];
     return {
       found: true,
       badge: `✓ ${displayName} is CDSCO-approved`,
-      indication: match['Indication'] || null,
-      approvalDate: match['Approval Date'] || null,
+      indication: primaryMatch['Indication'] || null,
+      approvalDate: primaryMatch['Approval Date'] || null,
     };
   }
   return { found: false, badge: 'Salt not found in CDSCO registry.' };
