@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { LANGUAGES } from '../i18n/translations.js'
 import { useSetPage } from '../App.jsx'
 
-export default function HamMenu({ open, onClose, lang, setLang, t, onScan }) {
+export default function HamMenu({ open, onClose, lang, setLang, t, onScan, onHealthCard, onCabinet, onReminders, onSymptoms }) {
   const [showLang, setShowLang] = useState(false)
   const setPage = useSetPage()
 
@@ -13,14 +13,28 @@ export default function HamMenu({ open, onClose, lang, setLang, t, onScan }) {
       background: '#fff',
       borderBottom: '1px solid var(--border)',
       overflow: 'hidden',
-      maxHeight: open ? 520 : 0,
-      transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
-      boxShadow: open ? '0 4px 12px rgba(0,0,0,0.08)' : 'none'
+      maxHeight: open ? 650 : 0,
+      visibility: open ? 'visible' : 'hidden',
+      transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), visibility 0.35s',
+      boxShadow: open ? '0 4px 12px rgba(0,0,0,0.08)' : 'none',
+      overflowY: 'auto'
     }}>
       <div style={{ padding: '8px 0 4px' }}>
 
         {/* Scan Medicine */}
         <MenuItem icon="📷" label={t.menuScan || 'Scan Medicine'} sub={t.menuScanSub || 'Verify and compare any strip'} onClick={() => { onScan(); onClose() }} pill={t.active || 'Active'} />
+
+        {/* Cabinet & Stock */}
+        <MenuItem icon="💊" label={t.menuCabinet || 'Cabinet & Stock'} sub={t.menuCabinetSub || 'Manage inventory and pill counts'} onClick={() => { if (onCabinet) onCabinet(); onClose() }} />
+
+        {/* Alarms & Adherence */}
+        <MenuItem icon="📅" label={t.menuReminders || 'Alarms & Adherence'} sub={t.menuRemindersSub || 'Set reminders and log pill intake'} onClick={() => { if (onReminders) onReminders(); onClose() }} />
+
+        {/* Health Card */}
+        <MenuItem icon="📋" label={t.menuHealthCard || 'Emergency Health Card'} sub={t.menuHealthCardSub || 'Offline scannable medical profile & QR'} onClick={() => { if (onHealthCard) onHealthCard(); onClose() }} />
+
+        {/* Symptoms & ADR */}
+        <MenuItem icon="⚠️" label={t.menuSymptoms || 'Symptoms & Side Effects'} sub={t.menuSymptomsSub || 'Log side effects and check drug overlaps'} onClick={() => { if (onSymptoms) onSymptoms(); onClose() }} />
 
         {/* Language selector */}
         <MenuItem icon="🌐" label={t.language || 'Language'} sub={LANGUAGES.find(l => l.code === lang)?.native || 'English'} onClick={() => setShowLang(s => !s)} />
@@ -48,16 +62,16 @@ export default function HamMenu({ open, onClose, lang, setLang, t, onScan }) {
 
         {/* Divider + legal links */}
         <div style={{ margin: '6px 18px 0', paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 16, paddingBottom: 12 }}>
-          <button onClick={() => go('privacy')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
+          <button id="menu-privacy-link" onClick={() => go('privacy')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
             {t.privacyTitle || 'Privacy Policy'}
           </button>
-          <button onClick={() => go('terms')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
+          <button id="menu-terms-link" onClick={() => go('terms')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
             {t.termsTitle || 'Terms of Service'}
           </button>
         </div>
 
         <div style={{ margin: '0 18px 10px', fontSize: 10.5, color: 'var(--textlt)' }}>
-          India Innovates 2026 · Team Agada · Free public service
+          India Innovates 2026 · Aman Sachan · Free public service
         </div>
       </div>
     </div>

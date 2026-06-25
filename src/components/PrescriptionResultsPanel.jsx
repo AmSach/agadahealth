@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import ResultsPanel from './ResultsPanel.jsx'
 import { lookupMedicineNameOnly } from '../services/geminiService.js'
 
-export default function PrescriptionResultsPanel({ results, preview, onReset, t, lang }) {
+export default function PrescriptionResultsPanel({ results, preview, onReset, t, lang, bookmarks, onToggleBookmark }) {
   const { data } = results
   const [loadingLookup, setLoadingLookup] = useState(false)
   const [lookupMed, setLookupMed] = useState(null)
@@ -28,13 +28,15 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
     return (
       <ResultsPanel
         results={lookupResults}
-        preview={null}
+        preview={results?.preview || preview}
         onReset={() => {
           setLookupResults(null)
           setLookupMed(null)
         }}
         t={t}
         lang={lang}
+        isBookmarked={bookmarks?.some(b => b.brandName === lookupResults.brandName && b.saltComposition === lookupResults.saltComposition)}
+        onToggleBookmark={() => onToggleBookmark?.(lookupResults)}
       />
     )
   }

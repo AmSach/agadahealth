@@ -36,11 +36,11 @@ export default function Terms({ onBack }) {
         },
         {
           heading: t.termsS6h || 'Intellectual property',
-          body: t.termsS6b || 'Drug registry data is sourced from publicly available government databases (CDSCO, Jan Aushadhi, NPPA) and is in the public domain. Agada\'s interface, code, and curation are copyright © Team Agada 2026.'
+          body: t.termsS6b || 'Drug registry data is sourced from publicly available government databases (CDSCO, Jan Aushadhi, NPPA) and is in the public domain. Agada\'s interface, code, and curation are copyright © Aman Sachan 2026.'
         },
         {
           heading: t.termsS7h || 'Limitation of liability',
-          body: t.termsS7b || 'Agada is provided "as is" without warranty of any kind. Team Agada shall not be liable for any damages arising from use of or reliance on information provided by this service.'
+          body: t.termsS7b || 'Agada is provided "as is" without warranty of any kind. Aman Sachan shall not be liable for any damages arising from use of or reliance on information provided by this service.'
         },
         {
           heading: t.termsS8h || 'Changes to terms',
@@ -58,7 +58,7 @@ export default function Terms({ onBack }) {
       ))}
 
       <div style={{ background: 'var(--bgsoft)', borderRadius: 12, padding: '14px 16px', fontSize: 13, color: 'var(--textmd)', lineHeight: 1.6 }}>
-        {t.termsFooter || 'Agada is built and maintained by Team Agada as part of India Innovates 2026 · Open Innovation initiative.'}
+        {t.termsFooter || 'Agada is built and maintained by Aman Sachan as part of India Innovates 2026 · Open Innovation initiative.'}
       </div>
     </div>
   )

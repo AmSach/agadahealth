@@ -234,8 +234,8 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
 
       {/* Top banner */}
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow)', animation: 'fadeUp 0.3s ease' }}>
-        {preview
-          ? <img src={preview} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }} />
+        {results?.preview || preview
+          ? <img src={results?.preview || preview} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }} />
           : <div style={{ width: 44, height: 44, borderRadius: 9, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💊</div>
         }
         <div style={{ flex: 1, minWidth: 0 }}>

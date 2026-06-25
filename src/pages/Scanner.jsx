@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { scanMedicine, scanPrescription, compressAndEncode } from '../services/geminiService.js'
+import { scanMedicine, scanPrescription, compressAndEncode, lookupMedicineNameOnly } from '../services/geminiService.js'
 import { readBarcode } from '../services/barcodeService.js'
 import ResultsPanel from '../components/ResultsPanel.jsx'
 import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
 import HamMenu from '../components/HamMenu.jsx'
+import HealthCard from '../components/HealthCard.jsx'
 import { useLang, useSetPage } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
 
@@ -11,8 +12,9 @@ import { useT } from '../i18n/translations.js'
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
-import { checkInteractions, checkTherapeuticDuplication, orchestrateMedicationSchedule } from '../services/interactionService.js'
-import { getSecureLogs, saveSecureLogs, cacheCSVDatabase, getCachedCSVDatabase } from '../services/dbServiceIndexedDB.js'
+import { checkInteractions, checkTherapeuticDuplication, orchestrateMedicationSchedule, flagPotentialSideEffects } from '../services/interactionService.js'
+import { getSecureLogs, saveSecureLogs, cacheCSVDatabase, getCachedCSVDatabase, saveEncryptedProfile, getEncryptedProfile, listProfileIds, deleteProfile as dbDeleteProfile } from '../services/dbServiceIndexedDB.js'
+import { startReminderLoop, stopReminderLoop } from '../services/notificationService.js'
 import SearchWorker from '../wasm/search.worker.js?worker'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
@@ -463,44 +465,16 @@ export default function Scanner() {
     }
   }, [profiles, activeProfileId])
 
-  // Load bookmarks on view load
+  // Load bookmarks and profiles on view load
   React.useEffect(() => {
     if (view === VIEWS.HOME) {
-      const loadData = async () => {
-        try {
-          let savedStr = await getSecureLogs()
-          
-          // Migrate from localStorage if present
-          if (!savedStr) {
-            savedStr = localStorage.getItem('agada_bookmarks')
-            if (savedStr) {
-              console.log("Migrating bookmarks from localStorage to IndexedDB...");
-              await saveSecureLogs(savedStr)
-              localStorage.removeItem('agada_bookmarks')
-            } else {
-              savedStr = '[]'
-            }
-          }
-          
-          if (savedStr.includes(':') && savedStr.split(':').length === 3) {
-            setIsVaultLocked(true)
-            setBookmarks([])
-          } else {
-            const saved = JSON.parse(savedStr)
-            saved.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-            setBookmarks(saved)
-            setIsVaultLocked(false)
-          }
-        } catch (e) {
-          console.error("IndexedDB load failed, falling back to memory:", e)
-        }
-      }
-      loadData()
+      loadAllData()
     }
   }, [view])
 
   const handleSelectBookmark = (bookmark) => {
     setResults(bookmark.results)
+    setPreview(bookmark.results?.preview || null)
     setView(VIEWS.RESULTS)
   }
 
@@ -591,78 +565,39 @@ export default function Scanner() {
     }
   }
 
-  const handleSelectSearchResult = (result, type) => {
-    let brandName = 'Unknown';
-    let saltComposition = 'Unknown';
-    let mrp = 0.0;
-    let packSize = '10 tablets';
-    let cdscoFound = false;
-    let cdscoBadge = '';
-    let approvalDate = '';
-    let indication = '';
-
-    if (type === 'cdsco') {
-      saltComposition = result.row['Drug Name'] || '';
-      brandName = saltComposition.split(' ')[0] || 'Generic';
-      cdscoFound = true;
-      cdscoBadge = `✓ ${saltComposition} is CDSCO-approved`;
-      approvalDate = result.row['Approval Date'] || 'N/A';
-      indication = result.row['Indication'] || 'Maintenance therapy';
-    } else {
-      saltComposition = result.row['Generic Name'] || '';
-      brandName = result.row['Drug Name'] || result.row['Generic Name'] || 'Generic';
-      mrp = parseFloat(result.row['MRP']) || 0.0;
-      packSize = result.row['Unit Size'] || '10 tablets';
+  const handleGlobalSearch = async (queryText) => {
+    if (!queryText || !queryText.trim()) return;
+    setView(VIEWS.LOADING);
+    setError(null);
+    setStep(1);
+    setBarcodeHit(false);
+    setProcessedPreview(null);
+    setCompletedStepIds([]);
+    setActiveStepId(null);
+    setPreview(null);
+    try {
+      setActiveStepId('started');
+      const res = await lookupMedicineNameOnly(queryText.trim());
+      setCompletedStepIds(['started', 'vision', 'db', 'scraping', 'summary']);
+      setActiveStepId(null);
+      setResults(res);
+      setView(VIEWS.RESULTS);
+    } catch (err) {
+      setError(err.message || 'Failed to complete global online search.');
+      setView(VIEWS.ERROR);
     }
+  };
 
-    const mockResult = {
-      productType: 'MEDICINE',
-      brandName,
-      saltComposition,
-      manufacturer: result.row['Manufacturer'] || 'Generic Manufacturer',
-      mrp: mrp || null,
-      unitSize: packSize,
-      confidence: 100,
-      saltSource: 'OFFLINE_SEARCH',
-      authenticity: {
-        status: cdscoFound ? 'LIKELY_GENUINE' : 'CANNOT_DETERMINE',
-        reason: cdscoFound ? 'Matches national CDSCO registration database.' : 'Unchecked in registry. Verify with pharmacist.',
-        cdscoBadge: cdscoBadge || 'Salt not verified in offline CDSCO index.',
-        cdscoFound,
-        approvalDate,
-      },
-      medicineInfo: {
-        whatItDoes: indication || 'Active ingredient medication used for clinical therapy.',
-        commonUses: indication ? [indication] : ['Symptomatic relief'],
-        prescriptionRequired: true,
-        sideEffects: ['Nausea', 'Dizziness'],
-        importantWarnings: ['Consult with your healthcare practitioner before use.'],
-      },
-      alternatives: {
-        hasGenerics: type === 'ja',
-        janAushadhiAvailable: type === 'ja',
-        topAlternatives: type === 'ja' ? [{
-          name: saltComposition,
-          brand: 'Jan Aushadhi',
-          mrp,
-          packSize,
-          perUnit: mrp / 10,
-          priceSource: 'Jan Aushadhi (Offline Search)',
-          highConfidence: true,
-          aiEstimated: false,
-        }] : [],
-        disclaimer: 'Offline catalog search match.',
-      },
-      dataSource: {
-        salt: 'Offline Search Database',
-        alts: 'Jan Aushadhi Catalog',
-        cdsco: cdscoFound ? 'CDSCO Approved' : 'Unregistered',
-        cdscoFound,
-      }
-    };
-
-    setResults(mockResult);
-    setView(VIEWS.RESULTS);
+  const handleSelectSearchResult = (result, type) => {
+    let queryText = '';
+    if (type === 'cdsco') {
+      queryText = result.row['Drug Name'] || '';
+    } else {
+      queryText = result.row['Generic Name'] || result.row['Drug Name'] || '';
+    }
+    if (queryText) {
+      handleGlobalSearch(queryText);
+    }
   };
 
   // Unified Scanner backend analysis coordinator
@@ -677,6 +612,7 @@ export default function Scanner() {
           setStep(3)
           await new Promise(r => setTimeout(r, 300))
           if (res.data?.cannotRead) throw new Error(res.data.cannotReadReason || 'Could not read the prescription.')
+          res.isPrescription = true
         } else {
           await new Promise(r => setTimeout(r, 300))
           res = await scanMedicine(finalBase64, 'image/jpeg', barcodeData)
@@ -684,6 +620,7 @@ export default function Scanner() {
           await new Promise(r => setTimeout(r, 300))
           if (res.cannotRead) throw new Error(res.cannotReadReason || 'Could not read the medicine. Try a clearer photo.')
         }
+        res.preview = `data:image/jpeg;base64,${finalBase64}`
         setResults(res)
         setView(VIEWS.RESULTS)
       } else {
@@ -756,6 +693,7 @@ export default function Scanner() {
           if (scanMode === 'prescription') {
             scanResult.isPrescription = true
           }
+          scanResult.preview = `data:image/jpeg;base64,${finalBase64}`
           setResults(scanResult)
           setView(VIEWS.RESULTS)
         } else {
@@ -847,17 +785,28 @@ export default function Scanner() {
             <div style={{ color: '#9CA3AF', fontSize: 10.5 }}>Know Your Medicine</div>
           </div>
         </div>
-        <button onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
+        <button id="menu-toggle-btn" onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
           {[0,1,2].map(i => <span key={i} style={{ width: 17, height: 1.5, background: hamOpen && i===1 ? 'transparent' : '#fff', borderRadius: 1, display: 'block',
             transform: hamOpen ? (i===0 ? 'translateY(6px) rotate(45deg)' : i===2 ? 'translateY(-6px) rotate(-45deg)' : 'none') : 'none', transition: 'all 0.25s' }} />)}
         </button>
       </header>
 
-      <HamMenu open={hamOpen} onClose={() => setHamOpen(false)} lang={lang} setLang={setLang} t={t} onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset() }} />
+      <HamMenu 
+        open={hamOpen} 
+        onClose={() => setHamOpen(false)} 
+        lang={lang} 
+        setLang={setLang} 
+        t={t} 
+        onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }} 
+        onCabinet={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }}
+        onReminders={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('reminders'); }}
+        onHealthCard={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('healthcard'); }}
+        onSymptoms={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('symptoms'); }}
+      />
 
       {/* Beta banner */}
       <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
-        <span style={{ fontSize: 11.5, color: '#92400E' }}>dYs  <strong>Beta</strong> ?" {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
+        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> — {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
 
       {view === VIEWS.HOME    && (
@@ -909,6 +858,7 @@ export default function Scanner() {
           isSearching={isSearching}
           searchStatus={searchStatus}
           handleSelectSearchResult={handleSelectSearchResult}
+          handleGlobalSearch={handleGlobalSearch}
           
           profiles={profiles}
           activeProfileId={activeProfileId}
@@ -947,7 +897,7 @@ export default function Scanner() {
       )}
       {view === VIEWS.RESULTS && (
         results?.isPrescription ? (
-          <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} />
+          <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
         ) : (
           <ResultsPanel 
             results={results} 
@@ -975,7 +925,7 @@ function HomeView({
   handleUnlockVault, showPinSetup, setShowPinSetup, newPin, setNewPin, handleSetupPin,
   handleDisableEncryption,
   cabinet, toggleCabinetItem, activeInteractions, activeDuplications, activeSchedule,
-  searchQuery, handleSearchChange, searchResults, isSearching, searchStatus, handleSelectSearchResult,
+  searchQuery, handleSearchChange, searchResults, isSearching, searchStatus, handleSelectSearchResult, handleGlobalSearch,
   
   profiles, activeProfileId, setActiveProfileId, activeTab, setActiveTab,
   symptomInput, setSymptomInput, profileInput, setProfileInput, showAddProfile, setShowAddProfile,
@@ -989,7 +939,7 @@ function HomeView({
       {/* Modern Hero Section */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
-          <span style={{ fontSize: 14 }}>o"</span> {t.knowYourMedicine || 'Know Your Medicine'}
+          <span style={{ fontSize: 14 }}>✨</span> {t.knowYourMedicine || 'Know Your Medicine'}
         </div>
 
         <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
@@ -1005,20 +955,20 @@ function HomeView({
         <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
-            <span style={{ fontSize: 56 }}>dY'S</span>
+            <span style={{ fontSize: 56 }}>💊</span>
           </div>
-          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>o" Verified</div>
-          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>,140 Save</div>
+          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
+          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
         </div>
 
         {/* Primary Call to Action */}
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
           <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>dY"</span> {t.scanMedicineBtn || 'Scan Medicine Strip'}
+            <span style={{ fontSize: 22 }}>📷</span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
           </button>
           
           <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>dY"?</span> {t.scanPrescriptionBtn || 'Scan Prescription'}
+            <span style={{ fontSize: 22 }}>📝</span> {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
           </button>
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -1050,28 +1000,49 @@ function HomeView({
           Type a brand name or composition salt. Works offline using Double Metaphone and BM25 index matching.
         </p>
 
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search e.g. Crocin, Paracetamol, Atorvastatin..."
-            style={{
-              width: '100%',
-              height: 46,
-              padding: '0 12px',
-              borderRadius: 10,
-              border: '1.5px solid var(--bordermd)',
-              fontSize: 13.5,
-              color: 'var(--navy)',
-              outline: 'none',
-              background: '#fff',
-              boxSizing: 'border-box',
-              transition: 'border-color 0.2s'
-            }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--bordermd)'}
-          />
+        <div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
+              placeholder="Search e.g. Crocin, Paracetamol, Atorvastatin..."
+              style={{
+                flex: 1,
+                height: 46,
+                padding: '0 12px',
+                borderRadius: 10,
+                border: '1.5px solid var(--bordermd)',
+                fontSize: 13.5,
+                color: 'var(--navy)',
+                outline: 'none',
+                background: '#fff',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--bordermd)'}
+            />
+            <button 
+              onClick={() => handleGlobalSearch(searchQuery)}
+              style={{
+                height: 46,
+                padding: '0 16px',
+                background: 'linear-gradient(135deg, var(--green), #0D9488)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 10px rgba(15,122,90,0.15)',
+                transition: 'transform 0.2s'
+              }}
+            >
+              Search
+            </button>
+          </div>
           <div style={{ fontSize: 10, color: 'var(--textlt)', marginTop: 6, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>🔒</span> {searchStatus}
           </div>
@@ -1733,10 +1704,10 @@ function HomeView({
 
       {/* Footer links */}
       <div style={{ textAlign: 'center', padding: '16px 0 4px', display: 'flex', justifyContent: 'center', gap: 20 }}>
-        <button onClick={() => setPage('privacy')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
+        <button id="footer-privacy-link" onClick={() => setPage('privacy')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
           {t.privacyTitle || 'Privacy Policy'}
         </button>
-        <button onClick={() => setPage('terms')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
+        <button id="footer-terms-link" onClick={() => setPage('terms')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
           {t.termsTitle || 'Terms of Service'}
         </button>
       </div>
