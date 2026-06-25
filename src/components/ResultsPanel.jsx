@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { checkRecallStatus, generateReportingKeys, signCounterfeitReport } from '../services/verificationService.js'
-import { getPKParameters, simulatePharmacokinetics } from '../services/pharmacokineticsService.js'
+import { getPKParameters, simulatePharmacokinetics, calculatePhysiologicalIndices } from '../services/pharmacokineticsService.js'
 
 const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
 const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSce6duzii7D1SlYOYI3DG45mVEJUyl3wSzByoYSvyHNStqFGA/viewform'
@@ -30,7 +30,7 @@ async function translateTexts(texts, targetLang) {
   } catch { return texts }
 }
 
-export default function ResultsPanel({ results, preview, onReset, t, lang, isBookmarked: propsIsBookmarked, onToggleBookmark }) {
+export default function ResultsPanel({ results, preview, onReset, t, lang, isBookmarked: propsIsBookmarked, onToggleBookmark, profile }) {
   const [card, setCard] = useState(0)
   const [reported, setReported] = useState(false)
   const [translated, setTranslated] = useState(null)
@@ -325,7 +325,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
             setReportPublicKey={setReportPublicKey}
           />
         )}
-        {card === 1 && <InfoCard info={info} results={results} translating={translating} />}
+        {card === 1 && <InfoCard info={info} results={results} translating={translating} profile={profile} />}
         {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} />}
       </div>
     </LayoutWrapper>
@@ -688,7 +688,7 @@ function AuthCard({
 }
 
 // ─── BLOODSTREAM SIMULATOR (Real-Time 2.5D visualizer) ───────────────────────
-function BloodstreamSimulator({ concentration, minEffective, minToxic, maxConc }) {
+export function BloodstreamSimulator({ concentration, minEffective, minToxic, maxConc }) {
   const canvasRef = useRef(null)
   
   useEffect(() => {
@@ -829,7 +829,7 @@ function BloodstreamSimulator({ concentration, minEffective, minToxic, maxConc }
 }
 
 // ─── CARD 2: MEDICINE INFO ────────────────────────────────────────────────────
-function InfoCard({ info, results, translating }) {
+function InfoCard({ info, results, translating, profile }) {
   const [showSide, setShowSide] = useState(false)
   const [scrubTime, setScrubTime] = useState(0.0)
   const isAyurvedic   = results.productType === 'AYURVEDIC'
@@ -842,16 +842,47 @@ function InfoCard({ info, results, translating }) {
     return m ? parseInt(m[1]) : 500
   })() : 500
 
-  const [doseWeight, setDoseWeight] = useState(70)
+  const [doseWeight, setDoseWeight] = useState(profile?.weight || 70)
+  const [doseHeight, setDoseHeight] = useState(profile?.height || 170)
+  const [doseAge, setDoseAge] = useState(profile?.age || 30)
+  const [doseGender, setDoseGender] = useState(profile?.gender || 'male')
   const [doseStrength, setDoseStrength] = useState(parsedDose)
   const [doseFreq, setDoseFreq] = useState(3) // 3x daily
+
+  useEffect(() => {
+    if (profile) {
+      setDoseWeight(profile.weight || 70)
+      setDoseHeight(profile.height || 170)
+      setDoseAge(profile.age || 30)
+      setDoseGender(profile.gender || 'male')
+    }
+  }, [profile])
+
+  const indices = calculatePhysiologicalIndices(doseWeight, doseHeight, doseAge, doseGender)
+  
+  let bmiClass = 'Normal'
+  let bmiColor = 'var(--green)'
+  let bmiBg = 'var(--greenlt)'
+  if (indices.bmi < 18.5) {
+    bmiClass = 'Underweight'
+    bmiColor = 'var(--amber)'
+    bmiBg = 'var(--amberlt)'
+  } else if (indices.bmi >= 25 && indices.bmi < 30) {
+    bmiClass = 'Overweight'
+    bmiColor = 'var(--saffron)'
+    bmiBg = 'var(--safflt)'
+  } else if (indices.bmi >= 30) {
+    bmiClass = 'Obese'
+    bmiColor = 'var(--red)'
+    bmiBg = 'var(--redlt)'
+  }
 
   const doseTimes = doseFreq === 1 ? [0] 
                   : doseFreq === 2 ? [0, 12] 
                   : doseFreq === 3 ? [0, 8, 16] 
                   : [0, 6, 12, 18]
 
-  const pkData = pkParams ? simulatePharmacokinetics(pkParams, doseStrength, doseTimes, doseWeight, 24) : []
+  const pkData = pkParams ? simulatePharmacokinetics(pkParams, doseStrength, doseTimes, doseWeight, doseHeight, doseAge, doseGender, 24) : []
   const maxConc = pkParams ? Math.max(...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10
   const peakConc = pkParams ? Math.max(...pkData.map(d => d.conc)) : 0
 
@@ -875,6 +906,37 @@ function InfoCard({ info, results, translating }) {
       warningBg = "#FFFBEB"
       warningBorder = "#FCD34D"
     }
+  }
+
+  // 3D Capsule color config based on drug properties
+  const saltLower = (results.saltComposition || '').toLowerCase()
+  const isAntibiotic = saltLower.includes('amoxicillin') || saltLower.includes('penicillin') || saltLower.includes('cef') || saltLower.includes('cipro')
+  const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen')
+  
+  let capTopColor = '#f59e0b' // default orange
+  let capBottomColor = '#f8fafc' // white
+  
+  if (isAyurvedic || isSupplement) {
+    capTopColor = '#10b981' // green
+  } else if (isAntibiotic) {
+    capTopColor = '#ef4444' // red
+    capBottomColor = '#3b82f6' // blue
+  } else if (isPainKiller) {
+    capTopColor = '#ef4444' // red
+  }
+
+  // Chronotherapy optimization tips
+  let chronoTip = ""
+  if (saltLower.includes('atorvastatin') || saltLower.includes('statin')) {
+    chronoTip = "🌙 Evening Dosing (Chronotherapy): Cholesterol synthesis peaks at night. Taking statins at bedtime optimizes therapeutic efficacy."
+  } else if (saltLower.includes('pantoprazole') || saltLower.includes('omeprazole') || saltLower.includes('prazole')) {
+    chronoTip = "🌅 Morning Dosing (PPI): Take 30 minutes before your first meal. Proton pump inhibitors require active pumps for maximum acid block."
+  } else if (saltLower.includes('metformin')) {
+    chronoTip = "🍽️ Take with Meals: Metformin should be taken with dinner or breakfast to minimize gastrointestinal discomfort and steady absorption."
+  } else if (saltLower.includes('ibuprofen') || saltLower.includes('naproxen') || saltLower.includes('diclofenac')) {
+    chronoTip = "🍕 Take with Food: Always take NSAIDs with food or milk to protect the gastric mucosal lining and prevent irritation."
+  } else if (saltLower.includes('paracetamol') || saltLower.includes('acetaminophen')) {
+    chronoTip = "🛡️ Daily Intake Cap: Keep at least 4-6 hours between doses. Absolute maximum safe daily limit is 4000mg to prevent liver toxicity."
   }
 
   // Scale functions for SVG
@@ -987,9 +1049,87 @@ function InfoCard({ info, results, translating }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
-              <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                Safety Monitor
-              </span>
+              <div className="capsule-container-3d">
+                <style>{`
+                  .capsule-container-3d {
+                    width: 32px;
+                    height: 32px;
+                    perspective: 150px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: radial-gradient(circle at center, rgba(13, 138, 104, 0.15) 0%, transparent 60%);
+                    border-radius: 50%;
+                  }
+                  .capsule-3d {
+                    width: 10px;
+                    height: 22px;
+                    position: relative;
+                    transform-style: preserve-3d;
+                    transform: rotateX(30deg) rotateY(45deg);
+                    animation: spinCapsule 5s linear infinite;
+                    cursor: pointer;
+                    transition: transform 0.3s ease;
+                  }
+                  .capsule-3d:hover {
+                    animation-play-state: paused;
+                    transform: rotateX(45deg) rotateY(180deg) scale(1.2);
+                  }
+                  .capsule-half-top {
+                    position: absolute;
+                    top: 0;
+                    width: 100%;
+                    height: 50%;
+                    border-radius: 5px 5px 0 0;
+                    border: 0.5px solid rgba(0,0,0,0.15);
+                    box-shadow: inset 0 1px 2px rgba(255,255,255,0.4);
+                    transition: transform 0.4s ease;
+                  }
+                  .capsule-3d:hover .capsule-half-top {
+                    transform: translateY(-4px);
+                  }
+                  .capsule-half-bottom {
+                    position: absolute;
+                    bottom: 0;
+                    width: 100%;
+                    height: 50%;
+                    border-radius: 0 0 5px 5px;
+                    border: 0.5px solid rgba(0,0,0,0.15);
+                    box-shadow: inset 0 -1px 2px rgba(255,255,255,0.4);
+                    transition: transform 0.4s ease;
+                  }
+                  .capsule-3d:hover .capsule-half-bottom {
+                    transform: translateY(4px);
+                  }
+                  .capsule-bead-particle {
+                    position: absolute;
+                    width: 1.5px;
+                    height: 1.5px;
+                    border-radius: 50%;
+                    background: #10b981;
+                    opacity: 0;
+                    transition: all 0.4s ease;
+                    left: 4px;
+                    top: 10px;
+                  }
+                  .capsule-3d:hover .capsule-bead-particle {
+                    opacity: 0.8;
+                    transform: translate(var(--dx), var(--dy)) scale(1.2);
+                  }
+                  @keyframes spinCapsule {
+                    0% { transform: rotateX(30deg) rotateY(0deg) rotateZ(0deg); }
+                    100% { transform: rotateX(30deg) rotateY(360deg) rotateZ(360deg); }
+                  }
+                `}</style>
+                <div className="capsule-3d" title="Hover to inspect active ingredients!">
+                  <div className="capsule-half-top" style={{ backgroundColor: capTopColor }}></div>
+                  <div className="capsule-half-bottom" style={{ backgroundColor: capBottomColor }}></div>
+                  <div className="capsule-bead-particle" style={{ '--dx': '-6px', '--dy': '-8px' }}></div>
+                  <div className="capsule-bead-particle" style={{ '--dx': '6px', '--dy': '-10px' }}></div>
+                  <div className="capsule-bead-particle" style={{ '--dx': '-8px', '--dy': '6px' }}></div>
+                  <div className="capsule-bead-particle" style={{ '--dx': '8px', '--dy': '8px' }}></div>
+                </div>
+              </div>
             </div>
 
             <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.55 }}>
@@ -1202,23 +1342,160 @@ function InfoCard({ info, results, translating }) {
                 </div>
               </div>
 
-              {/* Weight selector */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ Dosing Patient:</span>
-                <div className="segmented-control">
-                  {[[25, 'Child (25kg)'], [70, 'Adult (70kg)'], [100, 'Heavy (100kg)']].map(([val, label]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      className={`segmented-btn ${doseWeight === val ? 'active' : ''}`}
-                      onClick={() => setDoseWeight(val)}
+              {/* Glassmorphic Patient HUD Card */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.75)',
+                backdropFilter: 'blur(12px)',
+                border: '1.5px solid rgba(13,138,104,0.15)',
+                borderRadius: 16,
+                padding: 14,
+                boxShadow: 'var(--shadow)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                marginTop: 6
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--navy)' }}>👤 Patient Body Metrics HUD</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: bmiColor, background: bmiBg, padding: '2px 8px', borderRadius: 10 }}>
+                    {bmiClass} (BMI {indices.bmi})
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--textlt)', fontWeight: 700 }}>BODY SURFACE AREA (BSA)</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--navy)' }}>{indices.bsa} m²</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--textlt)', fontWeight: 700 }}>LEAN BODY MASS (LBM)</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--navy)' }}>{indices.lbm} kg</span>
+                  </div>
+                </div>
+
+                {/* Adjusters Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, borderTop: '1px dashed var(--border)', paddingTop: 10 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Weight:</span> <span>{doseWeight} kg</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="30"
+                      max="150"
+                      step="1"
+                      value={doseWeight}
+                      onChange={e => setDoseWeight(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--green)', cursor: 'pointer' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Height:</span> <span>{doseHeight} cm</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="100"
+                      max="220"
+                      step="1"
+                      value={doseHeight}
+                      onChange={e => setDoseHeight(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--green)', cursor: 'pointer' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Age:</span> <span>{doseAge} years</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={doseAge}
+                      onChange={e => setDoseAge(parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--green)', cursor: 'pointer' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)' }}>Gender:</label>
+                    <select
+                      value={doseGender}
+                      onChange={e => setDoseGender(e.target.value)}
+                      style={{
+                        height: 28,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        color: 'var(--navy)',
+                        padding: '0 4px',
+                        outline: 'none',
+                        background: '#fff'
+                      }}
                     >
-                      {label}
-                    </button>
-                  ))}
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Dynamic physiology scaling explanation */}
+                <div style={{ fontSize: '11px', color: 'var(--textmd)', lineHeight: 1.4, padding: '8px 10px', background: 'rgba(13,138,104,0.05)', borderRadius: 8, borderLeft: '3px solid var(--green)' }}>
+                  ℹ️ <strong>Physiological Scaling:</strong> {pkParams.partition === 'hydrophilic' ? (
+                    `Because ${pkParams.name} is hydrophilic, its Volume of Distribution (Vd) is scaled to your Lean Body Mass (LBM = ${indices.lbm}kg) rather than total weight.`
+                  ) : (
+                    `Because ${pkParams.name} is lipophilic, its Volume of Distribution (Vd) is scaled to your total Body Weight (${doseWeight}kg).`
+                  )}
+                  {doseAge > 50 && " Age-based renal clearance factor applied to simulate slower drug excretion."}
                 </div>
               </div>
             </div>
+
+            {/* Daily Intake Limit Alert */}
+            {pkParams.maxDailyDoseMg && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--textmd)' }}>📊 Daily Dose Capacity:</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: (doseStrength * doseFreq) > pkParams.maxDailyDoseMg ? 'var(--red)' : 'var(--green)' }}>
+                    {doseStrength * doseFreq}mg / {pkParams.maxDailyDoseMg}mg max
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.min(100, ((doseStrength * doseFreq) / pkParams.maxDailyDoseMg) * 100)}%`,
+                    height: '100%',
+                    background: (doseStrength * doseFreq) > pkParams.maxDailyDoseMg ? 'var(--red)' : 'var(--green)',
+                    transition: 'width 0.3s ease'
+                  }}></div>
+                </div>
+                {(doseStrength * doseFreq) > pkParams.maxDailyDoseMg && (
+                  <div style={{ fontSize: '10px', color: 'var(--red)', fontWeight: 800, marginTop: 2 }}>
+                    ⚠️ WARNING: Scheduled daily intake exceeds the clinical safe maximum daily limit!
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Chronotherapy optimization tip */}
+            {chronoTip && (
+              <div style={{
+                padding: '8px 10px',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: 10,
+                fontSize: '11.5px',
+                color: '#1e40af',
+                fontWeight: 700,
+                lineHeight: 1.45
+              }}>
+                {chronoTip}
+              </div>
+            )}
 
             {/* Dosing safety report status message */}
             <div style={{

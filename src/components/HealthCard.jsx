@@ -9,7 +9,11 @@ export default function HealthCard({ profile, onSaveProfile }) {
     allergies: '',
     chronicConditions: '',
     emergencyName: '',
-    emergencyPhone: ''
+    emergencyPhone: '',
+    weight: 70,
+    height: 170,
+    age: 30,
+    gender: 'male'
   });
   const [qrUrl, setQrUrl] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
@@ -22,7 +26,11 @@ export default function HealthCard({ profile, onSaveProfile }) {
         allergies: profile.allergies || '',
         chronicConditions: profile.chronicConditions || '',
         emergencyName: profile.emergencyName || '',
-        emergencyPhone: profile.emergencyPhone || ''
+        emergencyPhone: profile.emergencyPhone || '',
+        weight: profile.weight || 70,
+        height: profile.height || 170,
+        age: profile.age || 30,
+        gender: profile.gender || 'male'
       });
     }
   }, [profile]);
@@ -31,6 +39,8 @@ export default function HealthCard({ profile, onSaveProfile }) {
     // Generate emergency QR payload (Formatted plain-text for universal scanner readability)
     const qrPayload = `--- AGADA EMERGENCY MEDICAL ID ---
 Patient: ${formData.name || 'Not Specified'}
+Age: ${formData.age || '30'} | Gender: ${formData.gender || 'male'}
+Weight: ${formData.weight || '70'} kg | Height: ${formData.height || '170'} cm
 Blood Group: ${formData.bloodGroup || 'N/A'}
 Allergies: ${formData.allergies || 'None Logged'}
 Chronic Conditions: ${formData.chronicConditions || 'None Logged'}
@@ -63,7 +73,7 @@ Zero-Knowledge Offline Medical Pass`;
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'weight' || name === 'height' || name === 'age' ? (parseFloat(value) || '') : value
     }));
   };
 
@@ -95,14 +105,31 @@ Zero-Knowledge Offline Medical Pass`;
                 <span className="wallet-type">OFFLINE VAULT</span>
               </div>
 
-              <div className="wallet-body">
+              <div className="wallet-body" style={{ gap: '12px' }}>
                 <div className="wallet-info-side">
                   <div className="wallet-field">
                     <span className="wallet-label">PATIENT NAME</span>
                     <span className="wallet-value highlight">{formData.name || 'NOT SET'}</span>
                   </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '2px' }}>
+                    <div className="wallet-field">
+                      <span className="wallet-label">AGE / GENDER</span>
+                      <span className="wallet-value" style={{ fontSize: '11px', fontWeight: 800 }}>
+                        {formData.age || '30'}y / {(formData.gender || 'male').substring(0, 1).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="wallet-field">
+                      <span className="wallet-label">WEIGHT</span>
+                      <span className="wallet-value" style={{ fontSize: '11px', fontWeight: 800 }}>{formData.weight || '70'} kg</span>
+                    </div>
+                    <div className="wallet-field">
+                      <span className="wallet-label">HEIGHT</span>
+                      <span className="wallet-value" style={{ fontSize: '11px', fontWeight: 800 }}>{formData.height || '170'} cm</span>
+                    </div>
+                  </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '2px' }}>
                     <div className="wallet-field">
                       <span className="wallet-label">BLOOD TYPE</span>
                       <div>
@@ -121,7 +148,7 @@ Zero-Knowledge Offline Medical Pass`;
 
                   <div className="wallet-field">
                     <span className="wallet-label">CHRONIC CONDITIONS</span>
-                    <span className="wallet-value" style={{ fontSize: '12.5px' }}>{formData.chronicConditions || 'None Logged'}</span>
+                    <span className="wallet-value" style={{ fontSize: '11.5px', lineHeight: 1.2 }}>{formData.chronicConditions || 'None Logged'}</span>
                   </div>
                 </div>
 
@@ -196,6 +223,60 @@ Zero-Knowledge Offline Medical Pass`;
                   <option value="O+">O+</option>
                   <option value="O-">O-</option>
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="card-age">📅 Age (years)</label>
+                <input
+                  id="card-age"
+                  type="number"
+                  name="age"
+                  value={formData.age}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 30"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="card-gender">⚧ Gender</label>
+                <select
+                  id="card-gender"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleInputChange}
+                  required
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="card-weight">⚖️ Weight (kg)</label>
+                <input
+                  id="card-weight"
+                  type="number"
+                  name="weight"
+                  value={formData.weight}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 70"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="card-height">📏 Height (cm)</label>
+                <input
+                  id="card-height"
+                  type="number"
+                  name="height"
+                  value={formData.height}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 170"
+                  required
+                />
               </div>
 
               <div className="form-group">
@@ -290,6 +371,8 @@ Zero-Knowledge Offline Medical Pass`;
             </div>
             <div className="qr-card-data-summary" style={{ boxShadow: 'var(--shadow)' }}>
               <p><strong>👤 Name:</strong> {formData.name || 'N/A'}</p>
+              <p><strong>📅 Age / Gender:</strong> {formData.age || '30'} years / {formData.gender || 'male'}</p>
+              <p><strong>⚖️ Weight / Height:</strong> {formData.weight || '70'} kg / {formData.height || '170'} cm</p>
               <p><strong>🩸 Blood Group:</strong> {formData.bloodGroup || 'N/A'}</p>
               <p><strong>⚠️ Allergies:</strong> {formData.allergies || 'None logged'}</p>
               <p><strong>🩺 Conditions:</strong> {formData.chronicConditions || 'None logged'}</p>

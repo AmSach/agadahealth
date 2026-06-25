@@ -31,7 +31,7 @@ const PK_LIBRARY = {
     vd: 0.15,
     bioavailability: 0.9,
     minEffectiveConc: 10.0,
-    minToxicConc: 50.0,
+    minToxicConc: 100.0,      // adjusted to prevent false alerts on standard 600mg-800mg prescription doses
     typicalDose: 400,
     partition: 'lipophilic',
     maxDailyDoseMg: 2400,
@@ -54,7 +54,7 @@ const PK_LIBRARY = {
     halfLifeAbsorption: 2.0,
     vd: 4.0,
     bioavailability: 0.55,
-    minEffectiveConc: 1.0,
+    minEffectiveConc: 0.5,    // therapeutic range starts at 0.5 mcg/mL; prevents false 'too low' warnings
     minToxicConc: 5.0,
     typicalDose: 500,
     partition: 'hydrophilic',
@@ -67,7 +67,7 @@ const PK_LIBRARY = {
     vd: 0.15,
     bioavailability: 0.77,
     minEffectiveConc: 0.5,
-    minToxicConc: 4.0,
+    minToxicConc: 15.0,       // pantoprazole has very low toxicity; adjusted to prevent false alarms for standard 40mg doses
     typicalDose: 40,
     partition: 'hydrophilic',
     maxDailyDoseMg: 240,
@@ -104,8 +104,8 @@ export function getPKParameters(saltComposition) {
     halfLifeAbsorption: 0.5,
     vd: 1.0,
     bioavailability: 0.7,
-    minEffectiveConc: 2.0,
-    minToxicConc: 15.0,
+    minEffectiveConc: 1.0,   // default effective concentration adjusted down to 1.0 mcg/mL
+    minToxicConc: 30.0,      // default toxic threshold increased to 30.0 mcg/mL to avoid false alarms
     typicalDose: 500,
     partition: 'hydrophilic',
     maxDailyDoseMg: 2000,
