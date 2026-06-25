@@ -6,18 +6,18 @@ export default function Documentation({ onBack }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
         <button onClick={onBack} style={{ fontSize: 13, padding: '6px 12px', background: 'var(--bgsoft)', color: 'var(--charcoal)' }}>
-          ‹ Back to Home
+          ‹ back to home
         </button>
-        <h2 style={{ fontSize: 20, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="logo-badge" style={{ width: 26, height: 26, fontSize: 14 }}>D</span>
-          API Docs
+        <h2 style={{ fontSize: 20, margin: 0, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'DM Serif Display', fontWeight: 'normal' }}>
+          <span className="logo-badge" style={{ width: 26, height: 26, fontSize: 14 }}>d</span>
+          api docs
         </h2>
       </div>
 
       <div className="neo-card" style={{ background: '#fff', textAlign: 'left' }}>
-        <h3 style={{ fontSize: 18, marginBottom: 8 }}>🌿 Agada Serverless APIs</h3>
+        <h3 style={{ fontSize: 18, marginBottom: 8, fontFamily: 'DM Serif Display', fontWeight: 'normal' }}>ok so</h3>
         <p style={{ fontSize: 13.5, color: 'var(--textlt)', lineHeight: 1.5 }}>
-          Agada exposes secure, serverless helper endpoints to run client-side requests without exposing API tokens in the browser console.
+          i built a few serverless backend helper endpoints because putting API keys directly in the frontend is a security risk, and vercel functions timeout if you take too long to run image processing.
         </p>
       </div>
 
@@ -28,10 +28,10 @@ export default function Documentation({ onBack }) {
           <code style={{ fontSize: 13, fontWeight: 700 }}>/api/scan-stream</code>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--textlt)' }}>
-          Streams medicine OCR, Cdsco database lookup, and pricing calculations via Server-Sent Events (SSE). Helps execute long-running AI pipelines within serverless function timeouts.
+          this does the heavy lifting. it reads the uploaded strip image, does the ocr, searches the local indexedDB, and pulls generic price estimates all in one go. since vercel functions timeout after 10 seconds, i made this stream updates back using server-sent events (sse) so the browser doesn't hang.
         </p>
         <div style={{ background: 'var(--bgsoft)', padding: 10, borderRadius: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>Payload Format:</div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>send this payload:</div>
           <pre style={{ fontSize: 11, overflowX: 'auto', whiteSpace: 'pre' }}>
 {`{
   "image": "data:image/jpeg;base64,...",
@@ -40,12 +40,12 @@ export default function Documentation({ onBack }) {
           </pre>
         </div>
         <div style={{ background: 'var(--bgsoft)', padding: 10, borderRadius: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>SSE Event Sequence:</div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>what it streams back:</div>
           <ul style={{ fontSize: 11.5, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <li><code>vision</code>: OCR label processing.</li>
-            <li><code>database</code>: CDsCO registry indications search.</li>
-            <li><code>pricing</code>: Online generic alternatives price lookup.</li>
-            <li><code>complete</code>: Emits finalized medicine payload.</li>
+            <li><code>vision</code>: kicks off the ocr processing.</li>
+            <li><code>database</code>: matches the salt names in the cdsco drug registry.</li>
+            <li><code>pricing</code>: searches generic alternatives.</li>
+            <li><code>complete</code>: gives you the final medicine details json object.</li>
           </ul>
         </div>
       </div>
@@ -57,10 +57,10 @@ export default function Documentation({ onBack }) {
           <code style={{ fontSize: 13, fontWeight: 700 }}>/api/groq</code>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--textlt)' }}>
-          Proxies unstructured chat prompts safely to the Groq API, handling key rotation and model fallback cascading server-side to protect keys.
+          a secure proxy to keep groq api keys out of the client browser. it handles key rotation and model fallback cascading server-side, so if one key get rate-limited, it handles it without breaking the app.
         </p>
         <div style={{ background: 'var(--bgsoft)', padding: 10, borderRadius: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>Example Request Body:</div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--charcol-lt)', marginBottom: 4 }}>payload shape:</div>
           <pre style={{ fontSize: 11, overflowX: 'auto', whiteSpace: 'pre' }}>
 {`{
   "model": "llama-3.3-70b-versatile",
@@ -79,7 +79,7 @@ export default function Documentation({ onBack }) {
           <code style={{ fontSize: 13, fontWeight: 700 }}>/api/prices</code>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--textlt)' }}>
-          Crawls and aggregates retail drug prices across digital pharmacies (Apollo, Netmeds, 1mg) by searching for matching salts and dosages.
+          scrapes apollo, netmeds, and 1mg for real retail pricing of the generic salt so you can see exactly how much you're getting ripped off.
         </p>
       </div>
 
@@ -90,13 +90,13 @@ export default function Documentation({ onBack }) {
           <code style={{ fontSize: 13, fontWeight: 700 }}>/api/davaindia</code>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--textlt)' }}>
-          Queries generic drug items from the DavaIndia database, returning direct matches for chemical salts and their prices.
+          looks up generic prices from davaindia's catalog so we have live local price baselines.
         </p>
       </div>
 
       {/* Footer */}
       <button onClick={onBack} style={{ margin: '16px auto 32px', display: 'inline-flex', background: 'var(--navy)', color: '#fff' }}>
-        Back to Dashboard
+        back to home
       </button>
     </div>
   )

@@ -1,93 +1,85 @@
-# Agada (अगद) 🍃
+# agada (अगद) 🍃
 
-Hello there, explorer! Welcome to **Agada**.
+built something that should've existed already.
 
-I built Agada because medicine pricing and transparency in India can be incredibly confusing. A branded pill might cost ₹30, while the exact same generic chemical compound is sitting in a government-subsidized *Jan Aushadhi Kendra* store down the road for ₹4. But doctors write prescriptions in ancient hieroglyphics, pharmacies hide the generic boxes behind the counter, and the government's official drug list is a massive, unsearchable spreadsheet.
+ok so
+chemists in india upcharge the fuck out of you and nobody talks about it.
 
-So, I brewed a giant pot of chamomile tea, fired up my editor, and wrote this. It is a completely free, offline-first medicine scanner that fits right in your pocket. It helps you scan a medicine strip, check if you're paying too much, understand what the chemicals actually do in plain English, and track your cabinet without sending a single byte of your health data to some remote cloud server.
+i got overcharged for a basic prescription and it just sat in my head. so i built agada. 
 
-👉 **Live Link:** [agadahealth.vercel.app](https://agadahealth.vercel.app)
+you open it in a browser, snap a photo of any medicine strip, and it tells you:
+- if the drug is actually listed in the government's official database
+- what the chemical composition actually does in plain, simple english
+- cheaper generic equivalents (literally 90% cheaper sometimes)
+- if you even need a prescription for it (schedule H/H1/X)
 
----
+no login. no ads. no tracking. runs offline in your browser.
 
-## 🌿 The Grand Tour of Agada's Systems
-
-Here is a friendly, deep look into how the engineering actually works under the hood:
-
-### 1. 📸 The Offline Label Scanner (Vision OCR & WebAssembly)
-When you snap a photo of a medicine strip, Agada cleans it up completely on your device. We compile custom image filters (like adaptive thresholding and contrast stretching) to a tiny **WebAssembly** binary. This pre-processes the camera frame to remove glare and shadow before Tesseract.js extracts the raw text. Your photos are never uploaded to any server.
-
-### 2. 🔍 The Phonetic Guessing Engine (BM25 + Double Metaphone in IndexedDB)
-OCR text from curved, metallic pill strips is usually garbled (reading "Krocin" or "Crocn-500" instead of "Crocin"). If we searched a database for the exact word, we would find nothing. 
-
-To solve this, Agada preloads a local copy of the official CDSCO drug registry (over 300,000 approved drugs!) into your browser's **IndexedDB** on first load. When you scan, we search this database using a **Double Metaphone** algorithm (which index words by how they *sound*) combined with **BM25 text relevance**. The app guesses the closest matching chemical composition even with heavy typos.
-
-### 3. 🩸 The Active Bloodstream Simulator (Bateman ODEs)
-Ever wonder when a pill actually peaks in your body or leaves your system? We solve a classic pharmacokinetic differential equation (the **1-compartment open Bateman model**) in real-time. As you slide the dosage strength and frequency controls, the math recalculates instantly and plots your concentration curve in a responsive SVG line chart.
-
-### 4. 🔒 The Secret Cabinet (Zero-Knowledge AES Cryptography)
-Your medication list and health history should be yours alone. If you choose to set a 4-digit PIN, we stretch it 100,000 times using **PBKDF2** to derive a strong cryptographic key. We then encrypt your saved medicine cabinet records locally using **AES-GCM** before writing them to the browser cache. Because I don't run database servers, I don't know your PIN and have no way to reset it. If you forget it, the records stay scrambled forever!
-
-### 5. 🚨 First Responder QR Cards
-You can generate a card for emergency personnel. Because complex JSON schemas or modern emojis can crash older barcode readers in an ambulance, we format your allergies, blood group, and emergency contact into a clean, old-school **ASCII text block** and bake it into a high-error-correction QR code. Any responder can scan it, even on ancient hardware.
-
-### 6. 🌿 Safety Guards (Schedule H & Poison Controls)
-Agada cross-references scanned drugs against standard pharmaceutical schedules to alert you if a medicine requires a doctor's prescription (Schedule H, H1, or X in India) or if it's safe to buy over-the-counter (OTC). We also look up your age and weight to display a warning if your daily logged dosage exceeds weight-adjusted safety limits. 
-
-Additionally, if you accidentally scan a household chemical (like bleach, pesticide, or acid), the app immediately blocks the results, alerts you, and displays the national poison control helpline.
+live here: [agadahealth.vercel.app](https://agadahealth.vercel.app)
 
 ---
 
-## 🔌 Serverless API Documentation
+## how it works under the hood (no corporate speak)
 
-Agada includes a set of secure, serverless proxy endpoints that handle integrations without exposing API keys to client browsers:
+i originally tried running scanner images through standard cloud APIs, but vercel's 10-second timeout killed the connections, and the bills were annoying. so I moved the entire pipeline to the browser.
+
+### 1. the label scanner (ocr + WebAssembly)
+when you snap a photo, we clean up the shadows inside a WebAssembly filter (essential because phone photos taken in dark pharmacies are usually garbage) and hand it to a client-side OCR engine. 
+
+### 2. the phonetic guessing engine (IndexedDB + metaphone)
+ocr text from curved drug packs is usually scrambled (e.g. reading "Dlo-650" instead of "Dolo-650"). if we searched the database for the exact word, we would find nothing. 
+so agada preloads the official CDSCO approved drugs database (300k+ rows) into your browser's IndexedDB. we run a phonetic search using Double Metaphone and BM25 relevance to guess the correct drug even with heavy spelling mistakes.
+
+### 3. blood concentration physics (Bateman ODEs)
+to calculate when a drug actually peaks and leaves your bloodstream, we solve a 1-compartment open Bateman differential equation in javascript in real-time. as you slide the dosage and frequency controls, the SVG curve updates immediately.
+
+### 4. private local cabinet (aes-gcm)
+your cabinet is yours alone. if you set a 4-digit PIN, we stretch it 100,000 times using PBKDF2 to generate a key, then encrypt your cabinet list using AES-GCM before saving it to localStorage. i don't run a database server. if you forget your PIN, your cabinet is gone. 
+
+### 5. emergency qr codes
+you can generate an emergency card for first responders. because complex JSON or emojis crash older scanners in an ambulance, we compile a clean ASCII text block and bake it into a high-error-correction QR code. it's ugly, but it reads on ancient hardware.
+
+### 6. safety overrides (schedule h & poison control)
+we check if a drug requires a doctor's prescription or if it's safe to buy over-the-counter. i wrote custom override rules for 70+ commonly misclassified medicines. also, if you scan a household chemical (like bleach or acid), the app blocks the scan, warns you, and shows the national poison control helpline.
+
+---
+
+## the serverless backend endpoints
+
+i built a few serverless proxy endpoints to handle integrations without exposing API keys to the browser:
 
 ### 1. `POST /api/scan-stream`
-This endpoint processes scanned strips or prescriptions. It performs local database matching and online retail drug price aggregation, streaming events back via **Server-Sent Events (SSE)**.
-*   **Request Payload**: 
-    ```json
-    {
-      "image": "data:image/jpeg;base64,...",
-      "barcodeData": null
-    }
-    ```
-*   **SSE Event Sequence**:
-    *   `vision`: Image thresholding and Tesseract OCR processing.
-    *   `database`: Matching extracted text against the CDSCO approved drugs database in IndexDB.
-    *   `pricing`: Scraping discounted generic and brand prices.
-    *   `complete`: Emits the compiled medicine info card object.
+reads the strip image, does the ocr, searches the local database, and pulls generic price estimates. since vercel functions timeout after 10 seconds, this streams updates back using server-sent events (sse) so the frontend doesn't hang.
+*   **payload**: `{ "image": "data:image/jpeg;base64,...", "barcodeData": null }`
+*   **events streamed**:
+    *   `vision`: OCR label processing starting.
+    *   `database`: Matching CDSCO drug registry.
+    *   `pricing`: Aggregating generic prices.
+    *   `complete`: Sends the final compiled medicine JSON card.
 
 ### 2. `POST /api/groq`
-A secure completion proxy. It intercepts standard OpenAI chat requests and forwards them to Groq using a server-side key rotation pool (safeguarding your keys).
-*   **Request Payload**:
-    ```json
-    {
-      "model": "llama-3.3-70b-versatile",
-      "messages": [{ "role": "user", "content": "Explain Paracetamol..." }]
-    }
-    ```
+proxies chat prompts safely to Groq chat completions, handling key rotation and model fallback cascading server-side to prevent keys from leaking.
+*   **payload**: `{ "model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "..."}] }`
 
 ### 3. `GET /api/prices`
-Searches online pharmacy listings (Apollo, Netmeds, 1mg) for alternative branded and generic price mappings based on matching active ingredients.
+scrapes apollo, netmeds, and 1mg for real retail pricing of the generic salt so you can see exactly how much you're getting ripped off.
 
 ### 4. `GET /api/davaindia`
-Looks up discounted generic medicine items directly from DavaIndia's inventory lists.
+looks up generic prices from davaindia's catalog so we have live local price baselines.
 
 ---
 
-## 🌱 Run it locally
-
-To play with the code on your own machine:
+## run it locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/` in your browser and you're ready to scan!
+open `http://localhost:5173/` and you're good.
 
-### Running the verification tests
-If you want to run the Playwright automated test suites locally:
+### automated tests
+to run the Playwright verification suite:
 ```bash
 pip install playwright
 playwright install chromium
@@ -97,8 +89,8 @@ python C:\Users\amans\.gemini\antigravity\brain\247430f8-ea40-419a-8cd2-9c6df175
 
 ---
 
-## 🍂 Data Credits & Disclaimer
-- Indian Central Drugs Standard Control Organisation (CDSCO) drug registry.
-- Jan Aushadhi Kendras price list (BPPI).
-- Dosing variables calibrated from public FDA/NIH pharmacology sheets.
-- **Disclaimer:** I am a developer, not a doctor or pharmacist. Always verify medication changes with a licensed medical professional. Let's make healthcare transparent!
+## data credits & disclaimer
+- CDSCO approved drugs database
+- BPPI Jan Aushadhi price list
+- FDA/NIH dosing sheets
+- **disclaimer:** i am a developer, not a doctor. verify with a pharmacist before replacing your pills.
