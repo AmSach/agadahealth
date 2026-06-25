@@ -2,6 +2,7 @@ import React, { useState, createContext, useContext } from 'react'
 import Scanner from './pages/Scanner.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import Terms from './pages/Terms.jsx'
+import Documentation from './pages/Documentation.jsx'
 
 export const LangContext = createContext({ lang: 'en', setLang: () => {} })
 export const useLang = () => useContext(LangContext)
@@ -10,7 +11,7 @@ export const useSetPage = () => useContext(PageContext).setPage
 
 export default function App() {
   const [lang, setLang] = useState('en')
-  const [page, setPage] = useState('home') // 'home' | 'privacy' | 'terms'
+  const [page, setPage] = useState('home') // 'home' | 'privacy' | 'terms' | 'docs'
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>
@@ -20,6 +21,7 @@ export default function App() {
           {page === 'home'    && <Scanner />}
           {page === 'privacy' && <PrivacyPolicy onBack={() => setPage('home')} />}
           {page === 'terms'   && <Terms onBack={() => setPage('home')} />}
+          {page === 'docs'    && <Documentation onBack={() => setPage('home')} />}
         </div>
       </PageContext.Provider>
     </LangContext.Provider>

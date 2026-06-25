@@ -61,12 +61,15 @@ export default function HamMenu({ open, onClose, lang, setLang, t, onScan, onHea
           onClick={() => window.open('https://agadahealth.vercel.app', '_blank')} />
 
         {/* Divider + legal links */}
-        <div style={{ margin: '6px 18px 0', paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 16, paddingBottom: 12 }}>
+        <div style={{ margin: '6px 18px 0', paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 12, paddingBottom: 12, flexWrap: 'wrap' }}>
           <button id="menu-privacy-link" onClick={() => go('privacy')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
             {t.privacyTitle || 'Privacy Policy'}
           </button>
           <button id="menu-terms-link" onClick={() => go('terms')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
             {t.termsTitle || 'Terms of Service'}
+          </button>
+          <button id="menu-docs-link" onClick={() => go('docs')} style={{ fontSize: 11.5, color: 'var(--green)', fontWeight: 500 }}>
+            API Documentation
           </button>
         </div>
 

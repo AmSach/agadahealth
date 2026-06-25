@@ -38,6 +38,43 @@ Additionally, if you accidentally scan a household chemical (like bleach, pestic
 
 ---
 
+## 🔌 Serverless API Documentation
+
+Agada includes a set of secure, serverless proxy endpoints that handle integrations without exposing API keys to client browsers:
+
+### 1. `POST /api/scan-stream`
+This endpoint processes scanned strips or prescriptions. It performs local database matching and online retail drug price aggregation, streaming events back via **Server-Sent Events (SSE)**.
+*   **Request Payload**: 
+    ```json
+    {
+      "image": "data:image/jpeg;base64,...",
+      "barcodeData": null
+    }
+    ```
+*   **SSE Event Sequence**:
+    *   `vision`: Image thresholding and Tesseract OCR processing.
+    *   `database`: Matching extracted text against the CDSCO approved drugs database in IndexDB.
+    *   `pricing`: Scraping discounted generic and brand prices.
+    *   `complete`: Emits the compiled medicine info card object.
+
+### 2. `POST /api/groq`
+A secure completion proxy. It intercepts standard OpenAI chat requests and forwards them to Groq using a server-side key rotation pool (safeguarding your keys).
+*   **Request Payload**:
+    ```json
+    {
+      "model": "llama-3.3-70b-versatile",
+      "messages": [{ "role": "user", "content": "Explain Paracetamol..." }]
+    }
+    ```
+
+### 3. `GET /api/prices`
+Searches online pharmacy listings (Apollo, Netmeds, 1mg) for alternative branded and generic price mappings based on matching active ingredients.
+
+### 4. `GET /api/davaindia`
+Looks up discounted generic medicine items directly from DavaIndia's inventory lists.
+
+---
+
 ## 🌱 Run it locally
 
 To play with the code on your own machine:
