@@ -1009,8 +1009,13 @@ export default function Scanner() {
         }
 
         let brandName = '';
-        // Find other candidate that represents the brand
-        const otherCandidates = candidates.filter(c => c !== bestCandidate && !saltName.toLowerCase().includes(c.toLowerCase()) && !c.toLowerCase().includes(saltName.toLowerCase()));
+        // Find other candidate that represents the brand (exclude short noise candidates < 4 chars)
+        const otherCandidates = candidates.filter(c => 
+          c !== bestCandidate && 
+          c.trim().length >= 4 &&
+          !saltName.toLowerCase().includes(c.toLowerCase()) && 
+          !c.toLowerCase().includes(saltName.toLowerCase())
+        );
         if (otherCandidates.length > 0) {
           brandName = otherCandidates[0].split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         } else {
