@@ -713,20 +713,20 @@ function InfoCard({ info, results, translating }) {
   const maxConc = pkParams ? Math.max(...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10
   const peakConc = pkParams ? Math.max(...pkData.map(d => d.conc)) : 0
 
-  let warningMsg = "✓ Optimal: Dosing schedule keeps active levels inside the therapeutic window."
-  let warningColor = "#15803D"
+  let warningMsg = "✅ Safe Dosing: The amount of medicine in your body looks correct and safe."
+  let warningColor = "#166534"
   let warningBg = "#F0FDF4"
   let warningBorder = "#86EFAC"
 
   if (pkParams) {
     if (peakConc > pkParams.minToxicConc) {
-      warningMsg = "🚨 TOXICITY WARNING: Estimated active levels exceed safety thresholds. Reduce dose or frequency."
-      warningColor = "#B91C1C"
+      warningMsg = "❌ DANGER: Too much medicine! Taking it this often or this strong is dangerous and can make you sick. Please take less or wait longer between doses."
+      warningColor = "#991B1B"
       warningBg = "#FEF2F2"
       warningBorder = "#FCA5A5"
     } else if (peakConc < pkParams.minEffectiveConc) {
-      warningMsg = "⚠️ Sub-therapeutic Alert: Active levels do not reach effective therapeutic levels. Consult your doctor."
-      warningColor = "#B45309"
+      warningMsg = "⚠️ Not Enough: This amount is too low to work. It won't help you feel better. Speak to your doctor."
+      warningColor = "#92400E"
       warningBg = "#FFFBEB"
       warningBorder = "#FCD34D"
     }
@@ -827,7 +827,7 @@ function InfoCard({ info, results, translating }) {
           </div>
         )}
 
-        {/* 🧬 Active Pharmacokinetics Simulator Widget */}
+        {/* 🔬 Medicine Level Tracker Widget */}
         {pkParams && (
           <div style={{
             background: '#fff',
@@ -840,14 +840,14 @@ function InfoCard({ info, results, translating }) {
             gap: 12
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>🧬 Active Pharmacokinetics Simulator</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
               <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
-                1-Compartment open ODE model
+                Safety Monitor
               </span>
             </div>
 
-            <p style={{ fontSize: 11.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
-              Simulates how <strong>{pkParams.name}</strong> builds up and clears in the bloodstream over 24 hours. Shaded green indicates the target therapeutic window.
+            <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
+              This chart shows how much <strong>{pkParams.name}</strong> is in your body over 24 hours. The goal is to keep the green curve inside the green safety zone.
             </p>
 
             {/* Simulated graph */}
@@ -882,13 +882,13 @@ function InfoCard({ info, results, translating }) {
 
                 {/* Min Effective Limit */}
                 <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="#3B82F6" strokeWidth="1.2" strokeDasharray="3,3" />
-                <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8" fill="#3B82F6" fontWeight="600">Effective</text>
+                <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8.5" fill="#3B82F6" fontWeight="700">😊 Safe & Works</text>
 
                 {/* Min Toxic Limit */}
                 {pkParams.minToxicConc < maxConc && (
                   <>
                     <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="#EF4444" strokeWidth="1.2" strokeDasharray="3,3" />
-                    <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8" fill="#EF4444" fontWeight="600">Toxic</text>
+                    <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8.5" fill="#EF4444" fontWeight="700">⚠️ TOO STRONG</text>
                   </>
                 )}
 
@@ -903,12 +903,12 @@ function InfoCard({ info, results, translating }) {
                 <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
 
                 {/* Y Axis Ticks */}
-                <text x="30" y={getY(0)} fontSize="9" fill="var(--textlt)" textAnchor="end">0</text>
-                <text x="30" y={getY(maxConc / 2)} fontSize="9" fill="var(--textlt)" textAnchor="end">{Math.round(maxConc / 2)}</text>
-                <text x="30" y={getY(maxConc)} fontSize="9" fill="var(--textlt)" textAnchor="end">{Math.round(maxConc)}</text>
+                <text x="30" y={getY(0)} fontSize="9" fill="var(--textlt)" textAnchor="end">Low</text>
+                <text x="30" y={getY(maxConc / 2)} fontSize="9" fill="var(--textlt)" textAnchor="end">Medium</text>
+                <text x="30" y={getY(maxConc)} fontSize="9" fill="var(--textlt)" textAnchor="end">High</text>
                 
                 {/* Y Axis Label */}
-                <text x="12" y="85" fontSize="8" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle">mcg/mL in blood</text>
+                <text x="12" y="85" fontSize="9" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle">Medicine Level</text>
               </svg>
             </div>
 
@@ -916,7 +916,7 @@ function InfoCard({ info, results, translating }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bgsoft)', padding: 10, borderRadius: 8, border: '1px solid var(--border)' }}>
               {/* Strength selector */}
               <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Dose Strength:</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>💊 Pill Strength:</span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[Math.round(parsedDose / 2), parsedDose, parsedDose * 2].filter(v => v > 0).map(v => (
                     <button
@@ -924,8 +924,8 @@ function InfoCard({ info, results, translating }) {
                       type="button"
                       onClick={() => setDoseStrength(v)}
                       style={{
-                        padding: '3px 8px',
-                        fontSize: 10.5,
+                        padding: '4px 10px',
+                        fontSize: 11,
                         fontWeight: 700,
                         borderRadius: 6,
                         border: '1px solid var(--border)',
@@ -942,16 +942,16 @@ function InfoCard({ info, results, translating }) {
 
               {/* Frequency selector */}
               <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Dose Frequency:</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>⏰ How often a day?:</span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  {[[1, 'Once'], [2, 'Twice'], [3, '3x Daily'], [4, '4x Daily']].map(([val, label]) => (
+                  {[[1, '1 time'], [2, '2 times'], [3, '3 times'], [4, '4 times']].map(([val, label]) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => setDoseFreq(val)}
                       style={{
-                        padding: '3px 8px',
-                        fontSize: 10.5,
+                        padding: '4px 10px',
+                        fontSize: 11,
                         fontWeight: 700,
                         borderRadius: 6,
                         border: '1px solid var(--border)',
@@ -968,7 +968,7 @@ function InfoCard({ info, results, translating }) {
 
               {/* Weight selector */}
               <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Patient Weight:</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--textmd)' }}>⚖️ Who is taking it?:</span>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[[25, 'Child (25kg)'], [70, 'Adult (70kg)'], [100, 'Heavy (100kg)']].map(([val, label]) => (
                     <button
@@ -976,8 +976,8 @@ function InfoCard({ info, results, translating }) {
                       type="button"
                       onClick={() => setDoseWeight(val)}
                       style={{
-                        padding: '3px 8px',
-                        fontSize: 10.5,
+                        padding: '4px 10px',
+                        fontSize: 11,
                         fontWeight: 700,
                         borderRadius: 6,
                         border: '1px solid var(--border)',
@@ -995,14 +995,15 @@ function InfoCard({ info, results, translating }) {
 
             {/* Dosing safety report status message */}
             <div style={{
-              padding: '10px 12px',
+              padding: '12px 14px',
               background: warningBg,
               border: `1px solid ${warningBorder}`,
-              borderRadius: 8,
-              fontSize: 12,
+              borderRadius: 10,
+              fontSize: 13,
               color: warningColor,
-              fontWeight: 500,
-              lineHeight: 1.5
+              fontWeight: 600,
+              lineHeight: 1.5,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
             }}>
               {warningMsg}
             </div>
