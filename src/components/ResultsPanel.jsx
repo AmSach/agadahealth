@@ -883,7 +883,7 @@ function InfoCard({ info, results, translating, profile }) {
                   : [0, 6, 12, 18]
 
   const pkData = pkParams ? simulatePharmacokinetics(pkParams, doseStrength, doseTimes, doseWeight, doseHeight, doseAge, doseGender, 24) : []
-  const maxConc = pkParams ? Math.max(...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10
+  const maxConc = pkParams ? Math.max(0.01, ...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2) : 10
   const peakConc = pkParams ? Math.max(...pkData.map(d => d.conc)) : 0
 
   const currentPoint = pkData.find(d => d.time === scrubTime) || pkData[0] || { time: 0, conc: 0 }
@@ -1275,7 +1275,7 @@ function InfoCard({ info, results, translating, profile }) {
                         fontWeight: 900, 
                         color: currentConc > pkParams.minToxicConc ? '#ef4444' : currentConc > pkParams.minEffectiveConc ? '#10b981' : '#f59e0b' 
                       }}>
-                        {currentConc.toFixed(1)} mcg/mL ({currentConc > pkParams.minToxicConc ? 'TOXIC' : currentConc > pkParams.minEffectiveConc ? 'ACTIVE' : 'WEAK'})
+                        {currentConc < 1.0 ? currentConc.toFixed(3) : currentConc.toFixed(1)} mcg/mL ({currentConc > pkParams.minToxicConc ? 'TOXIC' : currentConc > pkParams.minEffectiveConc ? 'ACTIVE' : 'WEAK'})
                       </span>
                     </div>
                     <input 

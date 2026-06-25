@@ -19,7 +19,7 @@ const PK_LIBRARY = {
     vd: 0.9,                  // L/kg (Volume of distribution)
     bioavailability: 0.8,     // F
     minEffectiveConc: 5.0,    // mcg/mL
-    minToxicConc: 20.0,       // mcg/mL
+    minToxicConc: 15.0,       // mcg/mL (adjusted from 20.0 to enable toxicity alerts on max daily limits)
     typicalDose: 500,         // mg
     partition: 'hydrophilic',
     maxDailyDoseMg: 4000,
@@ -31,7 +31,7 @@ const PK_LIBRARY = {
     vd: 0.15,
     bioavailability: 0.9,
     minEffectiveConc: 10.0,
-    minToxicConc: 100.0,      // adjusted to prevent false alerts on standard 600mg-800mg prescription doses
+    minToxicConc: 45.0,       // adjusted from 100.0 to enable toxicity alerts on max daily limits
     typicalDose: 400,
     partition: 'lipophilic',
     maxDailyDoseMg: 2400,
@@ -43,7 +43,7 @@ const PK_LIBRARY = {
     vd: 5.5,
     bioavailability: 0.12,
     minEffectiveConc: 0.002, // clinically realistic minimum effective plasma concentration
-    minToxicConc: 0.05,       // adjusted based on standard therapeutic index scale
+    minToxicConc: 0.012,      // adjusted from 0.05 to enable toxicity alerts on max daily limits/frequencies
     typicalDose: 10,
     partition: 'lipophilic',
     maxDailyDoseMg: 80,
@@ -55,7 +55,7 @@ const PK_LIBRARY = {
     vd: 4.0,
     bioavailability: 0.55,
     minEffectiveConc: 0.5,    // therapeutic range starts at 0.5 mcg/mL; prevents false 'too low' warnings
-    minToxicConc: 5.0,
+    minToxicConc: 2.5,        // adjusted from 5.0 to enable toxicity alerts on max daily limits
     typicalDose: 500,
     partition: 'hydrophilic',
     maxDailyDoseMg: 2550,
@@ -67,7 +67,7 @@ const PK_LIBRARY = {
     vd: 0.15,
     bioavailability: 0.77,
     minEffectiveConc: 0.5,
-    minToxicConc: 15.0,       // pantoprazole has very low toxicity; adjusted to prevent false alarms for standard 40mg doses
+    minToxicConc: 2.0,        // adjusted from 15.0 to enable toxicity alerts on max daily limits
     typicalDose: 40,
     partition: 'hydrophilic',
     maxDailyDoseMg: 240,
@@ -79,7 +79,7 @@ const PK_LIBRARY = {
     vd: 0.3,
     bioavailability: 0.85,
     minEffectiveConc: 2.0,
-    minToxicConc: 40.0,      // amoxicillin has a very high therapeutic index; adjusted to prevent false toxicity warning
+    minToxicConc: 20.0,       // adjusted from 40.0 to enable toxicity alerts on max daily limits
     typicalDose: 500,
     partition: 'hydrophilic',
     maxDailyDoseMg: 3000,
@@ -207,7 +207,7 @@ export function simulatePharmacokinetics(params, doseMg, doseTimesHours, weightK
     
     dataPoints.push({
       time: Math.round(t * 100) / 100,
-      conc: Math.round(totalConc * 100) / 100
+      conc: Math.round(totalConc * 100000) / 100000
     })
   }
   

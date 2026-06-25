@@ -2924,7 +2924,7 @@ function HomeView({
                       24
                     ) : [];
                     
-                    const maxConc = pkParams ? Math.max(...cabPkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10;
+                    const maxConc = pkParams ? Math.max(0.01, ...cabPkData.map(d => d.conc), pkParams.minToxicConc * 1.2) : 10;
                     const currentPoint = cabPkData.find(d => d.time === cabScrubTime) || cabPkData[0] || { time: 0, conc: 0 };
                     const currentConc = currentPoint.conc;
 
@@ -3217,7 +3217,7 @@ function HomeView({
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {cabScrubTime.toFixed(1)}h</span>
                                 <span style={{ fontSize: '11px', fontWeight: 900, color: currentConc > pkParams.minToxicConc ? '#ef4444' : currentConc > pkParams.minEffectiveConc ? '#10b981' : '#f59e0b' }}>
-                                  {currentConc.toFixed(1)} mcg/mL
+                                  {currentConc < 1.0 ? currentConc.toFixed(3) : currentConc.toFixed(1)} mcg/mL
                                 </span>
                               </div>
                               <input 
