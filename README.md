@@ -61,6 +61,24 @@ We don't give dosage advice. The app tells you what a medicine is and what it tr
 
 ---
 
+## 🛡️ Patient Security & Cryptography: How It Works (For Humans)
+
+Agada uses advanced mathematics to protect your health and your privacy. Here is how our cryptographic security features work in simple terms:
+
+### 1. Government Safety Recalls (No Medical Snooping)
+* **The Problem**: If you search an online database to check if your medicine batch has been recalled for safety reasons, whoever runs that database (or anyone monitoring your internet) learns exactly what medicine you are taking, violating your privacy.
+* **Our Solution (Merkle Tree Auditing)**: Instead of sending your medicine name over the internet, Agada downloads a single compressed "safety fingerprint" of all recalled medicines (a Merkle Root). Your phone then mathematically verifies whether your medicine is in that list *completely offline on your device*. Your personal medical search never leaves your phone.
+
+### 2. Digital Wax Seals (Package Verification)
+* **The Problem**: Counterfeit medicine strips look identical to real ones. How can your phone verify if a strip is authentic without looking it up in a central database every time?
+* **Our Solution (ECDSA Signatures)**: Authentic medicine packs have a digital barcode containing a secure cryptographic signature from the manufacturer. Just like an ancient wax seal on a letter, this signature is verified locally by the app using the manufacturer's public key (ECDSA). If the signature matches, you know the pack came from the genuine factory and has not been tampered with or copied.
+
+### 3. Reporting Fakes Safely (Anonymous whistleblowing)
+* **The Problem**: Reporting counterfeit medicines to regulators is vital for public health, but patients are often afraid of their identity being leaked or tracked.
+* **Our Solution (One-Time Key Signing)**: When you report a suspicious strip, your phone automatically generates a brand-new, anonymous cryptographic keypair. The app signs the report with this key. This proves to the regulator that the report is a real, authentic scan from a physical strip without revealing your name, email, location, or phone number.
+
+---
+
 ## High-Complexity Advanced Engineering
 
 To demonstrate production-grade software engineering and maintain a zero-bloat repository, Agada implements several high-performance architectural systems:
