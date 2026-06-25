@@ -270,15 +270,20 @@ export default async function handler(req, res) {
     await loadDatabases();
 
     let extracted = { brandName: null, saltName: null, doseStr: null, manufacturer: null };
+    const hasBarcodeGroundTruth = !!(barcodeData?.saltFromQR);
 
-    // 1. Vision OCR
-    sendUpdate('vision_start', 'Reading medicine label with Llama Vision model...');
-    try {
-      extracted = await callVisionAPI(image);
-      sendUpdate('vision_done', `OCR complete: Extracted "${extracted.brandName || 'Unknown Brand'}" with salt "${extracted.saltName || 'Unknown Salt'}"`);
-    } catch (err) {
-      console.error("Vision OCR failed:", err);
-      sendUpdate('vision_failed', `OCR warning: ${err.message}. Falling back to default values.`);
+    // 1. Vision OCR (Skip if barcode has ground truth)
+    if (!hasBarcodeGroundTruth) {
+      sendUpdate('vision_start', 'Reading medicine label with Llama Vision model...');
+      try {
+        extracted = await callVisionAPI(image);
+        sendUpdate('vision_done', `OCR complete: Extracted "${extracted.brandName || 'Unknown Brand'}" with salt "${extracted.saltName || 'Unknown Salt'}"`);
+      } catch (err) {
+        console.error("Vision OCR failed:", err);
+        sendUpdate('vision_failed', `OCR warning: ${err.message}. Falling back to default values.`);
+      }
+    } else {
+      sendUpdate('vision_start', 'Skipping Vision OCR (Ground-truth salt extracted from QR/Barcode)...');
     }
 
     const brandName = barcodeData?.brandFromQR || extracted.brandName || 'Unknown';
@@ -294,25 +299,36 @@ export default async function handler(req, res) {
     const jaRes = lookupJanAushadhi(saltName);
     sendUpdate('db_done', `CDSCO Verification: ${cdscoRes.found ? 'Approved' : 'Not Found'}. Jan Aushadhi match: ${jaRes ? 'Generic match found' : 'No direct generic matching'}`);
 
-    // 3. Query Scraper Cluster for live prices
-    sendUpdate('scraping_start', 'Firing concurrent requests to Apollo, Netmeds, and DavaIndia...');
+    // 3 & 4. Query Scraper Cluster and Generate Medicine Summary in parallel
+    sendUpdate('scraping_start', 'Retrieving live market prices and generating summary...');
     let liveAlternatives = [];
+    let summary = null;
+
     try {
-      liveAlternatives = await scrapeMarketPrices(saltName);
-      sendUpdate('scraping_done', `Scraped ${liveAlternatives.length} live prices from market pharmacies.`);
+      const [scrapeResult, summaryResult] = await Promise.all([
+        scrapeMarketPrices(saltName).catch(err => {
+          console.error("Scraper cluster failed:", err);
+          return [];
+        }),
+        callSummaryAPI(brandName, saltName).catch(err => {
+          console.error("Summary API failed:", err);
+          return null;
+        })
+      ]);
+      liveAlternatives = scrapeResult;
+      summary = summaryResult;
     } catch (err) {
-      console.error("Scraper cluster failed:", err);
-      sendUpdate('scraping_failed', 'Failed to retrieve live market pricing. Using database values.');
+      console.error("Parallel operations failed:", err);
     }
 
-    // 4. Generate medicine summary
-    sendUpdate('summary_start', 'Generating patient-friendly warning profiles and summaries...');
-    const summary = await callSummaryAPI(brandName, saltName) || {
-      whatItDoes: 'Used to treat medical symptoms containing the active ingredient.',
-      commonUses: ['Symptomatic relief'],
-      prescriptionRequired: true
-    };
-    sendUpdate('summary_done', 'Summary generated.');
+    if (!summary) {
+      summary = {
+        whatItDoes: 'Used to treat medical symptoms containing the active ingredient.',
+        commonUses: ['Symptomatic relief'],
+        prescriptionRequired: true
+      };
+    }
+    sendUpdate('summary_done', 'Summary and live alternatives compiled.');
 
     // Build finalized results payload
     const allAlts = [];
