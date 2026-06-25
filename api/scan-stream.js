@@ -150,7 +150,7 @@ async function callVisionAPI(imageBase64) {
   Return as JSON only: {"brandName": "...", "saltName": "...", "doseStr": "...", "manufacturer": "...", "batchNumber": "...", "expiryDate": "...", "manufacturingDate": "..."}`;
 
   const payload = {
-    model: 'llama-3.2-11b-vision-preview',
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     max_tokens: 400,
     temperature: 0.0,
     messages: [{
@@ -180,7 +180,8 @@ async function callVisionAPI(imageBase64) {
         const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         return JSON.parse(cleaned);
       } else {
-        lastError = `HTTP ${response.status}`;
+        const errText = await response.text().catch(() => '');
+        lastError = `HTTP ${response.status}: ${errText}`;
       }
     } catch (err) {
       lastError = err.message;
