@@ -39,9 +39,9 @@ const PK_LIBRARY = {
   atorvastatin: {
     name: 'Atorvastatin',
     halfLifeElimination: 14.0,
-    halfLifeAbsorption: 1.5,
+    halfLifeAbsorption: 0.3,   // adjusted from 1.5 to align with clinical Tmax of 1-2 hours
     vd: 5.5,
-    bioavailability: 0.12,
+    bioavailability: 0.14,    // adjusted from 0.12 to align with 14% clinical bioavailability
     minEffectiveConc: 0.002, // clinically realistic minimum effective plasma concentration
     minToxicConc: 0.012,      // adjusted from 0.05 to enable toxicity alerts on max daily limits/frequencies
     typicalDose: 10,
@@ -51,7 +51,7 @@ const PK_LIBRARY = {
   metformin: {
     name: 'Metformin',
     halfLifeElimination: 6.2,
-    halfLifeAbsorption: 2.0,
+    halfLifeAbsorption: 0.8,   // adjusted from 2.0 to align with clinical Tmax of 2.5-3 hours
     vd: 4.0,
     bioavailability: 0.55,
     minEffectiveConc: 0.5,    // therapeutic range starts at 0.5 mcg/mL; prevents false 'too low' warnings
@@ -63,7 +63,7 @@ const PK_LIBRARY = {
   pantoprazole: {
     name: 'Pantoprazole',
     halfLifeElimination: 1.0,
-    halfLifeAbsorption: 1.5,
+    halfLifeAbsorption: 1.8,   // adjusted from 1.5 to align with clinical Tmax of ~2 hours
     vd: 0.15,
     bioavailability: 0.77,
     minEffectiveConc: 0.5,
