@@ -134,6 +134,13 @@ To orchestrate and streamline a patient's complete daily medication lifecycle of
 - **Adverse Drug Reaction Symptom Engine**: Traces logged patient symptoms against active cabinet ingredients, walking side-effect edges (`CAUSES` relationships) in the `ClinicalGraph` to highlight matching ADR warnings.
 - **Local Web Notifications Alarm Loop**: Requests browser notification permissions and schedules background alarm tickers that trigger offline Web Notifications when take-times are reached.
 
+### 9. Pharmacokinetic ODE Simulation Engine (1-Compartment Bateman Model)
+To educate patients on drug absorption/elimination rates and prevent hazardous overdosing:
+- **Bateman Equation ODE Solver**: Solves the one-compartment open model ordinary differential equation with first-order absorption and elimination rate constants:
+  $$C(t) = \frac{F \cdot \text{Dose} \cdot K_a}{V_d \cdot (K_a - K_e)} \left( e^{-K_e \cdot t} - e^{-K_a \cdot t} \right)$$
+- **Superposition Dosing Simulator**: Sums shifted single-dose responses in real-time to compute active blood concentration curves for daily multi-dose schedules.
+- **Dynamic Interactive SVG Chart**: Renders a live vector concentration chart with shaded therapeutic windows, toxicity thresholds, patient weight scaling (Child 25kg vs Adult 70kg), and automatic sub-therapeutic or toxicity alerts.
+
 ---
 
 ## Project structure

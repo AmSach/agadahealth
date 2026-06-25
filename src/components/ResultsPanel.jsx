@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { checkRecallStatus, generateReportingKeys, signCounterfeitReport } from '../services/verificationService.js'
+import { getPKParameters, simulatePharmacokinetics } from '../services/pharmacokineticsService.js'
 
 const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
 const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSce6duzii7D1SlYOYI3DG45mVEJUyl3wSzByoYSvyHNStqFGA/viewform'
@@ -692,6 +693,55 @@ function InfoCard({ info, results, translating }) {
   const isAyurvedic   = results.productType === 'AYURVEDIC'
   const isSupplement  = results.productType === 'SUPPLEMENT'
 
+  // Pharmacokinetics State & Calculations
+  const pkParams = getPKParameters(results.saltComposition || results.brandName)
+  const parsedDose = results.saltComposition ? (() => {
+    const m = results.saltComposition.match(/(\d+)\s*(mg|mcg|g)/i)
+    return m ? parseInt(m[1]) : 500
+  })() : 500
+
+  const [doseWeight, setDoseWeight] = useState(70)
+  const [doseStrength, setDoseStrength] = useState(parsedDose)
+  const [doseFreq, setDoseFreq] = useState(3) // 3x daily
+
+  const doseTimes = doseFreq === 1 ? [0] 
+                  : doseFreq === 2 ? [0, 12] 
+                  : doseFreq === 3 ? [0, 8, 16] 
+                  : [0, 6, 12, 18]
+
+  const pkData = pkParams ? simulatePharmacokinetics(pkParams, doseStrength, doseTimes, doseWeight, 24) : []
+  const maxConc = pkParams ? Math.max(...pkData.map(d => d.conc), pkParams.minToxicConc * 1.2, 10) : 10
+  const peakConc = pkParams ? Math.max(...pkData.map(d => d.conc)) : 0
+
+  let warningMsg = "✓ Optimal: Dosing schedule keeps active levels inside the therapeutic window."
+  let warningColor = "#15803D"
+  let warningBg = "#F0FDF4"
+  let warningBorder = "#86EFAC"
+
+  if (pkParams) {
+    if (peakConc > pkParams.minToxicConc) {
+      warningMsg = "🚨 TOXICITY WARNING: Estimated active levels exceed safety thresholds. Reduce dose or frequency."
+      warningColor = "#B91C1C"
+      warningBg = "#FEF2F2"
+      warningBorder = "#FCA5A5"
+    } else if (peakConc < pkParams.minEffectiveConc) {
+      warningMsg = "⚠️ Sub-therapeutic Alert: Active levels do not reach effective therapeutic levels. Consult your doctor."
+      warningColor = "#B45309"
+      warningBg = "#FFFBEB"
+      warningBorder = "#FCD34D"
+    }
+  }
+
+  // Scale functions for SVG
+  const getX = (t) => 35 + (t / 24) * 290
+  const getY = (c) => 15 + (1 - (c / maxConc)) * 140
+
+  const pathD = pkData.length > 0 ? pkData.map((d, idx) => {
+    return `${idx === 0 ? 'M' : 'L'} ${getX(d.time)} ${getY(d.conc)}`
+  }).join(' ') : ''
+
+  const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : ''
+
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -774,6 +824,188 @@ function InfoCard({ info, results, translating }) {
         {info.doNotTakeWith && (
           <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.5 }}>
             <strong>🚫 Do not take with: </strong>{info.doNotTakeWith}
+          </div>
+        )}
+
+        {/* 🧬 Active Pharmacokinetics Simulator Widget */}
+        {pkParams && (
+          <div style={{
+            background: '#fff',
+            border: '1.5px solid var(--border)',
+            borderRadius: 12,
+            padding: '14px',
+            marginTop: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>🧬 Active Pharmacokinetics Simulator</span>
+              <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
+                1-Compartment open ODE model
+              </span>
+            </div>
+
+            <p style={{ fontSize: 11.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.5 }}>
+              Simulates how <strong>{pkParams.name}</strong> builds up and clears in the bloodstream over 24 hours. Shaded green indicates the target therapeutic window.
+            </p>
+
+            {/* Simulated graph */}
+            <div style={{ background: 'var(--bgsoft)', borderRadius: 10, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+              <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
+                <defs>
+                  <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Grid Lines & Ticks */}
+                {[0, 6, 12, 18, 24].map(t => (
+                  <g key={t}>
+                    <line x1={getX(t)} y1="15" x2={getX(t)} y2="155" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
+                    <text x={getX(t)} y="170" fontSize="9" fill="var(--textlt)" textAnchor="middle">{t}h</text>
+                  </g>
+                ))}
+
+                {/* Therapeutic Window Range shaded background */}
+                {pkParams.minEffectiveConc < maxConc && (
+                  <rect
+                    x="35"
+                    y={getY(Math.min(maxConc, pkParams.minToxicConc))}
+                    width="290"
+                    height={Math.max(0, getY(pkParams.minEffectiveConc) - getY(Math.min(maxConc, pkParams.minToxicConc)))}
+                    fill="#F0FDF4"
+                    opacity="0.8"
+                  />
+                )}
+
+                {/* Min Effective Limit */}
+                <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="#3B82F6" strokeWidth="1.2" strokeDasharray="3,3" />
+                <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8" fill="#3B82F6" fontWeight="600">Effective</text>
+
+                {/* Min Toxic Limit */}
+                {pkParams.minToxicConc < maxConc && (
+                  <>
+                    <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="#EF4444" strokeWidth="1.2" strokeDasharray="3,3" />
+                    <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8" fill="#EF4444" fontWeight="600">Toxic</text>
+                  </>
+                )}
+
+                {/* Area under curve */}
+                {areaD && <path d={areaD} fill="url(#curve-grad)" />}
+
+                {/* Curve path */}
+                {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+
+                {/* Axes */}
+                <line x1="35" y1="15" x2="35" y2="155" stroke="var(--border)" strokeWidth="1.5" />
+                <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
+
+                {/* Y Axis Ticks */}
+                <text x="30" y={getY(0)} fontSize="9" fill="var(--textlt)" textAnchor="end">0</text>
+                <text x="30" y={getY(maxConc / 2)} fontSize="9" fill="var(--textlt)" textAnchor="end">{Math.round(maxConc / 2)}</text>
+                <text x="30" y={getY(maxConc)} fontSize="9" fill="var(--textlt)" textAnchor="end">{Math.round(maxConc)}</text>
+                
+                {/* Y Axis Label */}
+                <text x="12" y="85" fontSize="8" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle">mcg/mL in blood</text>
+              </svg>
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bgsoft)', padding: 10, borderRadius: 8, border: '1px solid var(--border)' }}>
+              {/* Strength selector */}
+              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Dose Strength:</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[Math.round(parsedDose / 2), parsedDose, parsedDose * 2].filter(v => v > 0).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setDoseStrength(v)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: doseStrength === v ? 'var(--navy)' : '#fff',
+                        color: doseStrength === v ? '#fff' : 'var(--textmd)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {v}mg
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Frequency selector */}
+              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Dose Frequency:</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[[1, 'Once'], [2, 'Twice'], [3, '3x Daily'], [4, '4x Daily']].map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setDoseFreq(val)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: doseFreq === val ? 'var(--navy)' : '#fff',
+                        color: doseFreq === val ? '#fff' : 'var(--textmd)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Weight selector */}
+              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--textmd)' }}>Patient Weight:</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[[25, 'Child (25kg)'], [70, 'Adult (70kg)'], [100, 'Heavy (100kg)']].map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setDoseWeight(val)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: doseWeight === val ? 'var(--navy)' : '#fff',
+                        color: doseWeight === val ? '#fff' : 'var(--textmd)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Dosing safety report status message */}
+            <div style={{
+              padding: '10px 12px',
+              background: warningBg,
+              border: `1px solid ${warningBorder}`,
+              borderRadius: 8,
+              fontSize: 12,
+              color: warningColor,
+              fontWeight: 500,
+              lineHeight: 1.5
+            }}>
+              {warningMsg}
+            </div>
           </div>
         )}
       </div>
