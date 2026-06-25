@@ -561,7 +561,7 @@ export async function compressAndEncode(file) {
     img.onload = () => {
       URL.revokeObjectURL(url)
       let { width, height } = img
-      const MAX = 1600
+      const MAX = 1000
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height/width*MAX); width = MAX }
         else { width = Math.round(width/height*MAX); height = MAX }
@@ -578,10 +578,7 @@ export async function compressAndEncode(file) {
           r.readAsDataURL(blob)
         }, 'image/jpeg', quality)
       }
-      tryEncode(0.90, b64 => {
-        if (b64.length > 4_000_000) tryEncode(0.70, resolve)
-        else resolve(b64)
-      })
+      tryEncode(0.50, resolve)
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
     img.src = url

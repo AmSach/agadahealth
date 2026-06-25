@@ -53,7 +53,7 @@ export async function processImageWasm(imageSource, filterType = 1) {
 
         // Keep dimensions within WASM bounds (max 2048x2048)
         let { width, height } = img;
-        const MAX_DIM = 1200; // Optimal speed / resolution trade-off
+        const MAX_DIM = 1000; // Optimal speed / resolution trade-off
         if (width > MAX_DIM || height > MAX_DIM) {
           if (width > height) {
             height = Math.round((height / width) * MAX_DIM);
@@ -126,8 +126,8 @@ export async function processImageWasm(imageSource, filterType = 1) {
         }
 
         // Convert cropped/processed canvas to ultra-compact JPEG (aggressive compression for network payload)
-        // Compression ratio 0.65 for high readability of text, but extremely small kilobyte footprints.
-        const base64 = finalCanvas.toDataURL('image/jpeg', 0.65).split(',')[1];
+        // Compression ratio 0.50 for high readability of text, but extremely small kilobyte footprints.
+        const base64 = finalCanvas.toDataURL('image/jpeg', 0.50).split(',')[1];
         
         resolve({
           base64,

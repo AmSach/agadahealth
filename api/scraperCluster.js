@@ -247,10 +247,10 @@ export async function scrapeMarketPrices(q) {
 
   // Execute all scrapers concurrently
   const results = await Promise.allSettled([
-    scrapeDavaIndia(q, 2000),
-    scrapeApollo(q, 2500),
-    scrapeNetmeds(q, 2500),
-    scrape1mg(q, 2500)
+    scrapeDavaIndia(q, 1000),
+    scrapeApollo(q, 1200),
+    scrapeNetmeds(q, 1200),
+    scrape1mg(q, 1200)
   ]);
 
   const allProducts = [];
