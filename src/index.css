@@ -1,0 +1,486 @@
+/* 
+ * Agada Custom Stylesheet — "The Sage & Leaf" Theme
+ * A warm, organic, botanical design language.
+ * Uses DM Serif Display for headings, DM Sans for body, and JetBrains Mono for stats.
+ * Incorporates leaf-like curves and earthy tones.
+ */
+
+:root {
+  /* Redefine all original CSS variables so inline styles in Scanner.jsx match our theme */
+  --bg:         #F3F5EE; /* Organic warm sage-sand background */
+  --bgcard:     #FFFFFF;
+  --bgsoft:     #E5EAE0; /* Soft botanical linen */
+  --navy:       #2A472B; /* Dark pine green for headers & main titles */
+  --navylt:     #3C623F;
+  --green:      #3C623F; /* Leaf green */
+  --greendk:    #29472B;
+  --greenlt:    #E9EFEA;
+  --greengl:    #406343;
+  
+  --saffron:    #C89B3C; /* Chamomile gold */
+  --safflt:     #FAF6EC;
+  --red:        #B2533E; /* Terracotta clay red */
+  --redlt:      #FDF4F2;
+  --amber:      #C89B3C;
+  --amberlt:    #FAF6EC;
+  
+  --text:       #252C21; /* Deep forest olive charcoal */
+  --textmd:     #3C4638;
+  --textlt:     #566150;
+  
+  --border:     #D4DBD0; /* Soft leaf-tinted borders */
+  --bordermd:   #A9B5A4;
+  
+  /* Green-tinted organic shadows */
+  --shadow:     0 4px 12px rgba(37, 44, 33, 0.04);
+  --shadowmd:   0 8px 24px rgba(37, 44, 33, 0.06);
+  --shadowlg:   0 16px 36px rgba(37, 44, 33, 0.09);
+  
+  /* Theme variables for CSS usage */
+  --charcoal:   #252C21;
+  --charcol-lt: #566150;
+  --border-dk:  #9CA894;
+}
+
+/* Resets */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--charcoal);
+  line-height: 1.6;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-weight: 400;
+  color: var(--charcoal);
+  line-height: 1.25;
+}
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+a:hover {
+  color: var(--greendk);
+}
+
+/* App Core Container */
+.app-container {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  max-width: 540px;
+  margin: 0 auto;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  position: relative;
+  box-shadow: 0 0 40px rgba(37, 44, 33, 0.04);
+}
+
+/* Header style - Dark Green to contrast with inline white text */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--navy) !important;
+  color: #fff !important;
+  border-bottom: 2px solid var(--navy-dark, #1e3520);
+}
+
+.brand-name {
+  color: #fff !important; /* Make title white */
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 20px !important;
+}
+
+.brand-tagline {
+  color: rgba(255, 255, 255, 0.75) !important; /* Make tagline light green/white */
+  font-size: 11px !important;
+  font-family: 'DM Sans', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Leaf-shaped logo badge - White background for sharp contrast */
+.logo-badge {
+  width: 32px;
+  height: 32px;
+  background: #fff !important;
+  border-radius: 12px 2px 12px 2px !important; /* Leaf shape! */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px;
+  color: var(--navy) !important; /* Dark green letter */
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Menu Toggle Button - White icon on dark green header */
+#menu-toggle-btn {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+}
+
+#menu-toggle-btn span {
+  background: #fff !important; /* White spans for visibility */
+  height: 1.5px !important;
+  width: 16px !important;
+  border-radius: 0px !important;
+}
+
+/* Organic Buttons */
+button {
+  cursor: pointer;
+  border: 1px solid var(--border-dk) !important;
+  border-radius: 12px !important; /* Soft organic corners */
+  outline: none;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600 !important;
+  background: #fff;
+  color: var(--charcoal);
+  padding: 8px 16px;
+  box-shadow: var(--shadow) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transform: none !important;
+}
+
+button:hover {
+  background: var(--bgsoft) !important;
+  border-color: var(--border-dk) !important;
+  box-shadow: var(--shadow-md) !important;
+  color: var(--charcoal) !important;
+}
+
+button:active {
+  background: #dfe5da !important;
+  transform: translateY(1px) !important;
+  box-shadow: none !important;
+}
+
+/* Primary CTA Override */
+.btn-primary, button[style*="var(--green)"], button[style*="background: var(--green)"], button[style*="linear-gradient(135deg, var(--green)"] {
+  background: var(--green) !important;
+  color: #fff !important;
+  border: 1px solid var(--greendk) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 10px rgba(60, 98, 63, 0.2) !important;
+}
+
+.btn-primary:hover, button[style*="var(--green)"]:hover {
+  background: var(--greendk) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(60, 98, 63, 0.3) !important;
+}
+
+.btn-primary:active, button[style*="var(--green)"]:active {
+  background: #1e3520 !important;
+  box-shadow: none !important;
+}
+
+/* Secondary CTA Override */
+.btn-secondary, button[style*="var(--bgsoft)"], button[style*="background: var(--bgsoft)"] {
+  background: #fff !important;
+  color: var(--charcoal) !important;
+  border: 1px solid var(--border-dk) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.btn-secondary:hover {
+  background: var(--bgsoft) !important;
+}
+
+/* Asymmetric leaf-shaped active tabs */
+.btn-tab {
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  padding: 8px 14px !important;
+  border-radius: 12px 4px 12px 4px !important; /* Leaf shape active state! */
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--charcol-lt) !important;
+}
+
+.btn-tab:hover {
+  color: var(--charcoal) !important;
+  background: var(--bgsoft) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.btn-tab.active {
+  background: var(--greenlt) !important;
+  border-color: var(--border) !important;
+  color: var(--green) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Segmented controls override */
+.segmented-control {
+  display: flex !important;
+  background: var(--bgsoft) !important;
+  padding: 3px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+  gap: 2px !important;
+}
+
+.segmented-btn {
+  flex: 1 !important;
+  padding: 6px 4px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 6px !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--charcol-lt) !important;
+  background: transparent !important;
+  text-align: center !important;
+}
+
+.segmented-btn:hover {
+  color: var(--charcoal) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+.segmented-btn.active {
+  background: #fff !important;
+  color: var(--charcoal) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Organic leaf-like card shapes */
+.glass-card, .neo-card {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  padding: 20px !important;
+  box-shadow: var(--shadow) !important;
+  margin-bottom: 16px !important;
+  transition: all 0.2s ease !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.glass-card:hover, .neo-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  border-color: var(--border-dk) !important;
+}
+
+/* Form controls */
+input, select {
+  height: 42px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border-dk) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  background: #fff !important;
+  color: var(--charcoal) !important;
+  box-shadow: none !important;
+}
+
+input:focus, select:focus {
+  background: #fff !important;
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 3px rgba(60, 98, 63, 0.1) !important;
+}
+
+/* Emergency Wallet Card Override */
+.emergency-wallet-card {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  color: var(--charcoal) !important;
+  box-shadow: var(--shadow-md) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  transition: all 0.2s ease !important;
+}
+
+.emergency-wallet-card:hover {
+  box-shadow: var(--shadow-lg) !important;
+  border-color: var(--border-dk) !important;
+}
+
+.wallet-card-overlay {
+  display: none !important; /* Remove ambient gradients */
+}
+
+.wallet-header {
+  padding: 14px 18px !important;
+  background: var(--red) !important;
+  color: #fff !important;
+  border-bottom: 1px solid var(--border) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.wallet-logo {
+  font-family: 'DM Serif Display', serif !important;
+  font-weight: 400 !important;
+  font-size: 16px !important;
+  color: #fff !important;
+  letter-spacing: 0px !important;
+}
+
+.wallet-logo-icon {
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.wallet-type {
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.wallet-body {
+  padding: 18px !important;
+  display: flex !important;
+  gap: 16px !important;
+  background: #fff !important;
+}
+
+.wallet-info-side {
+  flex: 1.2 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+.wallet-field {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.wallet-label {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  color: var(--charcol-lt) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.wallet-value {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--charcoal) !important;
+}
+
+.wallet-value.highlight {
+  font-family: 'DM Serif Display', serif !important;
+  font-size: 20px !important;
+  font-weight: 400 !important;
+  color: var(--charcoal) !important;
+}
+
+.wallet-blood-badge {
+  background: var(--redlt) !important;
+  color: var(--red) !important;
+  border: 1px solid var(--red) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  display: inline-block !important;
+  box-shadow: none !important;
+}
+
+.wallet-allergies-badge {
+  background: var(--goldlt) !important;
+  color: var(--gold) !important;
+  border: 1px solid var(--gold) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  display: inline-block !important;
+}
+
+.wallet-qr-box {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  padding: 6px !important;
+  border-radius: 8px !important;
+  box-shadow: var(--shadow) !important;
+  cursor: pointer !important;
+}
+
+.wallet-qr-box:hover {
+  border-color: var(--border-dk) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.wallet-footer {
+  padding: 10px 18px !important;
+  background: var(--bgsoft) !important;
+  border-top: 1px solid var(--border) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+/* Status labels / badges */
+.badge, [style*="LOCAL OCR"], [style*="ASYNC STREAM"], [style*="WASM (LOCAL)"], [style*="LOCAL_DB"] {
+  display: inline-block !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--border-dk) !important;
+  background: var(--bgsoft) !important;
+  color: var(--charcoal) !important;
+}
+
+/* Animations */
+@keyframes spin    { to { transform: rotate(360deg); } }
+@keyframes fadeUp  { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+@keyframes popIn   { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
+@keyframes slideIn { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+@keyframes pulse   { 0%,100%{opacity:1;} 50%{opacity:0.5;} }

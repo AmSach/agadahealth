@@ -1049,86 +1049,27 @@ function InfoCard({ info, results, translating, profile }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
-              <div className="capsule-container-3d">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <style>{`
-                  .capsule-container-3d {
-                    width: 32px;
-                    height: 32px;
-                    perspective: 150px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: radial-gradient(circle at center, rgba(13, 138, 104, 0.15) 0%, transparent 60%);
-                    border-radius: 50%;
-                  }
-                  .capsule-3d {
-                    width: 10px;
-                    height: 22px;
-                    position: relative;
-                    transform-style: preserve-3d;
-                    transform: rotateX(30deg) rotateY(45deg);
-                    animation: spinCapsule 5s linear infinite;
+                  .svg-tracker-capsule {
+                    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), filter 0.25s ease;
                     cursor: pointer;
-                    transition: transform 0.3s ease;
                   }
-                  .capsule-3d:hover {
-                    animation-play-state: paused;
-                    transform: rotateX(45deg) rotateY(180deg) scale(1.2);
-                  }
-                  .capsule-half-top {
-                    position: absolute;
-                    top: 0;
-                    width: 100%;
-                    height: 50%;
-                    border-radius: 5px 5px 0 0;
-                    border: 0.5px solid rgba(0,0,0,0.15);
-                    box-shadow: inset 0 1px 2px rgba(255,255,255,0.4);
-                    transition: transform 0.4s ease;
-                  }
-                  .capsule-3d:hover .capsule-half-top {
-                    transform: translateY(-4px);
-                  }
-                  .capsule-half-bottom {
-                    position: absolute;
-                    bottom: 0;
-                    width: 100%;
-                    height: 50%;
-                    border-radius: 0 0 5px 5px;
-                    border: 0.5px solid rgba(0,0,0,0.15);
-                    box-shadow: inset 0 -1px 2px rgba(255,255,255,0.4);
-                    transition: transform 0.4s ease;
-                  }
-                  .capsule-3d:hover .capsule-half-bottom {
-                    transform: translateY(4px);
-                  }
-                  .capsule-bead-particle {
-                    position: absolute;
-                    width: 1.5px;
-                    height: 1.5px;
-                    border-radius: 50%;
-                    background: #10b981;
-                    opacity: 0;
-                    transition: all 0.4s ease;
-                    left: 4px;
-                    top: 10px;
-                  }
-                  .capsule-3d:hover .capsule-bead-particle {
-                    opacity: 0.8;
-                    transform: translate(var(--dx), var(--dy)) scale(1.2);
-                  }
-                  @keyframes spinCapsule {
-                    0% { transform: rotateX(30deg) rotateY(0deg) rotateZ(0deg); }
-                    100% { transform: rotateX(30deg) rotateY(360deg) rotateZ(360deg); }
+                  .svg-tracker-capsule:hover {
+                    transform: scale(1.18) rotate(15deg);
+                    filter: drop-shadow(0 6px 12px rgba(13, 138, 104, 0.25));
                   }
                 `}</style>
-                <div className="capsule-3d" title="Hover to inspect active ingredients!">
-                  <div className="capsule-half-top" style={{ backgroundColor: capTopColor }}></div>
-                  <div className="capsule-half-bottom" style={{ backgroundColor: capBottomColor }}></div>
-                  <div className="capsule-bead-particle" style={{ '--dx': '-6px', '--dy': '-8px' }}></div>
-                  <div className="capsule-bead-particle" style={{ '--dx': '6px', '--dy': '-10px' }}></div>
-                  <div className="capsule-bead-particle" style={{ '--dx': '-8px', '--dy': '6px' }}></div>
-                  <div className="capsule-bead-particle" style={{ '--dx': '8px', '--dy': '8px' }}></div>
-                </div>
+                <svg viewBox="0 0 40 40" width="32" height="32" className="svg-tracker-capsule" title="Dose concentration level indicator">
+                  <g transform="rotate(45 20 20)">
+                    {/* Top half */}
+                    <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
+                    {/* Bottom half */}
+                    <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
+                    {/* Center band */}
+                    <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                  </g>
+                </svg>
               </div>
             </div>
 

@@ -2098,206 +2098,44 @@ function HomeView({
                   display: flex;
                   align-items: center;
                   justify-content: center;
-                  perspective: 600px;
-                  background: radial-gradient(circle at center, rgba(13,138,104,0.12) 0%, transparent 70%);
-                  border-radius: 12px;
+                  background: radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%);
+                  border-radius: 16px;
                   overflow: hidden;
-                  border: 1px solid rgba(13,138,104,0.1);
-                  box-shadow: inset 0 0 10px rgba(13,138,104,0.05);
+                  border: 1px solid rgba(13,138,104,0.06);
                 }
-                .diary-scene {
-                  position: relative;
-                  width: 120px;
-                  height: 120px;
-                  transform-style: preserve-3d;
-                  transform: rotateX(25deg) rotateY(-20deg);
-                  animation: floatBook 4s ease-in-out infinite;
+                .svg-notebook-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-                .pillow-3d {
-                  position: absolute;
-                  width: 90px;
-                  height: 60px;
-                  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-                  border-radius: 18px 18px 8px 8px;
-                  box-shadow: inset 0 4px 8px rgba(255,255,255,0.7), 0 6px 12px rgba(0,0,0,0.12);
-                  top: 35px;
-                  left: 15px;
-                  transform: translateZ(-15px);
+                .svg-notebook-hover:hover {
+                  transform: translateY(-4px) scale(1.06);
+                  filter: drop-shadow(0 12px 24px rgba(13,138,104,0.22));
                 }
-                .book-3d {
-                  position: absolute;
-                  width: 55px;
-                  height: 75px;
-                  background: linear-gradient(135deg, #0d8a68 0%, #085e46 100%);
-                  border-radius: 4px 10px 10px 4px;
-                  box-shadow: 2px 4px 10px rgba(0,0,0,0.25);
-                  top: 25px;
-                  left: 32px;
-                  transform-style: preserve-3d;
-                  transform: translateZ(5px) rotateZ(-12deg);
-                  transition: transform 0.3s ease;
+                .svg-safe-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-                .book-3d:hover {
-                  transform: translateZ(20px) rotateZ(-3deg) rotateX(-5deg);
+                .svg-safe-hover:hover {
+                  transform: translateY(-4px) scale(1.04);
+                  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.25));
                 }
-                .book-spine-3d {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 5px;
-                  height: 100%;
-                  background: #054030;
-                  border-radius: 3px 0 0 3px;
+                .svg-safe-hover:hover .svg-safe-dial {
+                  transform: rotate(150deg);
                 }
-                .book-pages-3d {
-                  position: absolute;
-                  right: 2px;
-                  top: 3px;
-                  width: 6px;
-                  height: calc(100% - 6px);
-                  background: #f8fafc;
-                  border-radius: 0 3px 3px 0;
-                  box-shadow: inset -1px 0 2px rgba(0,0,0,0.15);
+                .svg-magnifier-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
-                .book-bookmark-3d {
-                  position: absolute;
-                  bottom: -5px;
-                  right: 15px;
-                  width: 6px;
-                  height: 12px;
-                  background: #ef4444;
-                  border-radius: 0 0 2px 2px;
-                  transform: rotateZ(-4deg);
+                .svg-magnifier-hover:hover {
+                  transform: translateY(-4px);
                 }
-                .vault-scene {
-                  position: relative;
-                  width: 120px;
-                  height: 120px;
-                  transform-style: preserve-3d;
-                  transform: rotateX(15deg) rotateY(-15deg);
-                  animation: floatSafe 4.5s ease-in-out infinite;
+                .svg-magnifier-hover:hover .svg-lens-group {
+                  transform: translate(-3px, -3px) scale(1.05);
+                  transform-origin: 45px 45px;
                 }
-                .safe-body-3d {
-                  position: absolute;
-                  width: 80px;
-                  height: 80px;
-                  background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
-                  border-radius: 10px;
-                  box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), 0 8px 16px rgba(0,0,0,0.25);
-                  top: 20px;
-                  left: 20px;
-                  transform-style: preserve-3d;
+                .svg-laser-line {
+                  animation: scanMove 2.5s ease-in-out infinite alternate;
                 }
-                .safe-door-3d {
-                  position: absolute;
-                  width: 70px;
-                  height: 70px;
-                  background: linear-gradient(135deg, #64748b 0%, #334155 100%);
-                  border-radius: 6px;
-                  top: 5px;
-                  left: 5px;
-                  box-shadow: 0 3px 6px rgba(0,0,0,0.25);
-                  transform: translateZ(6px);
-                  transform-style: preserve-3d;
-                }
-                .safe-dial-3d {
-                  position: absolute;
-                  width: 36px;
-                  height: 36px;
-                  background: radial-gradient(circle at center, #cbd5e1 0%, #475569 80%, #0f172a 100%);
-                  border-radius: 50%;
-                  top: 17px;
-                  left: 17px;
-                  box-shadow: 0 2px 5px rgba(0,0,0,0.35);
-                  transform: translateZ(10px);
-                  transform-style: preserve-3d;
-                  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-                  cursor: pointer;
-                }
-                .safe-dial-3d:hover {
-                  transform: translateZ(14px) rotate(180deg);
-                }
-                .safe-dial-ticks-3d {
-                  position: absolute;
-                  width: 100%;
-                  height: 100%;
-                  border: 2px dashed rgba(255,255,255,0.3);
-                  border-radius: 50%;
-                  box-sizing: border-box;
-                }
-                .safe-dial-handle-3d {
-                  position: absolute;
-                  width: 3px;
-                  height: 12px;
-                  background: #e2e8f0;
-                  top: 3px;
-                  left: 16px;
-                  border-radius: 1.5px;
-                  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
-                }
-                .camera-scene {
-                  position: relative;
-                  width: 120px;
-                  height: 120px;
-                  transform-style: preserve-3d;
-                  transform: rotateX(20deg) rotateY(-10deg);
-                }
-                .magnifier-lens-3d {
-                  position: absolute;
-                  width: 50px;
-                  height: 50px;
-                  border: 3.5px solid #94a3b8;
-                  background: radial-gradient(circle at center, rgba(16,185,129,0.15) 0%, rgba(13,138,104,0.05) 50%, rgba(255,255,255,0.15) 100%);
-                  border-radius: 50%;
-                  top: 25px;
-                  left: 25px;
-                  box-shadow: inset 0 0 8px rgba(16,185,129,0.25), 0 6px 12px rgba(0,0,0,0.12);
-                  transform-style: preserve-3d;
-                  transform: translateZ(15px);
-                  animation: hoverLens 3s ease-in-out infinite;
-                  transition: transform 0.3s ease;
-                }
-                .magnifier-lens-3d:hover {
-                  transform: translateZ(28px) scale(1.08);
-                }
-                .magnifier-handle-3d {
-                  position: absolute;
-                  width: 7px;
-                  height: 30px;
-                  background: linear-gradient(to right, #475569, #1e293b);
-                  border-radius: 0 0 3px 3px;
-                  top: 70px;
-                  left: 47px;
-                  transform: rotateZ(-45deg);
-                  box-shadow: 1.5px 1.5px 4px rgba(0,0,0,0.2);
-                }
-                .laser-beam-3d {
-                  position: absolute;
-                  width: 42px;
-                  height: 48px;
-                  background: linear-gradient(to bottom, rgba(16,185,129,0.35) 0%, rgba(16,185,129,0) 100%);
-                  clip-path: polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%);
-                  top: 50px;
-                  left: 29px;
-                  transform: translateZ(8px) rotateX(15deg);
-                  animation: pulseBeam 1.5s ease-in-out infinite alternate;
-                  pointer-events: none;
-                }
-                @keyframes floatBook {
-                  0%, 100% { transform: rotateX(25deg) rotateY(-20deg) translateY(0); }
-                  50% { transform: rotateX(20deg) rotateY(-15deg) translateY(-6px); }
-                }
-                @keyframes floatSafe {
-                  0%, 100% { transform: rotateX(15deg) rotateY(-15deg) translateY(0); }
-                  50% { transform: rotateX(18deg) rotateY(-10deg) translateY(-5px); }
-                }
-                @keyframes hoverLens {
-                  0%, 100% { transform: translateZ(15px) translateY(0) rotateX(0); }
-                  50% { transform: translateZ(22px) translateY(-5px) rotateX(-4deg); }
-                }
-                @keyframes pulseBeam {
-                  0% { opacity: 0.25; transform: translateZ(8px) rotateX(15deg) scaleX(0.92); }
-                  100% { opacity: 0.7; transform: translateZ(8px) rotateX(15deg) scaleX(1.08); }
+                @keyframes scanMove {
+                  0% { transform: translateY(-22px); }
+                  100% { transform: translateY(22px); }
                 }
               `}</style>
 
@@ -2352,7 +2190,7 @@ function HomeView({
                       <div>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          Most health apps send your scanned prescriptions, symptom logs, and medication searches to cloud databases, where they can be leaked, hacked, or sold to insurance companies.
+                          Most health apps upload your scanned prescriptions, searches, and symptom history to remote cloud servers. If that database gets hacked or sold, some data broker now knows about your weird rash. No thanks.
                         </div>
                       </div>
                       
@@ -2360,16 +2198,16 @@ function HomeView({
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>📓 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Private Notebook Under Your Pillow</div>
                         <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Think of Agada like writing in a physical paper diary and hiding it under your mattress. We do not have user accounts, profile registers, or database servers in the cloud. Your scans, family profiles, and alarm times remain strictly inside your phone.
+                          Think of Agada like writing your secrets in a paper diary and shoving it under your pillow. We don't have database servers, accounts, or tracking. Your cabinet, dose counts, and alarms stay entirely in your browser cache.
                         </p>
                       </div>
 
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
                         <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>Isolated Sandbox:</strong> Health records are stored locally using the browser's sandbox <code>localStorage</code> and <code>IndexedDB</code> key-value caches.<br />
-                          - <strong>Zero-Server Architecture:</strong> The application is fully serverless. All search lookups run in a local off-thread Web Worker.<br />
-                          - <strong>Permanent Shredding:</strong> Because there is no database server, deleting your browser cache or cookies permanently shreds and deletes your records.
+                          - <strong>Isolated Sandbox:</strong> We store your cabinet list inside the browser's local sandbox (IndexedDB and localStorage).<br />
+                          - <strong>Zero Server Footprint:</strong> Phonetic drug indexing runs in a separate background Web Worker thread directly on your CPU.<br />
+                          - <strong>Permanent Shredding:</strong> Because there is no database server, deleting your browser cache permanently shreds and deletes your records forever.
                         </div>
                       </div>
 
@@ -2381,16 +2219,24 @@ function HomeView({
                       </div>
                     </div>
 
-                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container">
-                        <div className="diary-scene">
-                          <div className="pillow-3d"></div>
-                          <div className="book-3d">
-                            <div className="book-spine-3d"></div>
-                            <div className="book-pages-3d"></div>
-                            <div className="book-bookmark-3d"></div>
-                          </div>
-                        </div>
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%)', border: '1px solid rgba(13,138,104,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-notebook-hover">
+                          <rect x="25" y="15" width="50" height="70" rx="6" fill="url(#bookGrad)" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                          <path d="M29 15 v70" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+                          <path d="M30 15 v70" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+                          <rect x="23" y="15" width="6" height="70" rx="3" fill="#044e39" />
+                          <rect x="71" y="18" width="4" height="64" rx="1" fill="#f8fafc" opacity="0.9" />
+                          <path d="M48 15 v35 l4 -4 l4 4 v-35" fill="#ef4444" />
+                          <circle cx="50" cy="50" r="6" fill="#fff" opacity="0.9" />
+                          <path d="M47 50 h6 M50 47 v6" stroke="#0d8a68" strokeWidth="1.2" strokeLinecap="round" />
+                          <defs>
+                            <linearGradient id="bookGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#0d8a68" />
+                              <stop offset="100%" stopColor="#054f38" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
                       </div>
                     </div>
                   </div>
@@ -2402,7 +2248,7 @@ function HomeView({
                       <div>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          If someone gains access to your unlocked phone, they can open this page and inspect all your confidential medical history, prescriptions, and symptoms.
+                          If a nosy roommate, family member, or friend gets their hands on your unlocked phone, they can open this page and browse your entire pill stash and chronic symptoms. Awkward.
                         </div>
                       </div>
                       
@@ -2410,16 +2256,16 @@ function HomeView({
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔑 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Secret Cipher Steel Safe</div>
                         <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Setting a PIN puts your health history in an unbreakable digital safe. We scramble your saved list into random gibberish. Only typing your secret PIN unlocks and decrypts the data.
+                          Setting a 4-digit PIN locks your cabinet in an unbreakable steel safe. We scramble the records into random noise. Only typing your secret PIN can decrypt and show them.
                         </p>
                       </div>
 
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
                         <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>PBKDF2 Key Derivation:</strong> Your 4-digit PIN is stretched 100,000 times using a cryptographically secure 16-byte random salt and the HMAC-SHA-256 algorithm to generate a strong 256-bit key.<br />
-                          - <strong>AES-GCM Authenticated Encryption:</strong> Data is encrypted client-side using the Web Crypto API's hardware-accelerated AES-GCM 256-bit cipher before storage.<br />
-                          - <strong>Zero-Knowledge:</strong> The PIN is never saved. If lost, your key is permanently gone—no backdoor reset exists.
+                          - <strong>PIN Stretching:</strong> We take your 4-digit PIN and stretch it 100,000 times using PBKDF2 to generate a strong 256-bit key.<br />
+                          - <strong>AES-GCM Encryption:</strong> Scrambles data using standard browser Web Crypto parameters. It is cryptographically unreadable without the PIN.<br />
+                          - <strong>Zero-Knowledge:</strong> The PIN is never stored. If you lose it, we cannot reset it. Write it on your arm or something.
                         </div>
                       </div>
 
@@ -2433,18 +2279,35 @@ function HomeView({
                       </div>
                     </div>
 
-                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container">
-                        <div className="vault-scene">
-                          <div className="safe-body-3d">
-                            <div className="safe-door-3d">
-                              <div className="safe-dial-3d">
-                                <div className="safe-dial-ticks-3d"></div>
-                                <div className="safe-dial-handle-3d"></div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(148,163,184,0.08) 0%, transparent 70%)', border: '1px solid rgba(148,163,184,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-safe-hover">
+                          <circle cx="50" cy="50" r="38" fill="url(#safeBodyGrad)" stroke="#475569" strokeWidth="1.5" />
+                          <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.8" />
+                          <g className="svg-safe-dial" style={{ transformOrigin: '50px 50px', transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                            <circle cx="50" cy="50" r="24" fill="url(#safeDialGrad)" stroke="#1e293b" strokeWidth="1.2" />
+                            {Array.from({ length: 12 }).map((_, i) => {
+                              const angle = (i * 30 * Math.PI) / 180;
+                              const x1 = 50 + 17 * Math.cos(angle);
+                              const y1 = 50 + 17 * Math.sin(angle);
+                              const x2 = 50 + 20 * Math.cos(angle);
+                              const y2 = 50 + 20 * Math.sin(angle);
+                              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />;
+                            })}
+                            <circle cx="50" cy="50" r="10" fill="#0f172a" stroke="#94a3b8" strokeWidth="1" />
+                            <line x1="50" y1="30" x2="50" y2="38" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+                          </g>
+                          <defs>
+                            <linearGradient id="safeBodyGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#334155" />
+                              <stop offset="100%" stopColor="#0f172a" />
+                            </linearGradient>
+                            <linearGradient id="safeDialGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#64748b" />
+                              <stop offset="100%" stopColor="#334155" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
                       </div>
                     </div>
                   </div>
@@ -2456,7 +2319,7 @@ function HomeView({
                       <div>
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          Most photo-enhancing scanner apps upload your raw photos and video streams to cloud server farms for pre-processing, exposing your camera feed.
+                          Most documents scanner apps ship your raw camera snapshots to cloud server farms for image cleanup, which exposes your active camera stream to remote servers. Creepy.
                         </div>
                       </div>
                       
@@ -2464,16 +2327,16 @@ function HomeView({
                         <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
                         <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                          Instead of uploading photos, Agada runs a digital 'magnifying glass' directly inside your browser. It sharpens, cleans, and binarizes blurry medicine strips offline.
+                          Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab to crop, binarize, and sharpen blurry medicine labels offline.
                         </p>
                       </div>
 
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE SCIENCE (150-HOUR TECH SPEC)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
                         <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>WebAssembly (Wasm) Engine:</strong> Image filters are compiled to a binary file and loaded dynamically in the browser sandbox.<br />
-                          - <strong>Real-time Computer Vision:</strong> Runs Adaptive Binarization (adaptive thresholding) and Sobel edge detection in a separate background Web Worker thread.<br />
-                          - <strong>WebRTC Stream Analysis:</strong> Auto-capture is triggered only when the focus metric reaches a high threshold, filtering out blurry frames locally.
+                          - <strong>WebAssembly Enhancements:</strong> Image filters are compiled to a tiny 8KB WebAssembly binary loaded in the browser sandbox.<br />
+                          - <strong>On-Device CV:</strong> We run adaptive thresholding and Sobel filters off the main thread so your screen never stutters.<br />
+                          - <strong>Focus auto-trigger:</strong> Measures frame blur at 60fps and only snaps the photo when the label is actually sharp and readable.
                         </div>
                       </div>
 
@@ -2487,13 +2350,26 @@ function HomeView({
                       </div>
                     </div>
 
-                    <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container">
-                        <div className="camera-scene">
-                          <div className="laser-beam-3d"></div>
-                          <div className="magnifier-lens-3d"></div>
-                          <div className="magnifier-handle-3d"></div>
-                        </div>
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(16,185,129,0.08) 0%, transparent 70%)', border: '1px solid rgba(16,185,129,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-magnifier-hover">
+                          <rect x="15" y="15" width="70" height="70" rx="8" fill="#1e293b" opacity="0.15" />
+                          <line x1="10" y1="50" x2="90" y2="50" stroke="#10b981" strokeWidth="1.2" opacity="0.5" className="svg-laser-line" />
+                          <g className="svg-lens-group">
+                            <path d="M60 60 l18 18" stroke="#475569" strokeWidth="4.5" strokeLinecap="round" />
+                            <path d="M60 60 l18 18" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
+                            <circle cx="45" cy="45" r="20" fill="url(#lensGrad)" stroke="#94a3b8" strokeWidth="2.2" />
+                            <circle cx="45" cy="45" r="16" fill="none" stroke="rgba(16,185,129,0.25)" strokeWidth="0.8" />
+                            <path d="M36 36 a10 10 0 0 1 10 0" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.4" strokeLinecap="round" />
+                          </g>
+                          <defs>
+                            <radialGradient id="lensGrad" cx="50%" cy="50%" r="50%">
+                              <stop offset="0%" stopColor="rgba(16,185,129,0.22)" />
+                              <stop offset="70%" stopColor="rgba(16,185,129,0.05)" />
+                              <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
+                            </radialGradient>
+                          </defs>
+                        </svg>
                       </div>
                     </div>
                   </div>
@@ -2682,106 +2558,76 @@ function HomeView({
             <div>
               <style>{`
                 .cabinet-3d-container {
-                  perspective: 1200px;
-                  background: #0f172a;
-                  border-radius: 20px;
-                  padding: 24px 24px 36px;
-                  box-shadow: inset 0 4px 20px rgba(0,0,0,0.6), var(--shadowmd);
+                  background: #fff;
+                  border-radius: 16px;
+                  padding: 20px;
+                  box-shadow: var(--shadow);
                   display: flex;
                   flex-direction: column;
-                  gap: 44px;
-                  border: 2px solid #334155;
+                  gap: 24px;
+                  border: 1px solid var(--border);
                   margin-bottom: 24px;
                 }
                 .cabinet-shelf-3d {
                   position: relative;
-                  height: 90px;
-                  border-bottom: 8px solid #475569;
-                  transform-style: preserve-3d;
-                  transform: rotateX(20deg);
-                  box-shadow: 0 10px 15px rgba(0,0,0,0.5);
+                  height: auto;
+                  min-height: 100px;
+                  border-bottom: 1.5px solid var(--border);
                   display: flex;
-                  align-items: flex-end;
+                  align-items: center;
                   justify-content: space-around;
-                  padding-bottom: 2px;
+                  padding: 12px 0;
                 }
                 .cabinet-shelf-ledge {
                   position: absolute;
-                  bottom: -8px;
-                  left: 0;
-                  right: 0;
-                  height: 8px;
-                  background: #334155;
-                  transform: rotateX(-90deg);
-                  transform-origin: bottom;
+                  bottom: -1px;
+                  left: 10%;
+                  right: 10%;
+                  height: 1px;
+                  background: linear-gradient(to right, transparent, var(--border), transparent);
+                }
+                .med-box-hoverable {
+                  width: 65px;
+                  height: 85px;
+                  border-radius: 10px;
+                  background: #fff;
+                  border: 1.5px solid var(--border);
+                  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+                  cursor: pointer;
+                  position: relative;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+                  padding: 6px;
+                  box-sizing: border-box;
+                  overflow: hidden;
                 }
                 .med-box-hoverable:hover {
-                  transform: translate3d(0, -10px, 20px) rotateY(-10deg) !important;
-                  box-shadow: -6px 12px 18px rgba(0,0,0,0.4) !important;
+                  transform: translateY(-6px) !important;
+                  box-shadow: var(--shadowmd) !important;
                 }
                 .slot-empty-dotted {
                   width: 65px;
                   height: 85px;
-                  border: 2px dashed #475569;
-                  border-radius: 6px;
+                  border: 1.5px dashed var(--bordermd);
+                  border-radius: 10px;
                   display: flex;
                   align-items: center;
                   justify-content: center;
                   cursor: pointer;
                   transition: all 0.2s;
-                  background: rgba(255,255,255,0.02);
+                  background: transparent;
                 }
                 .slot-empty-dotted:hover {
-                  border-color: #10b981;
-                  background: rgba(16,185,129,0.05);
-                  transform: scale(1.05);
+                  border-color: var(--green);
+                  background: var(--greenlt);
+                  transform: translateY(-4px);
                 }
-                .capsule-wrapper {
-                  position: relative;
-                  width: 50px;
-                  height: 50px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
+                .svg-capsule-pulse {
+                  transition: transform 0.2s ease;
                 }
-                .capsule-3d-split {
-                  width: 12px;
-                  height: 28px;
-                  position: relative;
-                  transform-style: preserve-3d;
-                  transition: transform 0.4s ease;
-                  cursor: pointer;
-                  animation: rotateCapsule 5s linear infinite;
-                }
-                .capsule-wrapper:hover .capsule-3d-split {
-                  animation-play-state: paused;
-                }
-                .capsule-wrapper:hover .capsule-half-top {
-                  transform: translateY(-10px) rotateY(180deg);
-                }
-                .capsule-wrapper:hover .capsule-half-bottom {
-                  transform: translateY(10px);
-                }
-                .capsule-particle {
-                  position: absolute;
-                  width: 5px;
-                  height: 5px;
-                  border-radius: 50%;
-                  opacity: 0;
-                  pointer-events: none;
-                  background: #10b981;
-                }
-                .capsule-wrapper:hover .capsule-particle {
-                  animation: floatParticle 1.5s ease-out infinite;
-                }
-                @keyframes rotateCapsule {
-                  0% { transform: rotateX(20deg) rotateY(0deg); }
-                  100% { transform: rotateX(20deg) rotateY(360deg); }
-                }
-                @keyframes floatParticle {
-                  0% { transform: translateY(0) scale(0.5); opacity: 0; }
-                  50% { opacity: 0.8; }
-                  100% { transform: translateY(-30px) translateX(var(--px)); scale(1.2); opacity: 0; }
+                .svg-capsule-pulse:hover {
+                  transform: scale(1.15) rotate(5deg);
                 }
                 @keyframes pulseBorder {
                   0%, 100% { border-color: #ef4444; box-shadow: 0 0 5px rgba(239,68,68,0.2); }
@@ -2955,13 +2801,13 @@ function HomeView({
                                   const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen');
                                   const isAyurvedic = item.productType === 'AYURVEDIC';
                                   const isSupplement = item.productType === 'SUPPLEMENT';
-                                  let boxGradient = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+                                  let boxColor = '#6366f1';
                                   if (isAyurvedic || isSupplement) {
-                                    boxGradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                                    boxColor = '#10b981';
                                   } else if (isAntibiotic) {
-                                    boxGradient = 'linear-gradient(135deg, #ef4444 0%, #3b82f6 100%)';
+                                    boxColor = '#ef4444';
                                   } else if (isPainKiller) {
-                                    boxGradient = 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)';
+                                    boxColor = '#f59e0b';
                                   }
 
                                   return (
@@ -2970,48 +2816,35 @@ function HomeView({
                                       onClick={() => setSelectedCabinetIndex(realIdx)}
                                       className="med-box-hoverable"
                                       style={{
-                                        width: '65px',
-                                        height: '85px',
-                                        background: boxGradient,
-                                        borderRadius: '6px',
-                                        position: 'relative',
-                                        transformStyle: 'preserve-3d',
-                                        transform: isSelected ? 'translate3d(0, -12px, 30px) rotateY(-15deg)' : 'translate3d(0, 0, 5px) rotateY(-5deg)',
-                                        transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                        cursor: 'pointer',
-                                        boxShadow: isSelected ? '0 15px 25px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.6)' : '-4px 4px 8px rgba(0,0,0,0.3)',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        justifyContent: 'space-between',
-                                        padding: '8px',
-                                        color: '#fff',
-                                        border: isSelected ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.25)',
-                                        boxSizing: 'border-box'
+                                        transform: isSelected ? 'translateY(-6px)' : 'translateY(0)',
+                                        boxShadow: isSelected ? 'var(--shadowmd)' : 'var(--shadow)',
+                                        border: isSelected ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                                        borderTop: `4px solid ${boxColor}`
                                       }}
                                       title={`${item.brandName} - ${item.saltComposition} (${item.pillCount} pills)`}
                                     >
-                                      {/* skew 3D edge */}
-                                      <div style={{ position: 'absolute', top: 0, right: '-6px', width: '6px', height: '100%', background: 'rgba(0,0,0,0.2)', transform: 'skewY(45deg)', transformOrigin: 'left' }} />
                                       
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <span style={{ fontSize: '12px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                                        <span style={{ fontSize: '11px' }}>
                                           {isAyurvedic || isSupplement ? '🌿' : isAntibiotic ? '🧬' : isPainKiller ? '⚡' : '💊'}
                                         </span>
-                                        {isLowStock && <span style={{ fontSize: '9px', color: '#fca5a5', animation: 'pulse 1.5s infinite' }}>⚠️</span>}
-                                        {isExpired && <span style={{ fontSize: '7px', background: '#ef4444', color: '#fff', padding: '1px 3px', borderRadius: 3, fontWeight: 900 }}>EXP</span>}
+                                        <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                          {isLowStock && <span style={{ fontSize: '9px' }}>⚠️</span>}
+                                          {isExpired && <span style={{ fontSize: '7px', background: 'var(--red)', color: '#fff', padding: '1px 3px', borderRadius: 3, fontWeight: 800 }}>EXP</span>}
+                                        </div>
                                       </div>
                                       
-                                      <div style={{ textAlign: 'left', overflow: 'hidden' }}>
-                                        <div style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
+                                      <div style={{ textAlign: 'left', overflow: 'hidden', width: '100%', marginTop: 4 }}>
+                                        <div style={{ fontSize: '9.5px', fontWeight: 800, color: 'var(--navy)', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                           {item.brandName}
                                         </div>
-                                        <div style={{ fontSize: '6.5px', opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <div style={{ fontSize: '7px', color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
                                           {item.saltComposition}
                                         </div>
                                       </div>
 
-                                      <div style={{ height: '3.5px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', overflow: 'hidden', marginTop: '3px' }}>
-                                        <div style={{ height: '100%', width: `${stockPct}%`, background: isLowStock ? '#ef4444' : '#10b981' }} />
+                                      <div style={{ height: '3px', background: 'var(--bgsoft)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px', width: '100%' }}>
+                                        <div style={{ height: '100%', width: `${stockPct}%`, background: isLowStock ? 'var(--red)' : 'var(--green)' }} />
                                       </div>
                                     </div>
                                   );
@@ -3352,28 +3185,18 @@ function HomeView({
                             <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
                           </div>
                           
-                          {/* 3D Interactive Splitting Capsule */}
-                          <div className="capsule-wrapper" title="Hover to inspect active ingredients!">
-                            <div className="capsule-3d-split">
-                              <div className="capsule-half-top" style={{ position: 'absolute', top: 0, width: '100%', height: '50%', borderRadius: '6px 6px 0 0', border: '0.5px solid rgba(0,0,0,0.15)', boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4)', transition: 'all 0.3s ease', backgroundColor: capTopColor }}></div>
-                              <div className="capsule-half-bottom" style={{ position: 'absolute', bottom: 0, width: '100%', height: '50%', borderRadius: '0 0 6px 6px', border: '0.5px solid rgba(0,0,0,0.15)', boxShadow: 'inset 0 -1px 2px rgba(255,255,255,0.4)', transition: 'all 0.3s ease', backgroundColor: capBottomColor }}></div>
-                            </div>
-                            
-                            {/* Particles that float out on hover */}
-                            {Array.from({ length: 6 }).map((_, pIdx) => {
-                              const xOffset = -15 + Math.random() * 30;
-                              return (
-                                <div 
-                                  key={pIdx} 
-                                  className="capsule-particle" 
-                                  style={{ 
-                                    '--px': `${xOffset}px`, 
-                                    animationDelay: `${pIdx * 0.25}s`,
-                                    background: pIdx % 2 === 0 ? capTopColor : 'var(--green)'
-                                  }} 
-                                />
-                              );
-                            })}
+                          {/* Clean Flat Interactive SVG Capsule */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg viewBox="0 0 40 40" width="36" height="36" className="svg-capsule-pulse" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))', cursor: 'pointer' }} title="Active composition indicator">
+                              <g transform="rotate(45 20 20)">
+                                {/* Top half */}
+                                <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
+                                {/* Bottom half */}
+                                <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
+                                {/* Middle separator */}
+                                <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+                              </g>
+                            </svg>
                           </div>
                         </div>
 
