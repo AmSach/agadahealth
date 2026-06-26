@@ -1090,12 +1090,12 @@ function InfoCard({ info, results, translating, profile }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               
               {/* SVG concentration chart */}
-              <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+              <div className="glass-card" style={{ padding: 8, display: 'flex', justifyContent: 'center', marginBottom: 0 }}>
                 <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
                   <defs>
                     <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0D8A68" stopOpacity="0.25" />
-                      <stop offset="100%" stopColor="#0D8A68" stopOpacity="0.0" />
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
 
@@ -1163,10 +1163,10 @@ function InfoCard({ info, results, translating, profile }) {
                   {areaD && <path d={areaD} fill="url(#curve-grad)" />}
 
                   {/* Curve path backing glow */}
-                  {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.15" />}
+                  {pathD && <path d={pathD} fill="none" stroke="#38bdf8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" />}
 
                   {/* Curve path */}
-                  {pathD && <path d={pathD} fill="none" stroke="#0D8A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+                  {pathD && <path d={pathD} fill="none" stroke="#0284c7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
 
                   {/* Vertical scanning bar for time scrubber */}
                   <line 

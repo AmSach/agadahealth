@@ -1339,7 +1339,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', position: 'relative' }}>
       
       {/* Navbar header */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--navy)', color: '#fff' }}>
@@ -1808,7 +1808,7 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', padding: '0 18px 32px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 18px 32px' }}>
 
       {/* Dashboard Navigation Tabs */}
       <div style={{ 
@@ -1898,10 +1898,7 @@ function HomeView({
       </div>
 
       {/* search */}
-      <div style={{
-        background: '#fff',
-        border: '1px solid #dadce0',
-        borderRadius: 10,
+      <div className="glass-card" style={{
         padding: '14px',
         marginTop: '14px',
         marginBottom: '16px'
@@ -2057,14 +2054,10 @@ function HomeView({
       </div>
 
       {/* Settings Panel */}
-      <div style={{ 
-        background: '#fff', 
-        border: '1.5px solid var(--border)', 
-        borderRadius: 16, 
+      <div className="glass-card" style={{ 
         padding: '16px', 
         marginTop: '20px', 
-        animation: 'fadeUp 0.5s ease 0.3s both',
-        boxShadow: 'var(--shadow)'
+        animation: 'fadeUp 0.5s ease 0.3s both'
       }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
           Settings
@@ -2222,14 +2215,10 @@ function HomeView({
 
       {/* Saved Scans Registry */}
       {isVaultLocked ? (
-        <div style={{ 
+        <div className="glass-card" style={{ 
           marginTop: 24, 
-          background: '#fff', 
-          border: '1.5px solid var(--border)', 
-          borderRadius: 16, 
           padding: '16px', 
           textAlign: 'center',
-          boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.35s both'
         }}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
@@ -2337,13 +2326,9 @@ function HomeView({
 
       {/* Personal Medicine OS Dashboard */}
       {!isVaultLocked && activeTab !== 'scan' && (
-        <div style={{ 
+        <div className="glass-card" style={{ 
           marginTop: 20, 
-          background: '#fff', 
-          border: '1.5px solid var(--border)', 
-          borderRadius: 16, 
           padding: '16px', 
-          boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.4s both'
         }}>
           {/* Profile Selector Header */}
