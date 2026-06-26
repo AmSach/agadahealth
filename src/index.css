@@ -145,7 +145,7 @@ body {
   background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
 }
 
-/* Red margin line down the left side */
+/* Red margin line down the left side — desktop only */
 body::before {
   content: '';
   position: fixed;
@@ -155,6 +155,7 @@ body::before {
   background: rgba(229, 57, 70, 0.25);
   z-index: 999;
   pointer-events: none;
+  display: none; /* shown on desktop via media query */
 }
 
 /* Floating doodle shapes */
@@ -234,7 +235,7 @@ a:hover { color: var(--neon-pink); }
   box-shadow: none !important;
 }
 
-/* Washi tape strip on top left */
+/* Washi tape strip on top left — hidden by default, shown on desktop */
 .app-container::before {
   content: '📐 aman made this at 3am';
   position: fixed;
@@ -253,9 +254,10 @@ a:hover { color: var(--neon-pink); }
   opacity: 0.85;
   white-space: nowrap;
   pointer-events: none;
+  display: none; /* only shown on desktop via media query */
 }
 
-/* Washi tape strip on right side */
+/* Washi tape strip on right side — hidden by default */
 .app-container::after {
   content: '';
   position: fixed;
@@ -275,6 +277,7 @@ a:hover { color: var(--neon-pink); }
   z-index: 1000;
   opacity: 0.6;
   pointer-events: none;
+  display: none; /* only shown on desktop via media query */
 }
 
 
@@ -849,22 +852,385 @@ div[style*="spin 1s linear"] {
 
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE
+   MORE CHAOS — subtle guidance doodles & emphasis effects
    ═══════════════════════════════════════════════════════════════ */
 
+/* ─── Pulsing glow on primary CTA (scan button) ──────────── */
+@keyframes cta-nudge {
+  0%, 100% { box-shadow: 3px 3px 0 var(--charcoal), 0 0 0 0 rgba(27,122,74,0); }
+  50% { box-shadow: 3px 3px 0 var(--charcoal), 0 0 0 6px rgba(27,122,74,0.15); }
+}
+
+button[style*="linear-gradient(135deg, var(--green)"],
+button[style*="height: 60"][style*="var(--green)"] {
+  animation: cta-nudge 2.5s ease-in-out infinite !important;
+  position: relative !important;
+}
+
+/* Arrow doodle pointing at primary scan button */
+button[style*="linear-gradient(135deg, var(--green)"]::after,
+button[style*="height: 60"][style*="var(--green)"]::after {
+  content: '👆 tap here!';
+  position: absolute;
+  bottom: -22px;
+  right: 10px;
+  font-family: 'Caveat', cursive;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neon-pink);
+  pointer-events: none;
+  animation: wobble 3s ease-in-out infinite;
+  white-space: nowrap;
+}
+
+/* ─── Highlighter streak behind search heading ────────────── */
+h3[style*="fontSize: 13"],
+h3[style*="font-size: 13"] {
+  position: relative !important;
+}
+h3[style*="fontSize: 13"]::before,
+h3[style*="font-size: 13"]::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: -4px;
+  width: calc(100% + 8px);
+  height: 40%;
+  background: rgba(255, 217, 61, 0.3);
+  z-index: -1;
+  transform: rotate(-0.5deg);
+  border-radius: 1px;
+}
+
+/* ─── "My Medicine Cabinet" heading — circled with marker ─── */
+h3[style*="fontSize: 17"],
+h3[style*="font-size: 17px"],
+h2[style*="fontSize: 17"] {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+/* ─── Little sticker on the search input ─────────────────── */
+input[placeholder*="Search e.g."],
+input[placeholder*="Search CDSCO"] {
+  position: relative;
+}
+
+/* ─── Tape on hero image container ────────────────────────── */
+div[style*="width: 140"][style*="height: 140"]::before {
+  content: '';
+  position: absolute;
+  top: -6px; left: 30%;
+  width: 40%; height: 12px;
+  background: rgba(162,155,254,0.45);
+  border: 1px solid rgba(0,0,0,0.06);
+  transform: rotate(2deg);
+  z-index: 10;
+}
+
+/* ─── Doodle star next to "Offline search ready" ──────────── */
+span[style*="92400E"],
+span[style*="#92400E"] {
+  font-family: 'Caveat', cursive !important;
+}
+
+/* ─── Feature cards (CDSCO DB, etc) — alternate tilts ─────── */
+div[style*="borderRadius: 12"][style*="display: 'flex'"][style*="gap"]:nth-child(odd) {
+  transform: rotate(-0.8deg);
+}
+div[style*="borderRadius: 12"][style*="display: 'flex'"][style*="gap"]:nth-child(even) {
+  transform: rotate(0.5deg);
+}
+
+/* ─── Privacy/security section — notebook marginalia vibe ─── */
+div[style*="borderRadius: 16"][style*="background: '#fff'"][style*="padding: '20px'"],
+div[style*="borderRadius: 16"][style*="background: '#FFFFFF'"] {
+  border: 2.5px solid var(--charcoal) !important;
+  box-shadow: 3px 3px 0 var(--charcoal) !important;
+  border-radius: 3px !important;
+  position: relative;
+}
+
+/* ─── Footer links — sticker aesthetic ────────────────────── */
+button[style*="Privacy Policy"],
+button[style*="Terms of Service"] {
+  font-family: 'Caveat', cursive !important;
+  font-size: 15px !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — MOBILE FIRST (the project board scales up)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Mobile: ≤580px — clean compact, no margin doodles ───── */
 @media (max-width: 580px) {
+  .app-container {
+    max-width: 100% !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
   .app-container::before,
   .app-container::after {
-    display: none; /* hide washi tape on narrow screens */
+    display: none !important;
   }
   body::before {
-    display: none; /* hide margin line on mobile */
+    display: none !important;
+  }
+  /* Tighter header tape label */
+  header::before,
+  div[style*="background: 'var(--navy)'"]::before {
+    font-size: 9px !important;
+    padding: 1px 8px 2px !important;
   }
 }
 
+/* ─── Small phones: ≤400px ────────────────────────────────── */
 @media (max-width: 400px) {
   .btn-tab {
-    font-size: 13px !important;
-    padding: 5px 8px !important;
+    font-size: 12px !important;
+    padding: 5px 6px !important;
   }
+  button[style*="linear-gradient(135deg, var(--green)"]::after,
+  button[style*="height: 60"][style*="var(--green)"]::after {
+    display: none; /* hide arrow doodle on tiny screens */
+  }
+}
+
+
+/* ─── Tablet / landscape phones: 581px – 900px ────────────── */
+@media (min-width: 581px) and (max-width: 900px) {
+  .app-container {
+    max-width: 580px !important;
+    margin: 0 auto;
+  }
+}
+
+
+/* ─── Desktop / wide landscape: 901px+ ────────────────────── */
+@media (min-width: 901px) {
+  /* Wider project board with breathing room */
+  .app-container {
+    max-width: 640px !important;
+    margin: 0 auto;
+    /* Corkboard border effect */
+    border-left: 4px solid var(--charcoal) !important;
+    border-right: 4px solid var(--charcoal) !important;
+    background: var(--bgcard) !important;
+    box-shadow: 8px 8px 0 var(--charcoal) !important;
+  }
+
+  /* Show the washi tape decorations */
+  .app-container::before {
+    display: block !important;
+    content: '📐 aman made this at 3am · yes it actually works · no you cannot copy my homework';
+    position: fixed;
+    top: 50%;
+    left: calc(50% - 355px);
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--charcoal);
+    background: var(--marker-pink);
+    padding: 4px 14px;
+    transform: rotate(-90deg) translateX(50%);
+    transform-origin: center center;
+    z-index: 1000;
+    border: 1.5px solid rgba(0,0,0,0.15);
+    opacity: 0.75;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .app-container::after {
+    display: block !important;
+    content: '';
+    position: fixed;
+    top: 120px;
+    right: calc(50% - 350px);
+    width: 22px;
+    height: 90px;
+    background: repeating-linear-gradient(
+      45deg,
+      var(--neon-yellow),
+      var(--neon-yellow) 5px,
+      transparent 5px,
+      transparent 10px
+    );
+    border: 1px solid rgba(0,0,0,0.1);
+    transform: rotate(3deg);
+    z-index: 1000;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  /* Show the red notebook margin line */
+  body::before {
+    display: block !important;
+    left: calc(50% - 320px + 45px) !important;
+  }
+
+  /* Bigger graph paper grid on desktop */
+  body {
+    background-size: 100px 100px, 100px 100px, 25px 25px, 25px 25px !important;
+  }
+}
+
+
+/* ─── Ultra-wide: 1200px+ — full workshop mode ────────────── */
+@media (min-width: 1200px) {
+  .app-container {
+    max-width: 680px !important;
+    box-shadow: 10px 10px 0 var(--charcoal) !important;
+  }
+
+  /* Left margin gutter doodles */
+  body::after {
+    font-size: 28px !important;
+    text-shadow:
+      3vw 10vh 0 rgba(255,107,107,0.10),
+      90vw 6vh 0 rgba(0,191,166,0.09),
+      8vw 80vh 0 rgba(255,217,61,0.11),
+      92vw 55vh 0 rgba(162,155,254,0.08),
+      5vw 38vh 0 rgba(255,140,66,0.09),
+      88vw 28vh 0 rgba(116,185,255,0.08),
+      12vw 65vh 0 rgba(85,239,196,0.09),
+      85vw 72vh 0 rgba(255,151,181,0.08),
+      15vw 15vh 0 rgba(255,107,107,0.07),
+      82vw 90vh 0 rgba(0,191,166,0.08) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   LANDSCAPE ORIENTATION — project board goes wide
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Phone in landscape — compact everything */
+  .app-container {
+    max-width: 520px !important;
+  }
+
+  /* Reduce hero padding in landscape */
+  div[style*="padding: '40px 0 32px'"],
+  div[style*="padding: 40px"] {
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+  }
+
+  /* Smaller hero graphic */
+  div[style*="width: 140"][style*="height: 140"] {
+    width: 80px !important;
+    height: 80px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Compact buttons in landscape */
+  button[style*="height: 60"] {
+    height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* Hide the CTA arrow hint in landscape */
+  button[style*="linear-gradient(135deg, var(--green)"]::after,
+  button[style*="height: 60"][style*="var(--green)"]::after {
+    display: none !important;
+  }
+
+  /* Tighter tab bar */
+  .btn-tab {
+    font-size: 13px !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LANDSCAPE TABLET — the full corkboard experience
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (orientation: landscape) and (min-height: 501px) and (min-width: 900px) {
+  .app-container {
+    max-width: 680px !important;
+    border: 4px solid var(--charcoal) !important;
+    box-shadow: 10px 10px 0 var(--charcoal) !important;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    border-radius: 3px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   EXTRA CHAOS — doodles that guide the eye
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Highlighted "important" text in settings descriptions ── */
+div[style*="fontSize: 12"][style*="fontStyle: 'italic'"],
+div[style*="font-size: 12px"][style*="font-style: italic"],
+span[style*="fontSize: 11"][style*="opacity"],
+p[style*="fontSize: 11"] {
+  font-family: 'Caveat', cursive !important;
+  font-size: 14px !important;
+}
+
+/* ─── Toggle switches — make them feel hand-toggled ──────── */
+div[style*="cursor: pointer"][style*="borderRadius: 99"],
+div[style*="cursor: pointer"][style*="borderRadius: 50"] {
+  border-radius: 4px !important;
+  border: 2px solid var(--charcoal) !important;
+  box-shadow: 1px 1px 0 var(--charcoal) !important;
+}
+
+/* ─── Modal overlays — graph paper + taped-on feel ────────── */
+div[style*="position: fixed"][style*="background: rgba(0"],
+div[style*="position: fixed"][style*="zIndex: 9"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ─── QR modal and popups ─────────────────────────────────── */
+div[style*="background: '#fff'"][style*="borderRadius: 20"][style*="padding: 30"] {
+  border: 3px solid var(--charcoal) !important;
+  border-radius: 4px !important;
+  box-shadow: 6px 6px 0 var(--charcoal) !important;
+}
+
+/* ─── Pill count circle on cabinet items ──────────────────── */
+div[style*="borderRadius: '50%'"],
+div[style*="border-radius: 50%"][style*="background"] {
+  border-radius: 4px !important;
+  border: 2px solid var(--charcoal) !important;
+}
+
+/* ─── "3D shelf" cabinet view — boxy workshop shelves ─────── */
+div[style*="perspective"] {
+  perspective: none !important;
+}
+div[style*="rotateX"] {
+  transform: none !important;
+}
+
+/* ─── Interaction graph — doodle lines ────────────────────── */
+canvas {
+  border: 2px solid var(--charcoal) !important;
+  border-radius: 2px !important;
+  box-shadow: 2px 2px 0 var(--charcoal) !important;
+}
+
+/* ─── Daily schedule timeline ─────────────────────────────── */
+div[style*="borderLeft: '3px solid"],
+div[style*="border-left: 3px solid"] {
+  border-left-style: dashed !important;
+}
+
+/* ─── Make the beta warning text feel handwritten ─────────── */
+div[style*="#FEF3C7"] span,
+div[style*="FEF3C7"] span {
+  font-family: 'Caveat', cursive !important;
+  font-size: 14px !important;
+}
+
+/* ─── The entire main scrollable content area ─────────────── */
+div[style*="flex: 1"][style*="display: 'flex'"][style*="flexDirection: 'column'"][style*="background: '#fff'"] {
+  background: var(--bg) !important;
 }
