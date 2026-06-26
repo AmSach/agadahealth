@@ -1,5 +1,5 @@
 /**
- * api/groq.js — Vercel serverless proxy for Groq API calls
+ * api/groq.js  -  Vercel serverless proxy for Groq API calls
  * Keys from env vars: GROQ_KEY_1, GROQ_KEY_2, GROQ_KEY_3, etc.
  * 
  * Uses ESM (export default) because package.json has "type": "module"

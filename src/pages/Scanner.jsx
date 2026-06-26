@@ -1703,7 +1703,6 @@ function HomeView({
   saveAllProfiles
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
-  const [schoolTab, setSchoolTab] = useState('diary')
 
   const selectCabinetItem = (idx) => {
     setSelectedCabinetIndex(idx);
@@ -1809,83 +1808,54 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
-      
-      {/* Geometrical retro particles/goofballs floating in the background */}
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '10%', left: '5%', fontSize: '24px', opacity: 0.15, transform: 'rotate(15deg)', animation: 'float-shape 15s ease-in-out infinite' }}>📐</div>
-        <div style={{ position: 'absolute', top: '25%', right: '8%', fontSize: '28px', opacity: 0.12, transform: 'rotate(-25deg)', animation: 'float-shape 22s ease-in-out infinite' }}>⬡</div>
-        <div style={{ position: 'absolute', bottom: '15%', left: '7%', fontSize: '32px', opacity: 0.10, transform: 'rotate(45deg)', animation: 'float-shape 18s ease-in-out infinite' }}>👾</div>
-        <div style={{ position: 'absolute', bottom: '30%', right: '5%', fontSize: '26px', opacity: 0.14, transform: 'rotate(10deg)', animation: 'float-shape 25s ease-in-out infinite' }}>⚡</div>
-        <div style={{ position: 'absolute', top: '45%', left: '12%', fontSize: '22px', opacity: 0.08, transform: 'rotate(-5deg)', animation: 'float-shape 19s ease-in-out infinite' }}>◆</div>
-        <div style={{ position: 'absolute', top: '65%', right: '15%', fontSize: '30px', opacity: 0.11, transform: 'rotate(35deg)', animation: 'float-shape 21s ease-in-out infinite' }}>★</div>
-        <div style={{ position: 'absolute', top: '15%', left: '45%', fontSize: '24px', opacity: 0.07, transform: 'rotate(120deg)', animation: 'float-shape 26s ease-in-out infinite' }}>🛸</div>
-        <div style={{ position: 'absolute', bottom: '5%', left: '35%', fontSize: '28px', opacity: 0.09, transform: 'rotate(-40deg)', animation: 'float-shape 20s ease-in-out infinite' }}>■</div>
-        <div style={{ position: 'absolute', bottom: '45%', right: '40%', fontSize: '26px', opacity: 0.06, transform: 'rotate(15deg)', animation: 'float-shape 24s ease-in-out infinite' }}>▲</div>
-      </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', padding: '0 18px 32px' }}>
 
-      {/* Modern Hero Section */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
-          <span style={{ fontSize: 14 }}>✨</span> {t.knowYourMedicine || 'Know Your Medicine'}
-        </div>
+      {/* Hero */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 28px' }}>
 
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
-          {t.heroLine1 || 'Verify.'}<br />
-          <span style={{ background: 'linear-gradient(90deg, var(--green), #0D9488)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t.heroLine2 || 'Never overpay.'}</span>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.2, marginBottom: 10 }}>
+          {t.heroLine1 || 'scan any medicine.'}<br />
+          <span style={{ color: '#1b7a4a' }}>{t.heroLine2 || 'find cheaper generics.'}</span>
         </h1>
 
-        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 36px' }}>
-          {t.heroDesc || 'Agada reads any medicine strip to find authenticity, side effects, and cheaper Jan Aushadhi alternatives instantly.'}
+        <p style={{ fontSize: 14, color: '#5f6368', lineHeight: 1.5, maxWidth: 300, margin: '0 auto 28px' }}>
+          {t.heroDesc || 'point your camera at any medicine strip and agada will check if there\'s a cheaper generic with the same salt composition.'}
         </p>
 
-        {/* Floating Scanner Graphic */}
-        <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
-            <span style={{ fontSize: 56 }}>💊</span>
-          </div>
-          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
-          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
-        </div>
-
-        {/* Primary Call to Action */}
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
-          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📷</span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 52, background: '#1b7a4a', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer' }}>
+            📷 {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
           </button>
           
-          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📝</span> {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
+          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 52, background: '#1a1a2e', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer' }}>
+            📝 {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
           </button>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 40, background: '#fff', border: '1px solid #dadce0', borderRadius: 8, color: '#5f6368', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               {t.uploadStrip || 'Upload Strip'}
             </button>
-            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 40, background: '#fff', border: '1px solid #dadce0', borderRadius: 8, color: '#5f6368', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               {t.uploadRx || 'Upload Rx'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Offline search engine section */}
+      {/* search */}
       <div style={{
         background: '#fff',
-        border: '1.5px solid var(--border)',
-        borderRadius: 16,
-        padding: '16px',
-        marginTop: '16px',
-        marginBottom: '20px',
-        boxShadow: 'var(--shadow)',
-        animation: 'fadeUp 0.5s ease 0.35s both'
+        border: '1px solid #dadce0',
+        borderRadius: 10,
+        padding: '14px',
+        marginTop: '14px',
+        marginBottom: '16px'
       }}>
-        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔍 Instant Medicine & Salt Lookup
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>
+          Search medicines
         </h3>
-        <p style={{ fontSize: 11, color: 'var(--textlt)', margin: '0 0 12px 0' }}>
-          Type a brand name or composition salt. Works offline using Double Metaphone and BM25 index matching.
+        <p style={{ fontSize: 11, color: '#9aa0a6', margin: '0 0 10px 0' }}>
+          type a brand name or salt composition. works offline.
         </p>
 
         <div>
@@ -1915,24 +1885,22 @@ function HomeView({
             <button 
               onClick={() => handleGlobalSearch(searchQuery)}
               style={{
-                height: 46,
+                height: 42,
                 padding: '0 16px',
-                background: 'linear-gradient(135deg, var(--green), #0D9488)',
+                background: '#1b7a4a',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 10,
-                fontSize: 13.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 10px rgba(15,122,90,0.15)',
-                transition: 'transform 0.2s'
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
               Search
             </button>
           </div>
-          <div style={{ fontSize: 10, color: 'var(--textlt)', marginTop: 6, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>🔒</span> {searchStatus}
+          <div style={{ fontSize: 10, color: '#9aa0a6', marginTop: 6 }}>
+            {searchStatus}
           </div>
         </div>
 
@@ -1942,13 +1910,13 @@ function HomeView({
             {isSearching && (
               <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--border)', borderTopColor: 'var(--green)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-                Computing scoring ranks...
+                Searching database...
               </div>
             )}
 
             {!isSearching && (!searchResults || (searchResults.cdsco.length === 0 && searchResults.ja.length === 0)) && (
               <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center' }}>
-                No matches found phonetically or by keyword relevance.
+                No matches found.
               </div>
             )}
 
@@ -1976,9 +1944,6 @@ function HomeView({
                               Indication: {res.row['Indication'] || 'Maintenance Therapy'}
                             </div>
                           </div>
-                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--greenlt)', color: 'var(--green)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
-                            Score: {res.score.toFixed(1)}
-                          </span>
                         </div>
                       ))}
                     </div>
@@ -2007,9 +1972,6 @@ function HomeView({
                               MRP: ₹{res.row['MRP']} ({res.row['Unit Size']})
                             </div>
                           </div>
-                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--safflt)', color: 'var(--saffron)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
-                            Score: {res.score.toFixed(1)}
-                          </span>
                         </div>
                       ))}
                     </div>
@@ -2024,10 +1986,10 @@ function HomeView({
       {/* Trust Badges */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
         {[
-          ['🛡️', 'CDSCO DB', '3,300+ tracked'],
-          ['💊', 'Jan Aushadhi', 'Live mapping'],
-          ['🤖', 'AI Assistant', 'Instant insights'],
-          ['🔒', 'Secure', 'Private scans']
+          ['📁', 'CDSCO DB', '3,300+ formulations'],
+          ['💊', 'Jan Aushadhi', 'Government generic list'],
+          ['🔎', 'Offline Search', 'Instant salt matching'],
+          ['🛡️', 'Local Privacy', 'Scans run on-device']
         ].map(([icon, title, sub]) => (
           <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
@@ -2049,21 +2011,20 @@ function HomeView({
         animation: 'fadeUp 0.5s ease 0.3s both',
         boxShadow: 'var(--shadow)'
       }}>
-        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          ⚙️ Settings & Device Security
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
+          Settings
         </h3>
         
         {/* WASM Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={wasmEnabled} onChange={e => setWasmEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-              📸 Smart Camera Enhancer
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={wasmEnabled} onChange={e => setWasmEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
+              Image enhancement
             </label>
-            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>WASM (LOCAL)</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
-            spent two nights writing custom WebAssembly code in Rust just to fix camera glare. phone photos taken under bad fluorescent pharmacy lighting are usually garbage, so we binarize and clean them up locally on your CPU. no servers.
+          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
+            cleans up photos taken in bad lighting before running OCR. runs locally in your browser.
           </div>
           {wasmEnabled && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22, marginTop: 4 }}>
@@ -2080,57 +2041,55 @@ function HomeView({
         {/* Async Stream Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-              ⚡ Fast Analysis Mode
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
+              Background analysis
             </label>
-            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>ASYNC STREAM</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
-            runs the scans in the background because vercel's serverless functions are literally the bottleneck here and will timeout if they do the OCR and matching synchronously. this prevents the app from hanging.
+          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
+            runs scans in the background so the app doesn't hang.
           </div>
         </div>
 
         {/* Local OCR Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={localOcrEnabled} onChange={e => setLocalOcrEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-              🔎 Local OCR Engine (Offline)
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={localOcrEnabled} onChange={e => setLocalOcrEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
+              Offline OCR
             </label>
-            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>LOCAL OCR</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
-            extracts text from medicine strips directly in your browser using Tesseract.js. if you're on a cheap phone, it might take 10 seconds because browser OCR is slow. but hey, at least your medical data isn't being sold to advertisers.
+          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
+            reads text from medicine strips directly in your browser. slower on cheap phones but your data stays on-device.
           </div>
         </div>
 
         {/* ZK Vault Toggle / Control */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔒 Private Local Lock (PIN)
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6 }}>
+              PIN lock
             </span>
-            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: vaultPin ? 'var(--greenlt)' : 'var(--bgsoft)', color: vaultPin ? 'var(--green)' : 'var(--textlt)' }}>
-              {vaultPin ? 'SECURED (AES-256)' : 'UNLOCKED (PLAIN)'}
+            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: vaultPin ? '#e8f5ee' : '#efefef', color: vaultPin ? '#1b7a4a' : '#9aa0a6' }}>
+              {vaultPin ? 'locked' : 'off'}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
-            scrambles your saved medicine history under PBKDF2 + AES-GCM encryption. if you lose this 4-digit PIN, your history is gone forever. i literally do not store it anywhere. don't write me emails asking to reset it, i literally can't.
+          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
+            encrypts your saved medicines with a 4-digit PIN. if you forget it, your data is gone.
           </div>
 
           <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
             {!vaultPin ? (
-              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--greenlt)', color: 'var(--green)', fontWeight: 700 }}>
-                🔑 Setup Lock PIN
+              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#e8f5ee', color: '#1b7a4a', fontWeight: 600 }}>
+                Set PIN
               </button>
             ) : (
               <>
-                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--navy)', fontWeight: 700 }}>
-                  🔒 Lock History Now
+                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#efefef', color: '#1a1a2e', fontWeight: 600 }}>
+                  Lock now
                 </button>
-                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--redlt)', color: 'var(--red)', fontWeight: 700 }}>
-                  🔓 Remove PIN Lock
+                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#fce8e6', color: '#d93025', fontWeight: 600 }}>
+                  Remove PIN
                 </button>
               </>
             )}
@@ -2149,7 +2108,7 @@ function HomeView({
           )}
         </div>
 
-        {/* Interactive Privacy & Security Guide (Privacy School) */}
+        {/* Interactive Privacy & Security Guide */}
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
           <button 
             type="button"
@@ -2159,306 +2118,47 @@ function HomeView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: 'var(--greenlt)',
-              border: '1.5px solid rgba(13,138,104,0.15)',
+              background: '#f4f6f8',
+              border: '1px solid #dadce0',
               borderRadius: 10,
               padding: '10px 14px',
               cursor: 'pointer',
               fontSize: '13px',
-              fontWeight: 800,
-              color: 'var(--greendk)'
+              fontWeight: 700,
+              color: '#1a1a2e'
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🏫 Privacy & Security School</span>
-            <span>{showPrivacySchool ? '▲ Hide Guide' : '▼ Learn How It Works'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Privacy & Security Guide</span>
+            <span>{showPrivacySchool ? 'Hide Guide' : 'Learn How It Works'}</span>
           </button>
           
           {showPrivacySchool && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, animation: 'fadeIn 0.3s ease' }}>
-              <style>{`
-                .scene-container {
-                  position: relative;
-                  width: 140px;
-                  height: 140px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  background: radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%);
-                  border-radius: 16px;
-                  overflow: hidden;
-                  border: 1px solid rgba(13,138,104,0.06);
-                }
-                .svg-notebook-hover {
-                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .svg-notebook-hover:hover {
-                  transform: translateY(-4px) scale(1.06);
-                  filter: drop-shadow(0 12px 24px rgba(13,138,104,0.22));
-                }
-                .svg-safe-hover {
-                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .svg-safe-hover:hover {
-                  transform: translateY(-4px) scale(1.04);
-                  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.25));
-                }
-                .svg-safe-hover:hover .svg-safe-dial {
-                  transform: rotate(150deg);
-                }
-                .svg-magnifier-hover {
-                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .svg-magnifier-hover:hover {
-                  transform: translateY(-4px);
-                }
-                .svg-magnifier-hover:hover .svg-lens-group {
-                  transform: translate(-3px, -3px) scale(1.05);
-                  transform-origin: 45px 45px;
-                }
-                .svg-laser-line {
-                  animation: scanMove 2.5s ease-in-out infinite alternate;
-                }
-                @keyframes scanMove {
-                  0% { transform: translateY(-22px); }
-                  100% { transform: translateY(22px); }
-                }
-              `}</style>
-
-              <div style={{ fontSize: 11.5, color: 'var(--greendk)', lineHeight: 1.5, background: 'var(--greenlt)', padding: 12, borderRadius: 8, fontWeight: 600 }}>
-                🛡️ <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14, animation: 'fadeIn 0.3s ease' }}>
+              <div style={{ fontSize: 12.5, color: '#1a1a2e', lineHeight: 1.5, background: '#f4f6f8', padding: 12, borderRadius: 8, border: '1px solid #dadce0' }}>
+                <strong>How does Agada handle your privacy?</strong> All processing and storage happen entirely on your device. We do not upload your images, searches, or medical details to any external servers.
               </div>
 
-              {/* Tab Selector */}
-              <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
-                {[
-                  { id: 'diary', label: '📓 Local Diary', sub: 'Data Location' },
-                  { id: 'vault', label: '🔑 Secret Vault', sub: 'PIN Encryption' },
-                  { id: 'camera', label: '🔍 Magnifying Glass', sub: 'On-Device Vision' }
-                ].map(tab => {
-                  const active = schoolTab === tab.id
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSchoolTab(tab.id)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 4px',
-                        borderRadius: 8,
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        border: active ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
-                        background: active ? 'var(--greenlt)' : '#fff',
-                        color: active ? 'var(--greendk)' : 'var(--textmd)',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.15s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 2
-                      }}
-                    >
-                      <span style={{ fontSize: '11px' }}>{tab.label}</span>
-                      <span style={{ fontSize: '9px', fontWeight: 500, opacity: 0.75 }}>{tab.sub}</span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Tab Content */}
-              <div style={{ background: 'var(--bgsoft)', border: '1.5px solid var(--border)', borderRadius: 12, padding: 14 }}>
-                {schoolTab === 'diary' && (
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
-                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          Most health apps upload your scanned prescriptions, searches, and symptom history to remote cloud servers. If that database gets hacked or sold, some data broker now knows about your weird rash. No thanks.
-                        </div>
-                      </div>
-                      
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>📓 THE METAPHOR (HOW IT WORKS)</div>
-                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Private Notebook Under Your Pillow</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
-                          Think of Agada like writing your secrets in a paper diary and shoving it under your pillow. seriously, hit F12 on this page and inspect Application (and then Local Storage). it's just raw strings. no hidden API calls to some tracking system. everything stays in your browser cache.
-                        </p>
-                      </div>
-
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>Isolated Sandbox:</strong> We store your cabinet list inside the browser's local sandbox (IndexedDB and localStorage).<br />
-                          - <strong>Zero Server Footprint:</strong> Phonetic drug indexing runs in a separate background Web Worker thread directly on your CPU.<br />
-                          - <strong>Permanent Shredding:</strong> Because there is no database server, deleting your browser cache permanently shreds and deletes your records forever.
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green)' }}>🟢 LIVE SECURITY AUDIT:</span>
-                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
-                          Local Database active. Saved scans: {bookmarks ? bookmarks.length : 0} | Cabinet items: {cabinet ? cabinet.length : 0}
-                        </span>
-                      </div>
-                    </div>
-
-                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%)', border: '1px solid rgba(13,138,104,0.06)' }}>
-                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-notebook-hover">
-                          <rect x="25" y="15" width="50" height="70" rx="6" fill="url(#bookGrad)" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
-                          <path d="M29 15 v70" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
-                          <path d="M30 15 v70" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-                          <rect x="23" y="15" width="6" height="70" rx="3" fill="#044e39" />
-                          <rect x="71" y="18" width="4" height="64" rx="1" fill="#f8fafc" opacity="0.9" />
-                          <path d="M48 15 v35 l4 -4 l4 4 v-35" fill="#ef4444" />
-                          <circle cx="50" cy="50" r="6" fill="#fff" opacity="0.9" />
-                          <path d="M47 50 h6 M50 47 v6" stroke="#0d8a68" strokeWidth="1.2" strokeLinecap="round" />
-                          <defs>
-                            <linearGradient id="bookGrad" x1="0" y1="0" x2="1" y2="1">
-                              <stop offset="0%" stopColor="#0d8a68" />
-                              <stop offset="100%" stopColor="#054f38" />
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </div>
-                    </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>1. Local Database Storage</div>
+                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
+                    Your saved scans and medicine cabinet are stored securely in your browser's local sandbox (IndexedDB and localStorage). Deleting your browser cache permanently clears all records.
                   </div>
-                )}
+                </div>
 
-                {schoolTab === 'vault' && (
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
-                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          If a nosy roommate, family member, or friend gets their hands on your unlocked phone, they can open this page and browse your entire pill stash and chronic symptoms. Awkward.
-                        </div>
-                      </div>
-                      
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔑 THE METAPHOR (HOW IT WORKS)</div>
-                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Secret Cipher Steel Safe</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
-                          Setting a 4-digit PIN locks your cabinet in an unbreakable steel safe. i used native browser Crypto subtle APIs. it does the PBKDF2 key stretching inside the browser, which is why it might take a fraction of a second to lock/unlock. math takes cpu cycles to scramble the records into random noise.
-                        </p>
-                      </div>
-
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>PIN Stretching:</strong> We take your 4-digit PIN and stretch it 100,000 times using PBKDF2 to generate a strong 256-bit key.<br />
-                          - <strong>AES-GCM Encryption:</strong> Scrambles data using standard browser Web Crypto parameters. It is cryptographically unreadable without the PIN.<br />
-                          - <strong>Zero-Knowledge:</strong> The PIN is never stored. If you lose it, we cannot reset it. Write it on your arm or something.
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: vaultPin ? 'var(--green)' : 'var(--orange)' }}>
-                          {vaultPin ? '🔒 VAULT ACTIVE:' : '🔓 UNSECURED:'}
-                        </span>
-                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
-                          {vaultPin ? 'Your history is encrypted on-device with AES-256.' : 'No PIN lock is set. History is stored in plain text.'}
-                        </span>
-                      </div>
-                    </div>
-
-                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(148,163,184,0.08) 0%, transparent 70%)', border: '1px solid rgba(148,163,184,0.06)' }}>
-                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-safe-hover">
-                          <circle cx="50" cy="50" r="38" fill="url(#safeBodyGrad)" stroke="#475569" strokeWidth="1.5" />
-                          <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.8" />
-                          <g className="svg-safe-dial" style={{ transformOrigin: '50px 50px', transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                            <circle cx="50" cy="50" r="24" fill="url(#safeDialGrad)" stroke="#1e293b" strokeWidth="1.2" />
-                            {Array.from({ length: 12 }).map((_, i) => {
-                              const angle = (i * 30 * Math.PI) / 180;
-                              const x1 = 50 + 17 * Math.cos(angle);
-                              const y1 = 50 + 17 * Math.sin(angle);
-                              const x2 = 50 + 20 * Math.cos(angle);
-                              const y2 = 50 + 20 * Math.sin(angle);
-                              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />;
-                            })}
-                            <circle cx="50" cy="50" r="10" fill="#0f172a" stroke="#94a3b8" strokeWidth="1" />
-                            <line x1="50" y1="30" x2="50" y2="38" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
-                          </g>
-                          <defs>
-                            <linearGradient id="safeBodyGrad" x1="0" y1="0" x2="1" y2="1">
-                              <stop offset="0%" stopColor="#334155" />
-                              <stop offset="100%" stopColor="#0f172a" />
-                            </linearGradient>
-                            <linearGradient id="safeDialGrad" x1="0" y1="0" x2="1" y2="1">
-                              <stop offset="0%" stopColor="#64748b" />
-                              <stop offset="100%" stopColor="#334155" />
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </div>
-                    </div>
+                <div style={{ textAlign: 'left', borderTop: '1px solid #f1f3f4', paddingTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>2. Optional PIN Protection</div>
+                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
+                    Enabling a PIN encrypts your medicine list on-device using AES-256 (standard Web Crypto API). Since the PIN is never saved anywhere else, your data is completely inaccessible if locked.
                   </div>
-                )}
+                </div>
 
-                {schoolTab === 'camera' && (
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
-                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
-                          Most documents scanner apps ship your raw camera snapshots to cloud server farms for image cleanup, which exposes your active camera stream to remote servers. Creepy.
-                        </div>
-                      </div>
-                      
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
-                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
-                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
-                          Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab. the WebAssembly module is compiled from about 200 lines of Rust to crop, binarize, and sharpen blurry medicine labels offline. i wanted it to be as lightweight as possible. the source code is open.
-                        </p>
-                      </div>
-
-                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
-                          - <strong>WebAssembly Enhancements:</strong> Image filters are compiled to a tiny 8KB WebAssembly binary loaded in the browser sandbox.<br />
-                          - <strong>On-Device CV:</strong> We run adaptive thresholding and Sobel filters off the main thread so your screen never stutters.<br />
-                          - <strong>Focus auto-trigger:</strong> Measures frame blur at 60fps and only snaps the photo when the label is actually sharp and readable.
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: wasmEnabled ? 'var(--green)' : 'var(--textlt)' }}>
-                          {wasmEnabled ? '🟢 WASM ACTIVE:' : '⚪ WASM OFF:'}
-                        </span>
-                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
-                          {wasmEnabled ? 'Camera frames pre-processed locally in WebAssembly.' : 'WASM enhancer is disabled. Using raw capture fallback.'}
-                        </span>
-                      </div>
-                    </div>
-
-                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
-                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(16,185,129,0.08) 0%, transparent 70%)', border: '1px solid rgba(16,185,129,0.06)' }}>
-                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-magnifier-hover">
-                          <rect x="15" y="15" width="70" height="70" rx="8" fill="#1e293b" opacity="0.15" />
-                          <line x1="10" y1="50" x2="90" y2="50" stroke="#10b981" strokeWidth="1.2" opacity="0.5" className="svg-laser-line" />
-                          <g className="svg-lens-group">
-                            <path d="M60 60 l18 18" stroke="#475569" strokeWidth="4.5" strokeLinecap="round" />
-                            <path d="M60 60 l18 18" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
-                            <circle cx="45" cy="45" r="20" fill="url(#lensGrad)" stroke="#94a3b8" strokeWidth="2.2" />
-                            <circle cx="45" cy="45" r="16" fill="none" stroke="rgba(16,185,129,0.25)" strokeWidth="0.8" />
-                            <path d="M36 36 a10 10 0 0 1 10 0" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.4" strokeLinecap="round" />
-                          </g>
-                          <defs>
-                            <radialGradient id="lensGrad" cx="50%" cy="50%" r="50%">
-                              <stop offset="0%" stopColor="rgba(16,185,129,0.22)" />
-                              <stop offset="70%" stopColor="rgba(16,185,129,0.05)" />
-                              <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
-                            </radialGradient>
-                          </defs>
-                        </svg>
-                      </div>
-                    </div>
+                <div style={{ textAlign: 'left', borderTop: '1px solid #f1f3f4', paddingTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>3. Offline Processing</div>
+                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
+                    Search suggestions and phonetic matching are processed locally via a background Web Worker. If offline vision is enabled, text extraction runs directly inside your browser.
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -4145,11 +3845,11 @@ function HomeView({
 
 function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeStepId, completedStepIds }) {
   const steps = [
-    { id: 'started', label: 'Initializing Scan Engine', tag: 'System' },
-    { id: 'vision', label: 'Reading Label (Llama Vision OCR)', tag: 'Vision' },
-    { id: 'db', label: 'CDSCO Approval & Jan Aushadhi DB matches', tag: 'Registry' },
-    { id: 'scraping', label: 'Live e-Pharmacy price comparison', tag: 'Scraper' },
-    { id: 'summary', label: 'Compiling Patient Warning profiles', tag: 'AI Summary' }
+    { id: 'started', label: 'Initializing scanner', tag: 'System' },
+    { id: 'vision', label: 'Extracting text from image', tag: 'OCR' },
+    { id: 'db', label: 'Checking CDSCO & Jan Aushadhi databases', tag: 'Registry' },
+    { id: 'scraping', label: 'Comparing price options', tag: 'Search' },
+    { id: 'summary', label: 'Checking safety interactions', tag: 'Safety' }
   ];
 
   return (
@@ -4168,7 +3868,7 @@ function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeSte
         
         {processedPreview && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'popIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', marginBottom: 4 }}>WASM Filtered</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', marginBottom: 4 }}>Enhanced Image</span>
             <div style={{ width: 68, height: 68, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--green)', boxShadow: '0 4px 10px rgba(15,122,90,0.15)' }}>
               <img src={processedPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>

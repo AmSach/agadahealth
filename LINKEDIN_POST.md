@@ -1,6 +1,6 @@
 ---
 title: "built something that should've existed already"
-subtitle: "agada — because the chemist is charging you 10x and you don't even know it"
+subtitle: "agada  -  because the chemist is charging you 10x and you don't even know it"
 ---
 ok so
 

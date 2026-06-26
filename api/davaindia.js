@@ -1,5 +1,5 @@
 /**
- * api/davaindia.js — Vercel serverless proxy for DavaIndia search
+ * api/davaindia.js  -  Vercel serverless proxy for DavaIndia search
  *
  * Why a proxy: DavaIndia's search API returns JSON but requires same-origin
  * or at least doesn't set CORS headers for browser requests. This proxy
@@ -10,7 +10,7 @@
  */
 
 export default async function handler(req, res) {
-  // CORS — allow our own Vercel domain + localhost dev
+  // CORS  -  allow our own Vercel domain + localhost dev
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   if (!q || q.length < 3) return res.status(400).json({ found: false, error: 'Query too short' })
 
   try {
-    // DavaIndia search endpoint — returns JSON with product array
+    // DavaIndia search endpoint  -  returns JSON with product array
     const searchUrl = `https://www.davaindia.com/api/v1/products/search?query=${encodeURIComponent(q)}&limit=10`
 
     const response = await fetch(searchUrl, {
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
     })
 
   } catch (err) {
-    // Never crash the app — degrade gracefully
+    // Never crash the app  -  degrade gracefully
     return res.status(200).json({ found: false, reason: 'proxy_error', detail: err.message })
   }
 }

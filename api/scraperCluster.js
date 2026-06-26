@@ -1,5 +1,5 @@
 /**
- * api/scraperCluster.js — High-performance concurrent scraper cluster
+ * api/scraperCluster.js  -  High-performance concurrent scraper cluster
  * Scrapes major Indian e-pharmacies for live market prices and generic alternatives.
  * Uses HTTP fetches + JSON/LD+JSON/Hydration state parsing to bypass heavy browser overhead.
  */

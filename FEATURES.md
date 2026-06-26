@@ -1,6 +1,6 @@
-# Agada — What this app actually does 💊
+# Agada  -  What this app actually does 💊
 
-Agada (Sanskrit: आगद — antidote/medicine) is a free public utility built for the **India Innovates 2026** initiative. Its sole purpose is to help everyday people verify medicines, figure out what they do, and avoid getting overcharged at the pharmacy counter. (ok so basically i got overcharged for a basic prescription and it just sat in my head. so i built this from scratch in my bedroom).
+Agada (Sanskrit: आगद  -  antidote/medicine) is a free public utility built for the **India Innovates 2026** initiative. Its sole purpose is to help everyday people verify medicines, figure out what they do, and avoid getting overcharged at the pharmacy counter. (ok so basically i got overcharged for a basic prescription and it just sat in my head. so i built this from scratch in my bedroom).
 
 Here's the rundown of what I built into it:
 

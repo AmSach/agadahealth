@@ -1,5 +1,5 @@
 /**
- * api/prices.js — Agada Price Engine
+ * api/prices.js  -  Agada Price Engine
  * 
  * Strategy:
  * 1. Local Jan Aushadhi database - fastest, most reliable
