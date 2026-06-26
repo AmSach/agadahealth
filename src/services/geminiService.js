@@ -1,5 +1,5 @@
 /**
- * geminiService.js v5 — Agada AI Service
+ * geminiService.js v5 - Agada AI Service
  *
  * Key changes from v4:
  * - All Groq calls proxied through /api/groq (keys never sent to browser)
@@ -16,14 +16,14 @@ import { logAIResponse } from './debugLog.js'
 import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
 // ─── MODEL CASCADE ────────────────────────────────────────────────────────────
-// Vision models — tried in order by api/groq.js proxy (server-side)
+// Vision models - tried in order by api/groq.js proxy (server-side)
 // NOTE: llama-3.2-*-vision-preview models are decommissioned as of 2025
 // Use llama-4-scout for vision (validated working)
 const VISION_MODELS = [
   'meta-llama/llama-4-scout-17b-16e-instruct',  // FASTEST, BEST FOR OCR - use this first
   'meta-llama/llama-4-maverick-17b-128e-instruct', // larger, better for complex labels
 ]
-// Text-only models — for description + generics (no image)
+// Text-only models - for description + generics (no image)
 const TEXT_MODELS = [
   'llama-3.3-70b-versatile',   // best quality
   'llama-3.1-70b-versatile',   // fallback
@@ -31,29 +31,29 @@ const TEXT_MODELS = [
   'gemma2-9b-it',              // last resort
 ]
 
-// ─── PROXY URL — all AI calls go through here, keys stay server-side ──────────
+// ─── PROXY URL - all AI calls go through here, keys stay server-side ──────────
 const GROQ_PROXY = '/api/groq'
 
-// keyIndex unused — key rotation happens server-side in /api/groq
+// keyIndex unused - key rotation happens server-side in /api/groq
 let keyIndex = 0
 
-// ─── VISION PROMPT — lean, exact, fast ───────────────────────────────────────
+// ─── VISION PROMPT - lean, exact, fast ───────────────────────────────────────
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
 
 SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
 DOSE: Numbers + unit only (e.g. "500mg" or "500mg + 125mg"). Use + to join multiple doses.
-MULTILINE: Salt name and dose are often on separate lines or inside parentheses on the next line. Read across ALL lines — do not treat a line break as meaning the dose is absent. Example: "Mavyret\n(glecaprevir and pibrentasvir)\n100mg/40mg" → saltName="glecaprevir and pibrentasvir", doseStr="100mg/40mg".
-DOSE SEPARATORS: doses may be separated by /, +, or commas — treat all as multi-dose. "100mg/40mg" = two doses.
+MULTILINE: Salt name and dose are often on separate lines or inside parentheses on the next line. Read across ALL lines - do not treat a line break as meaning the dose is absent. Example: "Mavyret\n(glecaprevir and pibrentasvir)\n100mg/40mg" → saltName="glecaprevir and pibrentasvir", doseStr="100mg/40mg".
+DOSE SEPARATORS: doses may be separated by /, +, or commas - treat all as multi-dose. "100mg/40mg" = two doses.
 If dose not visible on a MEDICINE or INJECTION label after reading ALL text on the image: doseStr=null, cannotRead=true, cannotReadReason="Dose not visible on label".
-For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design — set doseStr=null but do NOT set cannotRead=true just because dose is missing.
+For TOPICAL, LIQUID, AYURVEDIC, SUPPLEMENT: dose is often absent by design - set doseStr=null but do NOT set cannotRead=true just because dose is missing.
 If label totally unreadable: saltName=null, doseStr=null, confidence<50, cannotRead=true.
 TORN/BLURRY/BOTTLE: Read what IS visible. cannotRead=true only if zero text legible.
-BACK OF PACK / CONTENTS PAGE: If the image shows the back or side of a pack with an ingredients or composition table but no brand name — this is valid. Extract saltName and doseStr from the "Each tablet/capsule contains" or "Composition" section. List only the ACTIVE ingredients (ignore excipients like starch, lactose, magnesium stearate). Set brandName=null if not visible. Do NOT set cannotRead=true just because the front of the pack is not shown.
+BACK OF PACK / CONTENTS PAGE: If the image shows the back or side of a pack with an ingredients or composition table but no brand name - this is valid. Extract saltName and doseStr from the "Each tablet/capsule contains" or "Composition" section. List only the ACTIVE ingredients (ignore excipients like starch, lactose, magnesium stearate). Set brandName=null if not visible. Do NOT set cannotRead=true just because the front of the pack is not shown.
 Damaged areas: ignore for fake signals.
 productType: INJECTION for injections, LIQUID for oral liquids/syrups/drops, TOPICAL for gels/creams/ointments, MEDICINE for oral solids that are prescription or OTC pharmaceutical drugs.
-Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements — even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
-Set productType=HAZARDOUS if the item is a dangerous non-medicine that should NOT be consumed — e.g. acids (hydrochloric acid, sulphuric acid, acetic acid), hydrogen peroxide (H2O2), bleach, caustic soda, industrial solvents, disinfectants, pesticides, drain cleaners. These are harmful if ingested or misused.
-Set productType=NOT_MEDICINE if the item is clearly NOT a medicine and NOT hazardous — e.g. adhesives (Fevibond, Fevicol), cosmetics, food products, stationery, household items. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
+Set productType=SUPPLEMENT for vitamins, minerals, calcium, vitamin D3, omega-3, multivitamins, nutraceuticals, health supplements - even if they come as tablets or strips (e.g. Calxofine D3, Shelcal, Neurobion, Limcee). These have no mg dose requirement.
+Set productType=HAZARDOUS if the item is a dangerous non-medicine that should NOT be consumed - e.g. acids (hydrochloric acid, sulphuric acid, acetic acid), hydrogen peroxide (H2O2), bleach, caustic soda, industrial solvents, disinfectants, pesticides, drain cleaners. These are harmful if ingested or misused.
+Set productType=NOT_MEDICINE if the item is clearly NOT a medicine and NOT hazardous - e.g. adhesives (Fevibond, Fevicol), cosmetics, food products, stationery, household items. When in doubt and there is no salt/drug name visible, use NOT_MEDICINE.
 
 Genuine signals (only list if actually SEEN): hologram, QR/barcode, govt MRP sticker, tamper seal, batch no, expiry, full address+PIN, licence no
 Fake signals (only list if actually SEEN): pixelated text on clear image, font mismatch, missing MRP/batch/expiry on INTACT label
@@ -70,7 +70,7 @@ function mergeSaltDose(saltName, doseStr) {
   const doses  = doseStr.split(/\+|,|\/|\band\b/i).map(d => d.trim()).filter(Boolean)
   if (salts.length === doses.length) return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
   if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
-  // Count mismatch (e.g. 2 salts, doses split differently) — best effort: append full doseStr to first salt
+  // Count mismatch (e.g. 2 salts, doses split differently) - best effort: append full doseStr to first salt
   // Better to pass something through than silently drop the whole composition
   return `${saltName} ${doseStr}`
 }
@@ -78,14 +78,14 @@ function mergeSaltDose(saltName, doseStr) {
 // ─── SCHEDULE H/H1/X OVERRIDE MAP ────────────────────────────────────────────
 // Drugs that are commonly misclassified by AI. Ground truth from Indian drug schedules.
 // Schedule H, H1, X = prescription required. OTC = false.
-// This overrides whatever the AI says — not exhaustive, catches the most common errors.
+// This overrides whatever the AI says - not exhaustive, catches the most common errors.
 const SCHEDULE_RX = new Set([
-  // Schedule X (narcotics/psychotropics — always Rx)
+  // Schedule X (narcotics/psychotropics - always Rx)
   'alprazolam','clonazepam','diazepam','lorazepam','nitrazepam','triazolam',
   'midazolam','zolpidem','zopiclone','buprenorphine','tramadol','codeine',
   'morphine','oxycodone','fentanyl','pethidine','pentazocine','phenobarbitone',
   'phenobarbital','methylphenidate','modafinil',
-  // Schedule H1 (high risk — always Rx)
+  // Schedule H1 (high risk - always Rx)
   'amoxycillin','amoxicillin','azithromycin','ciprofloxacin','levofloxacin',
   'norfloxacin','ofloxacin','metronidazole','tinidazole','doxycycline',
   'clindamycin','cephalexin','cefixime','cefpodoxime','ceftriaxone','cefuroxime',
@@ -122,11 +122,11 @@ const SCHEDULE_OTC = new Set([
 function resolveRx(saltComposition, aiSaid) {
   if (!saltComposition) return aiSaid
   const s = saltComposition.toLowerCase()
-  // Check Rx list first — if any known Rx salt appears, it's prescription
+  // Check Rx list first - if any known Rx salt appears, it's prescription
   for (const drug of SCHEDULE_RX) {
     if (s.includes(drug)) return true
   }
-  // Check OTC list — if matches an OTC drug, it's not prescription
+  // Check OTC list - if matches an OTC drug, it's not prescription
   for (const drug of SCHEDULE_OTC) {
     if (s.includes(drug)) return false
   }
@@ -153,11 +153,11 @@ const mkGenericsPrompt = (salt, productType) => {
   return `You are an Indian pharmacist. Patient needs: ${salt}
 List up to 3 real branded generics sold at Indian chemists containing EXACTLY this salt at EXACTLY this dose. Nothing else.
 ${routeRule}
-STRICT RULES — violating any rule means the product must be excluded:
+STRICT RULES - violating any rule means the product must be excluded:
 1. The "salt" field in your response MUST be exactly: ${salt}
 2. NEVER include a product unless you are certain it contains ${salt} as its ONLY active ingredient(s).
-3. If a brand name sounds similar but contains a different salt — EXCLUDE IT.
-4. If you are not sure a product is real — EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
+3. If a brand name sounds similar but contains a different salt - EXCLUDE IT.
+4. If you are not sure a product is real - EXCLUDE IT. Return 1 item rather than fabricate 2 or 3.
 5. EACH item must be from a DIFFERENT manufacturer.
 6. The "brand" field MUST contain ONLY the clean, official manufacturer name (e.g. "GlaxoSmithKline", "Cipla", "Sun Pharma"). Do NOT include any explanations, justifications, meta-reasoning, or "for this example" comments. It must be a short name.
 Use prices from Netmeds, Apollo Pharmacy, 1mg, DavaIndia as reference.
@@ -181,7 +181,7 @@ export function pharmacyLinks(saltComposition) {
 // ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
 
-  // Start DB load immediately — parallel with everything else
+  // Start DB load immediately - parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
 
   // ── GROUND TRUTH from QR ──────────────────────────────────────────────────
@@ -200,10 +200,10 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
 
   // ── Hard block: not a medicine ───────────────────────────────────────────
   // If the AI identifies this as a non-medicine product (adhesive, cosmetic,
-  // food, household chemical etc.) — stop immediately, return a clear rejection.
+  // food, household chemical etc.) - stop immediately, return a clear rejection.
   // ── Hard block: hazardous substance ──────────────────────────────────────
   // If the AI identifies this as a dangerous chemical (acid, H2O2, bleach etc.)
-  // — stop immediately with a DANGER warning. Never show medicine info for these.
+  // - stop immediately with a DANGER warning. Never show medicine info for these.
   if (img.productType === 'HAZARDOUS') {
     return {
       productType:     'HAZARDOUS',
@@ -219,8 +219,8 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       confidence:      img.confidence || 90,
       saltSource:      'AI_VISION',
       cannotRead:      true,
-      cannotReadReason: '⚠️ DANGER: This appears to be a hazardous chemical — NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
-      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance — not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '⚠️ HAZARDOUS SUBSTANCE — NOT FOR CONSUMPTION' },
+      cannotReadReason: '⚠️ DANGER: This appears to be a hazardous chemical - NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
+      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance - not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '⚠️ HAZARDOUS SUBSTANCE - NOT FOR CONSUMPTION' },
       medicineInfo:    null,
       alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
       dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
@@ -260,10 +260,10 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const finalMrp    = qrMrp    || img.mrp
 
   // Dose gate: behaviour depends on product type
-  // MEDICINE/INJECTION — dose is safety-critical for alternatives, but many Indian packs
-  //   only print the dose on the back panel. If salt is clearly readable we proceed —
+  // MEDICINE/INJECTION - dose is safety-critical for alternatives, but many Indian packs
+  //   only print the dose on the back panel. If salt is clearly readable we proceed -
   //   alternatives lookup uses salt-only which is still valid and safe.
-  // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT — dose is often absent by design (e.g. "apply as needed"),
+  // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT - dose is often absent by design (e.g. "apply as needed"),
   //   so we always allow lookup without a dose number.
   const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
   const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(img.doseStr || '')
@@ -272,15 +272,15 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   //   - QR gave us the salt (ground truth), OR
   //   - dose number is visible in the extracted text, OR
   //   - product type doesn't need a dose (topical/supplement/etc.), OR
-  //   - salt is clearly readable (front-of-pack; dose may be on back — still scannable)
+  //   - salt is clearly readable (front-of-pack; dose may be on back - still scannable)
   const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose || hasSalt
 
-  // Only block if we have NO salt AND no dose — truly unreadable label
+  // Only block if we have NO salt AND no dose - truly unreadable label
   if (!doseConfirmed && !hasSalt) {
     img.cannotRead = true
     img.cannotReadReason = img.cannotReadReason || 'Could not read medicine name or dose. Try scanning a clearer image or the barcode.'
   } else {
-    // Salt is readable — clear any erroneous "dose not visible" block the AI may have set
+    // Salt is readable - clear any erroneous "dose not visible" block the AI may have set
     if (img.cannotRead && img.cannotReadReason && /dose/i.test(img.cannotReadReason)) {
       img.cannotRead = false
       img.cannotReadReason = null
@@ -288,7 +288,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   }
 
   if (qrSalt) {
-    img.genuineSignalsFound = [...(img.genuineSignalsFound || []), 'QR/barcode decoded — salt verified']
+    img.genuineSignalsFound = [...(img.genuineSignalsFound || []), 'QR/barcode decoded - salt verified']
   }
 
   const expiryStr = finalExpiry
@@ -296,7 +296,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
 
   await dbPromise
 
-  // ── Phase 2: DB lookup — only when dose is confirmed ──────────────────────
+  // ── Phase 2: DB lookup - only when dose is confirmed ──────────────────────
   const jaLookup    = doseConfirmed ? lookupJanAushadhi(finalSalt, finalMrp, img.unitSize) : { best: null, doseMismatch: null, noDose: false }
   const cdscoResult = lookupCDSCO(finalSalt)
   const jaBest      = jaLookup.best
@@ -357,14 +357,14 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   // Fetch real prices from DavaIndia for each alternative in parallel.
   // If a price comes back, it replaces the AI-estimated price and marks the
   // entry as highConfidence=true with priceSource='DavaIndia'.
-  // Gracefully degrades — if proxy is down, allAlts stay as-is.
+  // Gracefully degrades - if proxy is down, allAlts stay as-is.
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
         const dava = davaMap.get(key)
-        if (!dava) return alt  // no DavaIndia result — keep AI estimate as-is
+        if (!dava) return alt  // no DavaIndia result - keep AI estimate as-is
         return {
           ...alt,
           // Override price fields with DavaIndia live data
@@ -387,7 +387,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const authenticity = buildAuthenticity(img, cdscoResult, isExpired, barcodeData, qrSalt)
   if ((img.confidence || 0) < 50 && !qrSalt) {
     authenticity.status  = 'CANNOT_DETERMINE'
-    authenticity.warning = ((authenticity.warning || '') + ' Low confidence — verify with pharmacist.').trim()
+    authenticity.warning = ((authenticity.warning || '') + ' Low confidence - verify with pharmacist.').trim()
   }
 
   // Flag when salt is readable but dose is absent (e.g. dose printed on back of pack only)
@@ -415,12 +415,12 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       hasGenerics:          allAlts.length > 0,
       janAushadhiAvailable: !!jaBest,
       topAlternatives:      allAlts,
-      doseMismatchAlt:      jaDoseDiff,   // singular — one dose-mismatch at most
+      doseMismatchAlt:      jaDoseDiff,   // singular - one dose-mismatch at most
       jaCount:              jaBest ? 1 : 0,
       savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
-      whereToFind:          'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
-      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate — verify at the chemist.',
+      whereToFind:          'Jan Aushadhi Kendras - janaushadhi.gov.in · 1800-180-8080',
+      disclaimer:           'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate - verify at the chemist.',
     },
     dataSource: {
       salt:       qrSalt ? 'QR barcode (verified)' : 'AI vision (estimated)',
@@ -460,7 +460,7 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
     fakeSignalsFound:    fake,
     cdscoBadge:      cdsco.badge || (
       img.productType === 'AYURVEDIC'  ? '🌿 Regulated by AYUSH, not CDSCO.' :
-      img.productType === 'SUPPLEMENT' ? 'Dietary supplement — not CDSCO scheduled.' :
+      img.productType === 'SUPPLEMENT' ? 'Dietary supplement - not CDSCO scheduled.' :
       'Salt not found in CDSCO registry.'
     ),
     cdscoIndication:  cdsco.indication || null,
@@ -473,10 +473,10 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
 // ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
 // For each model, ALL keys are tried before moving to the next model.
 // This ensures a decommissioned/rate-limited model doesn't silently kill the
-// cascade — every backup model gets a fair shot with every available key.
+// cascade - every backup model gets a fair shot with every available key.
 
 async function callVision(b64, mime, prompt) {
-  // Keys are managed server-side in /api/groq — no client-side keys needed
+  // Keys are managed server-side in /api/groq - no client-side keys needed
   let lastErr = 'no models available'
   const t0 = Date.now()
   for (const model of VISION_MODELS) {
@@ -492,8 +492,8 @@ async function callVision(b64, mime, prompt) {
           ]}]
         })
       })
-      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys — try next model
-      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone — try next model
+      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys - try next model
+      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone - try next model
       if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; continue }
       const data = await res.json()
       const rawResponse = data?.choices?.[0]?.message?.content
@@ -509,7 +509,7 @@ async function callVision(b64, mime, prompt) {
 }
 
 async function callText(prompt) {
-  // Keys are managed server-side in /api/groq — no client-side keys needed
+  // Keys are managed server-side in /api/groq - no client-side keys needed
   let lastErr = 'no models'
   const t0 = Date.now()
   const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
@@ -520,8 +520,8 @@ async function callText(prompt) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
       })
-      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys — try next model
-      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone — try next model
+      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys - try next model
+      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone - try next model
       if (!res.ok) { lastErr = `${res.status}`; continue }
       const data = await res.json()
       const rawResponse = data?.choices?.[0]?.message?.content
@@ -774,7 +774,7 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
       jaCount: jaBest ? 1 : 0,
       savingsSummary: buildSavingsSummary(jaBest, null, null),
       pharmacyLinks: pharmacyLinks(saltComposition),
-      whereToFind: 'Jan Aushadhi Kendras — janaushadhi.gov.in · 1800-180-8080',
+      whereToFind: 'Jan Aushadhi Kendras - janaushadhi.gov.in · 1800-180-8080',
       disclaimer: 'Jan Aushadhi prices from official BPPI database. HIGH CONFIDENCE prices are sourced live from DavaIndia. AI ESTIMATED prices are approximate.',
     },
     dataSource: {

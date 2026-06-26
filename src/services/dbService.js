@@ -1,14 +1,14 @@
 /**
- * dbService.js v7 — Agada  (DEFINITIVE)
+ * dbService.js v7 - Agada  (DEFINITIVE)
  *
  * Every match rule has a precise reason. Nothing is heuristic.
  *
  * BLOCKING RULES (hard, not soft):
- *  1. Form bucket mismatch  — solid / liquid / injection / topical must match exactly
- *  2. Drug-prefix mismatch  — levo-/s-/dextro-/nor-/des- prefix = different drug, never interchangeable
- *  3. Extra salt in product  — combo product never shown for simpler query
- *  4. Combipack             — always blocked (multiple drugs in one pack)
- *  5. Every salt's dose     — ALL salts checked, combo tolerance ±5%, single ±10%
+ *  1. Form bucket mismatch  - solid / liquid / injection / topical must match exactly
+ *  2. Drug-prefix mismatch  - levo-/s-/dextro-/nor-/des- prefix = different drug, never interchangeable
+ *  3. Extra salt in product  - combo product never shown for simpler query
+ *  4. Combipack             - always blocked (multiple drugs in one pack)
+ *  5. Every salt's dose     - ALL salts checked, combo tolerance ±5%, single ±10%
  *
  * RANKING (soft, after hard blocks pass):
  *  - SR/ER/prolonged-release gets +5 penalty (prefer immediate release)
@@ -89,7 +89,7 @@ function formBucket(text) {
   if (/\bgel\b|\bcream\b|\bointment\b|\blotion\b|\bshampoo\b|\bsoap\b|\btopical\b|\btubes?\b/.test(t)) return 'topical'
   if (/\binjection\b|\binfusion\b|\biv\b|\bampoules?\b|\bvials?\b/.test(t))                 return 'injection'
   if (/\bsuspension\b|\bsyrup\b|\bdrops?\b|\bsolution\b|\boral\s+liquid\b|\bper\s+\d+\s*ml\b|\bbottles?\b/.test(t)) return 'liquid'
-  return 'solid' // tablets, capsules, dispersible, ODT, strips — all equivalent for substitution
+  return 'solid' // tablets, capsules, dispersible, ODT, strips - all equivalent for substitution
 }
 
 // ─── DRUG-MODIFYING PREFIX ────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|d
 
 export function parseSalts(text, formText = '') {
   if (!text) return []
-  // Combipacks always blocked — they contain multiple separate drugs
+  // Combipacks always blocked - they contain multiple separate drugs
   if (/\bcombipack\b/i.test(text)) return []
 
   const form = formBucket(text + ' ' + formText)
@@ -130,7 +130,7 @@ export function parseSalts(text, formText = '') {
 }
 
 // ─── SALT NAME MATCH ─────────────────────────────────────────────────────────
-// Word-boundary substring match — but BLOCKED if either name has a drug-modifying prefix
+// Word-boundary substring match - but BLOCKED if either name has a drug-modifying prefix
 // that the other lacks. Prevents levo-thyroxine matching thyroxine.
 function saltNameMatch(a, b) {
   const na = normName(a), nb = normName(b)
@@ -150,7 +150,7 @@ function saltNameMatch(a, b) {
 export function matchQuality(qSalts, pSalts) {
   if (!qSalts.length || !pSalts.length) return 'blocked'
 
-  // Rule 0: every query salt must have a dose — prevents wrong-dose matches
+  // Rule 0: every query salt must have a dose - prevents wrong-dose matches
   if (qSalts.every(s => s.dose == null)) return 'no_dose'
 
   // Rule 1: form bucket must match exactly
@@ -219,7 +219,7 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
   const qSalts = parseSalts(saltComposition, brandedUnitSize)
   if (!qSalts.length) return { best: null, doseMismatch: null, noDose: false }
 
-  // Gate: all salts must have a dose — otherwise any dose would match
+  // Gate: all salts must have a dose - otherwise any dose would match
   if (!qSalts.every(s => s.dose != null)) {
     return { best: null, doseMismatch: null, noDose: true }
   }
@@ -311,7 +311,7 @@ export function buildSavingsSummary(best, brandedMrp, brandedUnitSize) {
   if (brandedPU && jaPU && brandedPU > jaPU) {
     const pct = Math.round((1 - jaPU / brandedPU) * 100)
     const unitLabel = inferUnitLabel(brandedUnitSize || best.unitSize)
-    return pct > 5 ? `₹${jaPU}/${unitLabel} vs ₹${brandedPU}/${unitLabel} branded — ${pct}% cheaper.` : null
+    return pct > 5 ? `₹${jaPU}/${unitLabel} vs ₹${brandedPU}/${unitLabel} branded - ${pct}% cheaper.` : null
   }
   return `Jan Aushadhi: ₹${best.mrp} for ${best.unitSize}.`
 }

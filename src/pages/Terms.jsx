@@ -24,11 +24,11 @@ export default function Terms({ onBack }) {
         },
         {
           heading: t.termsS3h || 'Medical disclaimer',
-          body: t.termsS3b || 'Agada does not provide medical advice. All information provided — including drug composition, authenticity scores, and generic alternatives — is for educational and informational purposes only. Always consult a qualified doctor or licensed pharmacist before making any health or medication decisions.'
+          body: t.termsS3b || 'Agada does not provide medical advice. All information provided - including drug composition, authenticity scores, and generic alternatives - is for educational and informational purposes only. Always consult a qualified doctor or licensed pharmacist before making any health or medication decisions.'
         },
         {
           heading: t.termsS4h || 'Accuracy limitations',
-          body: t.termsS4b || 'AI-based OCR and drug identification can be inaccurate. Authenticity assessments are heuristic — not a definitive determination of whether a medicine is genuine or counterfeit. CDSCO verification reflects our database at time of last update, not real-time government data.'
+          body: t.termsS4b || 'AI-based OCR and drug identification can be inaccurate. Authenticity assessments are heuristic - not a definitive determination of whether a medicine is genuine or counterfeit. CDSCO verification reflects our database at time of last update, not real-time government data.'
         },
         {
           heading: t.termsS5h || 'No commercial use',

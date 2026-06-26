@@ -1371,7 +1371,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
 
       {/* Beta banner */}
       <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
-        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> — {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
+        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> - {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
 
       {view === VIEWS.HOME    && (

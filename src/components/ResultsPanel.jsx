@@ -139,7 +139,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
   const jaAlts    = (alts.topAlternatives || []).filter(a => a.isJanAushadhi)
   const otherAlts = (alts.topAlternatives || []).filter(a => !a.isJanAushadhi)
 
-  // Real savings % — computed from actual DB data, not hardcoded
+  // Real savings % - computed from actual DB data, not hardcoded
   const brandedMrp    = results?.mrp ? parseFloat(results.mrp) : null
   const brandedUnitSz = results?.unitSize || null
   const brandedPerUnit = brandedMrp
@@ -187,14 +187,14 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     </div>
   )
 
-  // Hard block — not a medicine at all
-  // ── Hard block: HAZARDOUS substance — show danger warning ─────────────────
+  // Hard block - not a medicine at all
+  // ── Hard block: HAZARDOUS substance - show danger warning ─────────────────
   if (results?.productType === 'HAZARDOUS') {
     return (
       <LayoutWrapper>
         <div style={{ background: '#fff3f3', border: '2.5px solid #e53935', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: '0 4px 18px rgba(229,57,53,0.15)' }}>
           <span style={{ fontSize: 56 }}>☠️</span>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS — DO NOT CONSUME</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS - DO NOT CONSUME</div>
           <div style={{ fontSize: 13.5, color: '#c62828', lineHeight: 1.7, maxWidth: 300, fontWeight: 500 }}>
             This appears to be a <strong>dangerous chemical</strong>, not a medicine.
             Do <strong>not</strong> ingest, inhale, or allow contact with skin or eyes.
@@ -292,17 +292,17 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
       {/* Low confidence warning */}
       {(results.confidence || 70) < 50 && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.55 }}>
-          ⚠ Low confidence scan — the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
+          ⚠ Low confidence scan - the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
         </div>
       )}
 
-      {/* Dose unconfirmed warning — salt readable but dose not on front of pack */}
+      {/* Dose unconfirmed warning - salt readable but dose not on front of pack */}
       {results.doseUnconfirmed && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
           <div>
-            <strong>Dose not confirmed</strong> — the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
-            <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only — verify the strength with your pharmacist.
+            <strong>Dose not confirmed</strong> - the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
+            <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only - verify the strength with your pharmacist.
           </div>
         </div>
       )}
@@ -408,7 +408,7 @@ function AuthCard({
             ['Brand', results.brandName],
             ['Manufacturer', results.manufacturer],
             ['Type', results.productType],
-            ['Schedule', results.medicineInfo?.prescriptionRequired ? 'Prescription (Rx)' : 'OTC — no prescription'],
+            ['Schedule', results.medicineInfo?.prescriptionRequired ? 'Prescription (Rx)' : 'OTC - no prescription'],
             ['Expiry', results.expiryDate],
             ['Licence No.', results.licenceNumber],
           ].filter(([,v]) => v).map(([k, v]) => (
@@ -419,7 +419,7 @@ function AuthCard({
           ))}
         </div>
 
-        {/* CDSCO fact — clean, no conflicting drug name */}
+        {/* CDSCO fact - clean, no conflicting drug name */}
         {auth.cdscoBadge && (
           <div style={{ padding: '10px 13px', background: auth.cdscoFound ? '#F0FDF4' : 'var(--bgsoft)', border: `1px solid ${auth.cdscoFound ? '#86EFAC' : 'var(--border)'}`, borderRadius: 9 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: auth.cdscoFound ? '#15803D' : 'var(--textlt)', marginBottom: auth.cdscoIndication ? 4 : 0 }}>
@@ -986,7 +986,7 @@ function InfoCard({ info, results, translating, profile }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bgsoft)', borderRadius: 9, border: '1px solid var(--border)' }}>
           <span style={{ fontSize: 13, color: 'var(--textmd)' }}>Prescription required?</span>
           <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: info.prescriptionRequired ? 'var(--redlt)' : 'var(--greenlt)', color: info.prescriptionRequired ? 'var(--red)' : 'var(--greendk)', letterSpacing: '0.04em' }}>
-            {info.prescriptionRequired ? 'YES — Rx' : 'NO — OTC'}
+            {info.prescriptionRequired ? 'YES - Rx' : 'NO - OTC'}
           </span>
         </div>
 
@@ -1669,7 +1669,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         {/* Ask your chemist callout */}
         {alts.topAlternatives?.length > 0 && (
           <div style={{ padding: '10px 13px', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 12.5, color: '#1E40AF', lineHeight: 1.6 }}>
-            💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?" — any brand with the same salt is legally equivalent.
+            💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?" - any brand with the same salt is legally equivalent.
           </div>
         )}
 
@@ -1677,7 +1677,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         {jaAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏛 Tier 1 — Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
+              🏛 Tier 1 - Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt stores · Cheapest option · ~14,000 locations</div>
             {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
@@ -1688,7 +1688,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         {otherAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏪 Tier 2 — Any chemist
+              🏪 Tier 2 - Any chemist
               <span style={badgeHighConf()}>✓ DAVAINDIA</span>
               <span style={badge('blue')}>AI EST.</span>
             </div>
@@ -1699,11 +1699,11 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Dose-mismatch alternatives — shown separately with explicit warning */}
+        {/* Dose-mismatch alternatives - shown separately with explicit warning */}
         {alts.doseMismatchAlt && (
           <div>
             <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose — ask your doctor first</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose - ask your doctor first</div>
               <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
             </div>
             <AltRow med={alts.doseMismatchAlt} dimmed />
@@ -1746,7 +1746,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
 
         {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate — always verify at the chemist counter. Only buy from licensed pharmacies.
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate - always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -1790,7 +1790,7 @@ function AltRow({ med, highlight, dimmed }) {
           </div>
         )}
         {!isDavaIndia && med.aiEstimated && (
-          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated — may vary</div>
+          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated - may vary</div>
         )}
         {med.availableAt && !isDavaIndia && (
           <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>

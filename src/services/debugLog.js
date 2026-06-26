@@ -1,11 +1,11 @@
 /**
- * debugLog.js — Agada AI Response Logger
+ * debugLog.js - Agada AI Response Logger
  *
  * Stores every raw AI JSON response in localStorage keyed by timestamp.
  * Access at any time via: window.__agadaLogs()
  * Or open the in-app debug panel at /?debug=1
  *
- * Storage: localStorage['agada_logs'] — survives page refresh, cleared manually.
+ * Storage: localStorage['agada_logs'] - survives page refresh, cleared manually.
  * Limit: keeps last 100 entries (auto-trims oldest).
  */
 

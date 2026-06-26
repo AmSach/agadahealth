@@ -1,11 +1,11 @@
 /**
- * barcodeService.js v2 — Agada Barcode / QR Reader
+ * barcodeService.js v2 - Agada Barcode / QR Reader
  *
  * Reads Indian pharma QR codes (MoHFW Track & Trace + manufacturer formats)
  * GS1 AIs: 01=GTIN, 10=Batch, 17=Expiry, 21=Serial, 240=Product description
  * Plain text: "Brand:X|Salt:Y|Batch:Z|Exp:MM/YYYY|MRP:N"
  *
- * saltFromQR = GROUND TRUTH when present — overrides AI vision reading
+ * saltFromQR = GROUND TRUTH when present - overrides AI vision reading
  */
 
 let ZXing = null

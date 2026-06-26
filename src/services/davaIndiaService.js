@@ -1,5 +1,5 @@
 /**
- * davaIndiaService.js — live price fetcher using 1mg's public search API
+ * davaIndiaService.js - live price fetcher using 1mg's public search API
  *
  * 1mg is the only major Indian pharmacy with CORS-open JSON search responses
  * that work directly from the browser with no proxy needed.
@@ -8,7 +8,7 @@
  * 1mg's search endpoint returns JSON with Access-Control-Allow-Origin: *
  *
  * Flow: search by salt -> pick best match by relevance -> return price
- * Always resolves (never throws) — returns null on any failure.
+ * Always resolves (never throws) - returns null on any failure.
  */
 
 export async function fetchDavaIndiaPrice(saltComposition) {
