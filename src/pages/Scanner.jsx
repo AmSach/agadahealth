@@ -226,7 +226,7 @@ export default function Scanner() {
   // Medicine Cabinet & Profiles
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
-  const [activeTab, setActiveTab] = useState('cabinet')
+  const [activeTab, setActiveTab] = useState('scan')
   const [symptomInput, setSymptomInput] = useState('')
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -1362,7 +1362,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
         lang={lang} 
         setLang={setLang} 
         t={t} 
-        onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }} 
+        onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('scan'); }} 
         onCabinet={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }}
         onReminders={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('reminders'); }}
         onHealthCard={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('healthcard'); }}
@@ -1809,6 +1809,61 @@ function HomeView({
   };
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', padding: '0 18px 32px' }}>
+
+      {/* Dashboard Navigation Tabs */}
+      <div style={{ 
+        display: 'flex', 
+        gap: 6, 
+        overflowX: 'auto', 
+        paddingBottom: 8, 
+        borderBottom: '1px solid var(--border)', 
+        marginTop: 16,
+        marginBottom: 16,
+        whiteSpace: 'nowrap'
+      }}>
+        <button 
+          className={`btn-tab ${activeTab === 'scan' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('scan')}
+          style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'scan' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'scan' ? '#e8f5ee' : 'transparent', color: activeTab === 'scan' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
+        >
+          📷 Scan & Search
+        </button>
+        {!isVaultLocked && (
+          <>
+            <button 
+              className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('cabinet')}
+              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'cabinet' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'cabinet' ? '#e8f5ee' : 'transparent', color: activeTab === 'cabinet' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
+            >
+              💊 Cabinet
+            </button>
+            <button 
+              className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('reminders')}
+              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'reminders' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'reminders' ? '#e8f5ee' : 'transparent', color: activeTab === 'reminders' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
+            >
+              📅 Schedule
+            </button>
+            <button 
+              className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('healthcard')}
+              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'healthcard' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'healthcard' ? '#e8f5ee' : 'transparent', color: activeTab === 'healthcard' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
+            >
+              🆔 Emergency ID
+            </button>
+            <button 
+              className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('symptoms')}
+              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'symptoms' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'symptoms' ? '#e8f5ee' : 'transparent', color: activeTab === 'symptoms' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
+            >
+              📝 Track Symptoms
+            </button>
+          </>
+        )}
+      </div>
+
+      {activeTab === 'scan' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Hero */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 28px' }}>
@@ -2277,9 +2332,11 @@ function HomeView({
           </div>
         )
       )}
+        </div>
+      )}
 
       {/* Personal Medicine OS Dashboard */}
-      {!isVaultLocked && (
+      {!isVaultLocked && activeTab !== 'scan' && (
         <div style={{ 
           marginTop: 20, 
           background: '#fff', 
@@ -2330,13 +2387,7 @@ function HomeView({
             </div>
           )}
 
-          {/* Dashboard Navigation Tabs */}
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet</button>
-            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>⏰ Daily Schedule</button>
-            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Medical ID</button>
-            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Track Symptoms</button>
-          </div>
+
 
           {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
