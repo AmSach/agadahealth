@@ -16,6 +16,36 @@ const API_KEYS = [
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
+function isValidPrompt(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return false;
+  
+  const lastMsg = messages[messages.length - 1];
+  if (!lastMsg || typeof lastMsg !== 'object') return false;
+
+  let textContent = '';
+  if (typeof lastMsg.content === 'string') {
+    textContent = lastMsg.content;
+  } else if (Array.isArray(lastMsg.content)) {
+    const textObj = lastMsg.content.find(item => item && item.type === 'text');
+    if (textObj && typeof textObj.text === 'string') {
+      textContent = textObj.text;
+    }
+  }
+
+  const lowerCleaned = textContent.trim().toLowerCase();
+  
+  const APPROVED_PREFIXES = [
+    "medicine label reader.",
+    "medical prescription reader.",
+    "you are an indian pharmacological api.",
+    "indian patient medicine info.",
+    "you are an indian pharmacist.",
+    "translate each item in this json array to"
+  ];
+
+  return APPROVED_PREFIXES.some(prefix => lowerCleaned.startsWith(prefix));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -47,6 +77,11 @@ export default async function handler(req, res) {
   const { model, max_tokens, temperature, messages } = body
   if (!model || !messages) {
     res.status(400).json({ error: 'Missing model or messages' }); return
+  }
+
+  // Validate prompt prefix to prevent API key abuse
+  if (!isValidPrompt(messages)) {
+    res.status(400).json({ error: 'Prompt validation failed: prompt not approved for execution.' }); return
   }
 
   const payload = { model, max_tokens: max_tokens || 1000, temperature: temperature ?? 0.1, messages }
