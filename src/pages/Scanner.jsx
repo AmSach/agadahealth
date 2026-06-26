@@ -1705,6 +1705,16 @@ function HomeView({
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
 
+  const selectCabinetItem = (idx) => {
+    setSelectedCabinetIndex(idx);
+    setTimeout(() => {
+      const el = document.getElementById('cabinet-detail-panel');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
+  };
+
   const handleQuickAdd = async (medName, saltName) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -1800,6 +1810,19 @@ function HomeView({
   };
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+      
+      {/* Geometrical retro particles/goofballs floating in the background */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '10%', left: '5%', fontSize: '24px', opacity: 0.15, transform: 'rotate(15deg)', animation: 'float-shape 15s ease-in-out infinite' }}>📐</div>
+        <div style={{ position: 'absolute', top: '25%', right: '8%', fontSize: '28px', opacity: 0.12, transform: 'rotate(-25deg)', animation: 'float-shape 22s ease-in-out infinite' }}>⬡</div>
+        <div style={{ position: 'absolute', bottom: '15%', left: '7%', fontSize: '32px', opacity: 0.10, transform: 'rotate(45deg)', animation: 'float-shape 18s ease-in-out infinite' }}>👾</div>
+        <div style={{ position: 'absolute', bottom: '30%', right: '5%', fontSize: '26px', opacity: 0.14, transform: 'rotate(10deg)', animation: 'float-shape 25s ease-in-out infinite' }}>⚡</div>
+        <div style={{ position: 'absolute', top: '45%', left: '12%', fontSize: '22px', opacity: 0.08, transform: 'rotate(-5deg)', animation: 'float-shape 19s ease-in-out infinite' }}>◆</div>
+        <div style={{ position: 'absolute', top: '65%', right: '15%', fontSize: '30px', opacity: 0.11, transform: 'rotate(35deg)', animation: 'float-shape 21s ease-in-out infinite' }}>★</div>
+        <div style={{ position: 'absolute', top: '15%', left: '45%', fontSize: '24px', opacity: 0.07, transform: 'rotate(120deg)', animation: 'float-shape 26s ease-in-out infinite' }}>🛸</div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '35%', fontSize: '28px', opacity: 0.09, transform: 'rotate(-40deg)', animation: 'float-shape 20s ease-in-out infinite' }}>■</div>
+        <div style={{ position: 'absolute', bottom: '45%', right: '40%', fontSize: '26px', opacity: 0.06, transform: 'rotate(15deg)', animation: 'float-shape 24s ease-in-out infinite' }}>▲</div>
+      </div>
 
       {/* Modern Hero Section */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
@@ -2617,18 +2640,20 @@ function HomeView({
 
           {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
-            <div>
+            <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
               <style>{`
                 .cabinet-3d-container {
                   background: #fff;
                   border-radius: 16px;
-                  padding: 20px;
+                  padding: 12px;
                   box-shadow: var(--shadow);
                   display: flex;
                   flex-direction: column;
-                  gap: 24px;
+                  gap: 20px;
                   border: 1px solid var(--border);
                   margin-bottom: 24px;
+                  box-sizing: border-box;
+                  width: 100%;
                 }
                 .cabinet-shelf-3d {
                   position: relative;
@@ -2639,6 +2664,8 @@ function HomeView({
                   align-items: center;
                   justify-content: space-around;
                   padding: 12px 0;
+                  box-sizing: border-box;
+                  width: 100%;
                 }
                 .cabinet-shelf-ledge {
                   position: absolute;
@@ -2822,14 +2849,14 @@ function HomeView({
                     </div>
                   ) : null}
                   <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6, textAlign: 'left' }}>
-                    i built this 3D shelf view at 3 AM because list views are boring. if you haven't scanned anything yet, search for "Crocin" or "Calpol" above, or manually add your pill stash to populate your cabinet. (your medicine cabinet is empty).
+                    💥 CRAP! YOUR MEDICINE CABINET IS COMPLETELY EMPTY! 💥 I stayed up until 3:47 AM hacking this 3D virtual shelf view because boring lists make me sleep. Refill it by searching "Crocin" or "Calpol" above, or manually mount your stash!
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start', boxSizing: 'border-box' }}>
                   
                   {/* Left Column: Inventory List or 3D shelves grid */}
-                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                     
                     {showCabinet3D ? (
                       /* 3D Shelves View */
@@ -2875,7 +2902,7 @@ function HomeView({
                                   return (
                                     <div 
                                       key={idx} 
-                                      onClick={() => setSelectedCabinetIndex(realIdx)}
+                                      onClick={() => selectCabinetItem(realIdx)}
                                       className="med-box-hoverable"
                                       style={{
                                         transform: isSelected ? 'translateY(-6px)' : 'translateY(0)',
@@ -2939,7 +2966,7 @@ function HomeView({
                           return (
                             <div 
                               key={idx} 
-                              onClick={() => setSelectedCabinetIndex(idx)}
+                              onClick={() => selectCabinetItem(idx)}
                               style={{ 
                                 display: 'flex', 
                                 flexDirection: 'column', 
@@ -3226,23 +3253,26 @@ function HomeView({
                     );
 
                     return (
-                      <div style={{ 
-                        flex: '2 2 400px', 
+                      <div id="cabinet-detail-panel" style={{ 
+                        flex: '1.2 1.2 320px', 
+                        minWidth: 0,
+                        maxWidth: '100%',
                         display: 'flex', 
                         flexDirection: 'column', 
                         gap: 16, 
                         background: '#fff', 
                         border: '1.5px solid var(--border)', 
                         borderRadius: 18, 
-                        padding: 20, 
+                        padding: 16, 
                         boxShadow: 'var(--shadow)',
-                        animation: 'fadeUp 0.3s ease'
+                        animation: 'fadeUp 0.3s ease',
+                        boxSizing: 'border-box'
                       }}>
                         
                         {/* Header Row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
                           <div style={{ textAlign: 'left' }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 SMART CABINET HUB</span>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 NEURAL PILL DECRYPTOR HACK (CABINET DETAIL)</span>
                             <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', margin: '4px 0 2px' }}>{selectedMed.brandName}</h3>
                             <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
                           </div>
@@ -3264,46 +3294,46 @@ function HomeView({
 
                         {/* Expiry & Batch Tracker Section */}
                         <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 14, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 Batch & Expiry Tracker</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 BATCH EXPLOIT & EXPIRY AGING DETECTOR</span>
                           
                           {isExpired && (
                             <div style={{ padding: '8px 10px', background: 'var(--redlt)', border: '1px solid #FCA5A5', color: 'var(--red)', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ❌ EXPIRED! Please dispose of this medication safely. Do not consume.
+                              ☠️ PILLS OUT OF DATE / EXPIRED! GET RID OF IT BEFORE IT MUTATES!! DO NOT CONSUME!
                             </div>
                           )}
                           {isExpiringSoon && (
                             <div style={{ padding: '8px 10px', background: 'var(--safflt)', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ⚠️ EXPIRING SOON: This medicine expires in less than 30 days!
+                              ⚠️ CLOCK IS TICKING: Expiry date is under 30 days! Gulp it down or get a fresh batch!
                             </div>
                           )}
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 80px', minWidth: 0 }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>BATCH NO.</label>
                               <input 
                                 type="text" 
                                 value={selectedMed.batchNumber || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { batchNumber: e.target.value })}
                                 placeholder="e.g. B2502"
-                                style={{ height: 32, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, outline: 'none', background: '#fff' }}
+                                style={{ height: 32, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
                               />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 100px', minWidth: 0 }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>MFG. DATE</label>
                               <input 
                                 type="date" 
                                 value={selectedMed.mfgDate || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { mfgDate: e.target.value })}
-                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
                               />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 100px', minWidth: 0 }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>EXP. DATE</label>
                               <input 
                                 type="date" 
                                 value={selectedMed.expiryDate || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { expiryDate: e.target.value })}
-                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
                               />
                             </div>
                           </div>
@@ -3313,7 +3343,7 @@ function HomeView({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ textAlign: 'left' }}>
-                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 Medication Adherence Rate</div>
+                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 ADHERENCE SCORE / PILL TAKING COMPLIANCE RATE</div>
                               <div style={{ fontSize: 18, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>{compliancePct}% compliance</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
@@ -3321,11 +3351,47 @@ function HomeView({
                               <div id="cabinet-stock-level" style={{ fontSize: 16, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>Stock Level: {selectedMed.pillCount || 0} / 30 pills</div>
                             </div>
                           </div>
+
+                          {/* Stock Level Adjusters (Cabinet Stock Fix!) */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #bfdbfe', paddingTop: 8, marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
+                              <label style={{ fontSize: 9.5, fontWeight: 800, color: '#1e40af', letterSpacing: '0.02em' }}>EDIT PILLS</label>
+                              <input 
+                                type="number" 
+                                value={selectedMed.pillCount || 0}
+                                onChange={e => handleUpdateCabinetItem(selectedMed, { pillCount: parseInt(e.target.value) || 0 })}
+                                style={{ width: 64, height: 26, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11.5, outline: 'none', background: '#fff', textAlign: 'center', fontWeight: 800 }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, -1); }}
+                                title="Take 1 pill"
+                                style={{ height: 26, padding: '0 8px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
+                              >
+                                -1
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, 1); }}
+                                title="Add 1 pill"
+                                style={{ height: 26, padding: '0 8px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
+                              >
+                                +1
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, 30); }}
+                                style={{ height: 26, padding: '0 8px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 10.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
+                              >
+                                +30 Refill
+                              </button>
+                            </div>
+                          </div>
+
                           <button 
                             onClick={async () => {
                               const currentCount = selectedMed.pillCount || 0;
                               if (currentCount <= 0) {
-                                alert("No pills left in stock! Please add pills before logging intake.");
+                                alert("ERR: ZERO STOCK ALERT! You popped your very last pill! Mount a fresh batch to log more doses!");
                                 return;
                               }
                               const nextCount = Math.max(0, currentCount - 1);
@@ -3389,7 +3455,7 @@ function HomeView({
                         {/* Dosage Safety Warnings Panel */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ Daily Safety Check</span>
+                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ PHYSIOLOGICAL SAFETY LIMIT CHECK</span>
                             <span style={{ fontSize: 10, fontWeight: 700, color: safetyResult.safe ? '#166534' : '#991b1b', background: safetyResult.safe ? '#dcfce7' : '#fef2f2', padding: '1px 8px', borderRadius: 10 }}>
                               {safetyResult.safe ? 'SAFE LIMIT' : 'LIMIT EXCEEDED'}
                             </span>
@@ -3399,7 +3465,7 @@ function HomeView({
                             <div className="danger-overdose-banner" style={{ background: '#fef2f2', border: '2px solid #ef4444', borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                 <span style={{ fontSize: 16 }}>⚠️</span>
-                                <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>DANGEROUS OVERDOSE WARNING</span>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>☠️ LETHAL TOXIC OVERDOSE THRESHOLD WARNING ☠️</span>
                               </div>
                               <p style={{ fontSize: 12.5, color: '#b91c1c', margin: 0, lineHeight: 1.4, fontWeight: 600, textAlign: 'left' }}>
                                 {safetyResult.reason}
@@ -3514,11 +3580,11 @@ function HomeView({
                             {/* Clinical Bio-Parameter Info Box */}
                             <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 12px', textAlign: 'left' }}>
                               <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>📈 Scientific Dosing Parameters:</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
-                                <div>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
-                                <div>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
-                                <div>• <strong>Bioavailability (F):</strong> {Math.round(pkParams.bioavailability * 100)}%</div>
-                                <div>• <strong>Active Composition:</strong> {pkParams.partition === 'lipophilic' ? 'Lipophilic (Fat solubility)' : 'Hydrophilic (Water solubility)'}</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
+                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
+                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
+                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Bioavailability (F):</strong> {Math.round(pkParams.bioavailability * 100)}%</div>
+                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Active Composition:</strong> {pkParams.partition === 'lipophilic' ? 'Lipophilic (Fat solubility)' : 'Hydrophilic (Water solubility)'}</div>
                               </div>
                             </div>
 
@@ -3576,12 +3642,12 @@ function HomeView({
               {/* Recent Doses History Logs Timeline */}
               <div style={{ marginTop: 24, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                 <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
-                  ⏳ Recent Intake Logs ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
+                  ⏳ HISTORICAL INTAKE EXPLOIT LOGS ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
                 </h4>
                 
                 {!activeProfile.doseHistory || activeProfile.doseHistory.length === 0 ? (
                   <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', textAlign: 'left' }}>
-                    No intake logs recorded yet. Tap "Log Dose Taken" inside a cabinet medicine card to record.
+                    🤷 ZERO BIO-LOGS FOUND. Hit 'Log Dose Taken' on your cabinet medicine page to register an event!
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', paddingRight: 4 }}>
@@ -3710,7 +3776,7 @@ function HomeView({
                       </div>
 
                       <button type="submit" style={{ height: 44, background: 'linear-gradient(135deg, var(--green), #0d9488)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8, boxShadow: '0 4px 12px rgba(13,138,104,0.2)' }}>
-                        Save Medicine to Cabinet
+                        💾 MOUNT PILLS TO CABINET DIRECTORY
                       </button>
                     </form>
                   </div>

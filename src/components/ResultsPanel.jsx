@@ -1816,11 +1816,12 @@ function AltRow({ med, highlight, dimmed }) {
 function inferUnitLabel(packStr) {
   if (!packStr) return 'tablet'
   const s = packStr.toLowerCase()
+  if (/\b(ml|l)\b|liquid|syrup|suspension|drops?\b/.test(s)) return 'ml'
+  if (/\b(gm|g|kg)\b|cream|gel|ointment|lotion/.test(s)) return 'gm'
   if (/capsule/.test(s)) return 'capsule'
   if (/sachet/.test(s))  return 'sachet'
   if (/patch/.test(s))   return 'patch'
   if (/vial|ampoule/.test(s)) return 'vial'
-  if (/ml|gm|g\b/.test(s))   return null   // non-countable — skip per-unit display
   return 'tablet'
 }
 

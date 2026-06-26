@@ -86,9 +86,9 @@ function normName(raw) {
 // Products from different buckets are NEVER interchangeable, period.
 function formBucket(text) {
   const t = (text || '').toLowerCase()
-  if (/\bgel\b|\bcream\b|\bointment\b|\blotion\b|\bshampoo\b|\bsoap\b|\btopical\b/.test(t)) return 'topical'
-  if (/\binjection\b|\binfusion\b|\biv\b/.test(t))                                          return 'injection'
-  if (/\bsuspension\b|\bsyrup\b|\bdrops?\b|\bsolution\b|\boral\s+liquid\b|\bper\s+\d+\s*ml\b/.test(t)) return 'liquid'
+  if (/\bgel\b|\bcream\b|\bointment\b|\blotion\b|\bshampoo\b|\bsoap\b|\btopical\b|\btubes?\b/.test(t)) return 'topical'
+  if (/\binjection\b|\binfusion\b|\biv\b|\bampoules?\b|\bvials?\b/.test(t))                 return 'injection'
+  if (/\bsuspension\b|\bsyrup\b|\bdrops?\b|\bsolution\b|\boral\s+liquid\b|\bper\s+\d+\s*ml\b|\bbottles?\b/.test(t)) return 'liquid'
   return 'solid' // tablets, capsules, dispersible, ODT, strips — all equivalent for substitution
 }
 
@@ -100,24 +100,24 @@ const DRUG_PREFIX = /^(levo|dextro|nor|des|fos|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|
 
 // ─── SALT PARSER ─────────────────────────────────────────────────────────────
 // Strips form/route/salt-type words; preserves dose numbers; expands parenthetical doses.
-const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|resistance|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna)\b/gi
+const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|resistance|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna|w\/w|w\/v|v\/v)\b/gi
 
-export function parseSalts(text) {
+export function parseSalts(text, formText = '') {
   if (!text) return []
   // Combipacks always blocked — they contain multiple separate drugs
   if (/\bcombipack\b/i.test(text)) return []
 
-  const form = formBucket(text)
+  const form = formBucket(text + ' ' + formText)
 
   // Expand parenthetical dose content before stripping parens (requires a digit before the unit)
   let t = text.replace(/\(([^)]*\b\d+\s*(?:mg|mcg|g|iu|%)\b[^)]*)\)/gi, ' $1 ')
   t = t.replace(/\([^)]*\)/g, ' ')       // remove remaining non-dose parens
-  t = t.replace(/\b\d+%/g, ' ')          // remove % ratios (insulin 30%/70%)
+  t = t.replace(/\b\d+%\/\d+%/g, ' ')    // remove % ratios (insulin 30%/70%) but preserve single % like 1.16%
 
   return t
     .split(/\band\b|,|\+|&/i)
     .map(part => {
-      const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu)/i)
+      const dm = part.match(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/i)
       const dose = dm ? parseFloat(dm[1]) : null
       let name = part
         .replace(/(\d+\.?\d*)\s*(mg|mcg|g|iu|%)/gi, '')
@@ -181,7 +181,7 @@ export function matchQuality(qSalts, pSalts) {
 
 // ─── PER-UNIT PRICE ──────────────────────────────────────────────────────────
 function perUnit(mrp, unitSize) {
-  if (!mrp || !unitSize || /ml|gm|g\b/i.test(unitSize)) return null
+  if (!mrp || !unitSize) return null
   const n = unitSize.match(/(\d+)/)
   let count = 1
   if (n) {
@@ -190,6 +190,18 @@ function perUnit(mrp, unitSize) {
     count = 2
   }
   return count > 0 ? Math.round(mrp / count * 100) / 100 : null
+}
+
+function inferUnitLabel(packStr) {
+  if (!packStr) return 'tablet'
+  const s = packStr.toLowerCase()
+  if (/\b(ml|l)\b|liquid|syrup|suspension|drops?\b/.test(s)) return 'ml'
+  if (/\b(gm|g|kg)\b|cream|gel|ointment|lotion/.test(s)) return 'gm'
+  if (/capsule/.test(s)) return 'capsule'
+  if (/sachet/.test(s))  return 'sachet'
+  if (/patch/.test(s))   return 'patch'
+  if (/vial|ampoule/.test(s)) return 'vial'
+  return 'tablet'
 }
 
 // ─── SR RANKING ──────────────────────────────────────────────────────────────
@@ -204,7 +216,7 @@ function srPenalty(productName, queryRaw) {
 // ─── JAN AUSHADHI LOOKUP ─────────────────────────────────────────────────────
 export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) {
   if (!jaDB || !saltComposition) return { best: null, doseMismatch: null, noDose: false }
-  const qSalts = parseSalts(saltComposition)
+  const qSalts = parseSalts(saltComposition, brandedUnitSize)
   if (!qSalts.length) return { best: null, doseMismatch: null, noDose: false }
 
   // Gate: all salts must have a dose — otherwise any dose would match
@@ -229,7 +241,8 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
     let savings = null
     if (brandedPU && pu) {
       const pct = Math.round((1 - pu / brandedPU) * 100)
-      savings = pct > 5 ? `${pct}% cheaper per tablet` : null
+      const unitLabel = inferUnitLabel(row['Unit Size'] || brandedUnitSize)
+      savings = pct > 5 ? `${pct}% cheaper per ${unitLabel}` : null
     }
 
     const entry = {
@@ -297,7 +310,8 @@ export function buildSavingsSummary(best, brandedMrp, brandedUnitSize) {
   const jaPU = best.perUnit
   if (brandedPU && jaPU && brandedPU > jaPU) {
     const pct = Math.round((1 - jaPU / brandedPU) * 100)
-    return pct > 5 ? `₹${jaPU}/tablet vs ₹${brandedPU}/tablet branded — ${pct}% cheaper.` : null
+    const unitLabel = inferUnitLabel(brandedUnitSize || best.unitSize)
+    return pct > 5 ? `₹${jaPU}/${unitLabel} vs ₹${brandedPU}/${unitLabel} branded — ${pct}% cheaper.` : null
   }
   return `Jan Aushadhi: ₹${best.mrp} for ${best.unitSize}.`
 }

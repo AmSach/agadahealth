@@ -1,96 +1,54 @@
-# agada (अगद) 🍃
+# agada (अगद)
 
-built something that should've existed already.
+a tool that scans your medicine strip and finds you cheaper generic alternatives.
 
-ok so
-chemists in india upcharge the fuck out of you and nobody talks about it.
+**try it → [agadahealth.vercel.app](https://agadahealth.vercel.app)**
 
-i got overcharged for a basic prescription and it just sat in my head. yes, i got ripped off. some pharmaceutical brands in india charge 10x what the actual generic drug costs, even though the chemical composition is 100% identical. i wanted a tool that would tell me exactly what the salt name does, show cheap generic alternatives, and run completely offline. so i built agada.
+![screenshot](screenshot.png)
 
-you open it in a browser, snap a photo of any medicine strip, and it tells you:
-- if the drug is actually listed in the government's official database
-- what the chemical composition actually does in plain, simple english
-- cheaper generic equivalents (literally 90% cheaper sometimes)
-- if you even need a prescription for it (schedule H/H1/X)
+## why this exists
 
-no login. no ads. no tracking. runs offline in your browser.
+i got ripped off at a pharmacy. paid ₹380 for a strip of tablets when the exact same salt composition was available as a generic for ₹32. literally the same drug, same dosage, same everything — just without the fancy brand name printed on the box. that pissed me off enough to build something about it.
 
-live here: [agadahealth.vercel.app](https://agadahealth.vercel.app)
+pharmaceutical companies in india charge 10x what the actual generic costs, and most people just... don't know. the information is technically public (the government has a whole database) but nobody's going to sit there and cross-reference salt names on a government website while standing at a chemist's counter.
 
----
+so i built agada. you open it on your phone, point the camera at any medicine strip, and it tells you what you're actually paying for.
 
-## how it works under the hood (no corporate speak)
+## what it does
 
-i originally tried running scanner images through standard cloud APIs, but vercel's 10-second timeout killed the connections, and the bills were annoying. so I moved the entire pipeline to the browser.
+- scans medicine strips/labels using your phone camera
+- identifies the drug and checks it against the government's official CDSCO database
+- shows the actual salt composition and what it does, in plain english
+- finds cheaper generic equivalents (sometimes 90% cheaper, not exaggerating)
+- tells you the prescription schedule (H, H1, X) so you know if you even need one
+- works offline after first load — no internet needed at the pharmacy
+- no login, no ads, no tracking
 
-### 1. the label scanner (ocr + WebAssembly)
-when you snap a photo, we clean up the shadows inside a WebAssembly filter and hand it to a client-side OCR engine. phone photos taken under bad fluorescent pharmacy lighting are usually unusable garbage, so i spent two nights writing custom WebAssembly code in Rust just to fix camera glare. binarizing the image locally first makes the OCR success rate jump from 30% to 90%.
+## the nerdy bits
 
-### 2. the phonetic guessing engine (IndexedDB + metaphone)
-ocr text from curved drug packs is usually scrambled (e.g. reading "Dlo-650" instead of "Dolo-650"). if we searched the database for the exact word, we would find nothing. 
-so agada preloads the official CDSCO approved drugs database (300k+ rows) into your browser's IndexedDB. we run a phonetic search using Double Metaphone and BM25 relevance to guess the correct drug even with heavy spelling mistakes. the CDSCO database list was a huge, messy 45MB CSV file — indexing that in real-time in a mobile browser is a recipe for crashing the user's phone. i had to compile it down to an optimized local key-value store, set up background web workers, and run Double Metaphone phonetic matching. now it runs offline in under 150ms.
+**ocr runs entirely in your browser.** tesseract compiled to wasm, so nothing gets sent to a server. your medicine photos stay on your device.
 
-### 3. blood concentration physics (Bateman ODEs)
-to calculate when a drug actually peaks and leaves your bloodstream, we solve a 1-compartment open Bateman differential equation in javascript in real-time. as you slide the dosage and frequency controls, the SVG curve updates immediately. static warning labels are useless. knowing that you have a peak toxic concentration 4 hours in if you double-dose is much more helpful than reading "do not double dose" in 6pt font. i spent a day debugging standard compartmental modeling math in pure javascript to make this work.
+**phonetic matching against CDSCO data.** medicine names on strips are messy — weird fonts, partial prints, smudged ink. i use a phonetic algorithm to fuzzy-match what the OCR reads against the actual drug database so it still works even when the scan isn't perfect.
 
-### 4. private local cabinet (aes-gcm)
-your cabinet is yours alone. if you set a 4-digit PIN, we stretch it 100,000 times using PBKDF2 to generate a key, then encrypt your cabinet list using AES-GCM before saving it to localStorage. i don't run a database server. if you forget your PIN, your cabinet is gone. seriously, do not lose it. since there is no cloud database server, there is no "Forgot PIN" reset button. if you forget it, the data is just encrypted noise on your device forever. write it down on your arm or somewhere safe.
+**pharmacokinetics graph.** once you identify a drug, it plots a concentration-over-time curve using the bateman equation based on the drug's actual half-life and absorption rate. basically shows you how the drug moves through your body. thought it was cool so i added it.
 
-### 5. emergency qr codes
-you can generate an emergency card for first responders. because complex JSON or emojis crash older scanners in an ambulance, we compile a clean ASCII text block and bake it into a high-error-correction QR code. the QR is deliberately ugly with big chunky squares, but it ensures that even a scratched, dust-covered barcode reader in a government ambulance will scan it on the first try.
+**encrypted local cabinet.** you can save medicines locally in an encrypted store in your browser. nothing leaves your device.
 
-### 6. safety overrides (schedule h & poison control)
-we check if a drug requires a doctor's prescription or if it's safe to buy over-the-counter. i wrote custom override rules for 70+ commonly misclassified medicines because the official databases are full of spelling discrepancies (e.g. spelling "paracetamol" as "paracetamal" in some places). also, if you scan a household chemical (like bleach or acid), the app blocks the scan, warns you, and shows the national poison control helpline. if you find a classification error, make a pull request.
+**emergency qr codes.** generates a qr code with your saved medicines so if something happens, someone can scan it and see what you're on.
 
----
-
-## the serverless backend endpoints
-
-i built a few serverless proxy endpoints to handle integrations without exposing API keys to the browser:
-
-### 1. `POST /api/scan-stream`
-reads the strip image, does the ocr, searches the local database, and pulls generic price estimates. since vercel functions timeout after 10 seconds, this streams updates back using server-sent events (sse) so the frontend doesn't hang.
-*   **payload**: `{ "image": "data:image/jpeg;base64,...", "barcodeData": null }`
-*   **events streamed**:
-    *   `vision`: OCR label processing starting.
-    *   `database`: Matching CDSCO drug registry.
-    *   `pricing`: Aggregating generic prices.
-    *   `complete`: Sends the final compiled medicine JSON card.
-
-### 2. `POST /api/groq`
-proxies chat prompts safely to Groq chat completions, handling key rotation and model fallback cascading server-side to prevent keys from leaking.
-*   **payload**: `{ "model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "..."}] }`
-
-### 3. `GET /api/prices`
-scrapes apollo, netmeds, and 1mg for real retail pricing of the generic salt so you can see exactly how much you're getting ripped off.
-
-### 4. `GET /api/davaindia`
-looks up generic prices from davaindia's catalog so we have live local price baselines.
-
----
-
-## run it locally
+## run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-open `http://localhost:5173/` and you're good.
+that's it. opens on `localhost:5173`.
 
-### automated tests
-to run the Playwright verification suite:
-```bash
-pip install playwright
-playwright install chromium
-python C:\Users\amans\.gemini\antigravity\brain\247430f8-ea40-419a-8cd2-9c6df175042b\scratch\test_qr_and_security.py
-python C:\Users\amans\.gemini\antigravity\brain\247430f8-ea40-419a-8cd2-9c6df175042b\scratch\test_adaptive_cabinet.py
-```
+## credits
 
----
+- drug data from [CDSCO](https://cdsco.gov.in) (central drugs standard control organisation)
+- generic pricing from [BPPI Jan Aushadhi](http://janaushadhi.gov.in)
+- built for [hack club stardance](https://stardance.hackclub.com)
 
-## data credits & disclaimer
-- CDSCO approved drugs database
-- BPPI Jan Aushadhi price list
-- FDA/NIH dosing sheets
-- **disclaimer:** i am a developer, not a doctor. verify with a pharmacist before replacing your pills.
+**disclaimer:** i'm not a doctor. this is not medical advice. always talk to an actual medical professional before changing your medication. this tool just helps you ask better questions at the pharmacy.
