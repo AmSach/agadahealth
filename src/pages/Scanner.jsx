@@ -1339,173 +1339,271 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', position: 'relative' }}>
+    <div className="desktop-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       
-      {/* Navbar header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--navy)', color: '#fff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, background: 'var(--green)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 15 }}>A.</div>
-          <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 17, lineHeight: 1.1 }}>Agada</div>
-            <div style={{ color: '#9CA3AF', fontSize: 10.5 }}>Know Your Medicine</div>
-          </div>
+      {/* Titlebar */}
+      <div className="window-titlebar">
+        <div className="window-dots">
+          <div className="window-dot close" onClick={reset}></div>
+          <div className="window-dot minimize"></div>
+          <div className="window-dot maximize"></div>
         </div>
-        <button id="menu-toggle-btn" onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
-          {[0,1,2].map(i => <span key={i} style={{ width: 17, height: 1.5, background: hamOpen && i===1 ? 'transparent' : '#fff', borderRadius: 1, display: 'block',
-            transform: hamOpen ? (i===0 ? 'translateY(6px) rotate(45deg)' : i===2 ? 'translateY(-6px) rotate(-45deg)' : 'none') : 'none', transition: 'all 0.25s' }} />)}
-        </button>
-      </header>
-
-      <HamMenu 
-        open={hamOpen} 
-        onClose={() => setHamOpen(false)} 
-        lang={lang} 
-        setLang={setLang} 
-        t={t} 
-        onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('scan'); }} 
-        onCabinet={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }}
-        onReminders={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('reminders'); }}
-        onHealthCard={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('healthcard'); }}
-        onSymptoms={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('symptoms'); }}
-      />
-
-      {/* Beta banner */}
-      <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
-        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong> - {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
+        <div className="window-title">Agada Suite v2006.1 - Medicine Intelligence Suite</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select 
+            value={lang} 
+            onChange={(e) => setLang(e.target.value)} 
+            style={{ height: 26, fontSize: 11, padding: '0 4px', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 4, background: 'rgba(255,255,255,0.8)', cursor: 'pointer' }}
+          >
+            <option value="en">English (US)</option>
+            <option value="hi">हिन्दी (Hindi)</option>
+            <option value="ja">日本語 (Japanese)</option>
+          </select>
+        </div>
       </div>
 
-      {view === VIEWS.HOME    && (
-        <HomeView
-          t={t}
-          setPage={setPage}
-          bookmarks={bookmarks}
-          handleSelectBookmark={handleSelectBookmark}
-          handleDeleteBookmark={handleDeleteBookmark}
-          onCamera={(mode) => { 
-            setScanMode(mode);
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-              setView(VIEWS.AR);
-            } else {
-              cameraRef.current?.click();
-            }
-          }}
-          onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
-          
-          wasmEnabled={wasmEnabled}
-          setWasmEnabled={setWasmEnabled}
-          wasmFilter={wasmFilter}
-          setWasmFilter={setWasmFilter}
-          useAsyncQueue={useAsyncQueue}
-          setUseAsyncQueue={setUseAsyncQueue}
-          localOcrEnabled={localOcrEnabled}
-          setLocalOcrEnabled={setLocalOcrEnabled}
-          
-          vaultPin={vaultPin}
-          isVaultLocked={isVaultLocked}
-          setIsVaultLocked={setIsVaultLocked}
-          pinInput={pinInput}
-          setPinInput={setPinInput}
-          pinError={pinError}
-          setPinError={setPinError}
-          handleUnlockVault={handleUnlockVault}
-          showPinSetup={showPinSetup}
-          setShowPinSetup={setShowPinSetup}
-          newPin={newPin}
-          setNewPin={setNewPin}
-          handleSetupPin={handleSetupPin}
-          handleDisableEncryption={handleDisableEncryption}
-          cabinet={cabinet}
-          toggleCabinetItem={toggleCabinetItem}
-          activeInteractions={activeInteractions}
-          activeDuplications={activeDuplications}
-          activeSchedule={activeSchedule}
-          searchQuery={searchQuery}
-          handleSearchChange={handleSearchChange}
-          searchResults={searchResults}
-          isSearching={isSearching}
-          searchStatus={searchStatus}
-          handleSelectSearchResult={handleSelectSearchResult}
-          handleGlobalSearch={handleGlobalSearch}
-          
-          profiles={profiles}
-          activeProfileId={activeProfileId}
-          setActiveProfileId={setActiveProfileId}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          symptomInput={symptomInput}
-          setSymptomInput={setSymptomInput}
-          profileInput={profileInput}
-          setProfileInput={setProfileInput}
-          showAddProfile={showAddProfile}
-          setShowAddProfile={setShowAddProfile}
-          activeProfile={activeProfile}
-          handleSaveHealthCard={handleSaveHealthCard}
-          handleLogSymptom={handleLogSymptom}
-          handleDeleteSymptom={handleDeleteSymptom}
-          handleToggleNotification={handleToggleNotification}
-          handleUpdatePillCount={handleUpdatePillCount}
-          handleUpdateReminderTime={handleUpdateReminderTime}
-          handleToggleAdherence={handleToggleAdherence}
-          handleAddProfile={handleAddProfile}
-          handleDeleteProfile={handleDeleteProfile}
-          selectedCabinetIndex={selectedCabinetIndex}
-          setSelectedCabinetIndex={setSelectedCabinetIndex}
-          cabinetSearchResults={cabinetSearchResults}
-          setCabinetSearchResults={setCabinetSearchResults}
-          isCabinetSearching={isCabinetSearching}
-          setIsCabinetSearching={setIsCabinetSearching}
-          selectedMed={selectedMed}
-          cabDoseStrength={cabDoseStrength}
-          setCabDoseStrength={setCabDoseStrength}
-          cabDoseFreq={cabDoseFreq}
-          setCabDoseFreq={setCabDoseFreq}
-          cabScrubTime={cabScrubTime}
-          setCabScrubTime={setCabScrubTime}
-          handleUpdateCabinetItem={handleUpdateCabinetItem}
-          cabinetAddQuery={cabinetAddQuery}
-          cabinetAddResults={cabinetAddResults}
-          isCabinetAddSearching={isCabinetAddSearching}
-          handleCabinetAddSearch={handleCabinetAddSearch}
-          showCabinet3D={showCabinet3D}
-          setShowCabinet3D={setShowCabinet3D}
-          showManualAddModal={showManualAddModal}
-          setShowManualAddModal={setShowManualAddModal}
-          manualAddForm={manualAddForm}
-          setManualAddForm={setManualAddForm}
-          saveAllProfiles={saveAllProfiles}
-        />
-      )}
-      {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
-      {view === VIEWS.LOADING && (
-        <LoadingView 
-          t={t} 
-          step={step} 
-          preview={preview} 
-          processedPreview={processedPreview}
-          barcodeHit={barcodeHit} 
-          activeStepId={activeStepId}
-          completedStepIds={completedStepIds}
-        />
-      )}
-      {view === VIEWS.RESULTS && (
-        results?.isEmergencyCard ? (
-          <EmergencyCardResultView results={results} onReset={reset} t={t} />
-        ) : results?.isPrescription ? (
-          <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
-        ) : (
-          <ResultsPanel 
-            results={results} 
-            preview={preview} 
-            onReset={reset} 
-            t={t} 
-            lang={lang} 
-            isBookmarked={bookmarks.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)}
-            onToggleBookmark={() => toggleBookmark(results)}
-            profile={activeProfile}
-          />
-        )
-      )}
-      {view === VIEWS.ERROR   && <ErrorView error={error} onReset={reset} t={t} />}
+      {/* Menu Bar */}
+      <div className="window-menubar" style={{ display: 'flex', gap: 12, padding: '4px 16px', background: '#f1f5f9', borderBottom: '1px solid rgba(0,0,0,0.06)', fontSize: 11, color: '#475569', fontWeight: 600, borderTop: '1px solid rgba(255,255,255,0.8)' }}>
+        <span style={{ cursor: 'pointer' }} onClick={reset}>File</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => {
+          if (!isVaultLocked) {
+            setActiveTab('healthcard');
+          }
+        }}>Export</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => {
+          setWasmEnabled(prev => !prev);
+        }}>WASM Filter: {wasmEnabled ? "Enabled" : "Disabled"}</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => {
+          setLocalOcrEnabled(prev => !prev);
+        }}>Local OCR: {localOcrEnabled ? "Enabled" : "Disabled"}</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => setPage('docs')}>Help</span>
+      </div>
+
+      {/* Window body */}
+      <div className="window-body">
+        {/* Left Sidebar */}
+        <div className="window-sidebar">
+          {/* Main Logo block inside Sidebar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.06)', marginBottom: 12 }}>
+            <div style={{ width: 28, height: 28, background: 'var(--green-gel)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 12, border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>A</div>
+            <div>
+              <div style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, lineHeight: 1.1 }}>Agada Health</div>
+              <div style={{ color: 'var(--text-light)', fontSize: 9.5 }}>Medicine OS v2006</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button 
+              className={`btn-tab ${activeTab === 'scan' ? 'active' : ''}`} 
+              onClick={() => { reset(); setActiveTab('scan'); }}
+            >
+              📷 {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan & Search'}
+            </button>
+            {!isVaultLocked && (
+              <>
+                <button 
+                  className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} 
+                  onClick={() => { reset(); setActiveTab('cabinet'); }}
+                >
+                  💊 Cabinet
+                </button>
+                <button 
+                  className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} 
+                  onClick={() => { reset(); setActiveTab('reminders'); }}
+                >
+                  📅 Schedule
+                </button>
+                <button 
+                  className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} 
+                  onClick={() => { reset(); setActiveTab('healthcard'); }}
+                >
+                  🆔 Emergency ID
+                </button>
+                <button 
+                  className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} 
+                  onClick={() => { reset(); setActiveTab('symptoms'); }}
+                >
+                  📝 Symptoms
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Operator Profile Selector */}
+          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 800, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Vault</div>
+            {isVaultLocked ? (
+              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+                🔒 Vault is Locked
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <select 
+                  value={activeProfileId || ''} 
+                  onChange={(e) => setActiveProfileId(Number(e.target.value))}
+                  style={{ width: '100%', height: 30, fontSize: 11, padding: '0 4px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff' }}
+                >
+                  {profiles.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={() => setShowAddProfile(true)}
+                  style={{ fontSize: 10, padding: '4px 8px', width: '100%', height: 26, background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6 }}
+                >
+                  + New Vault Profile
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Workspace area */}
+        <div className="window-workspace">
+          {view === VIEWS.HOME && (
+            <HomeView
+              t={t}
+              setPage={setPage}
+              bookmarks={bookmarks}
+              handleSelectBookmark={handleSelectBookmark}
+              handleDeleteBookmark={handleDeleteBookmark}
+              onCamera={(mode) => { 
+                setScanMode(mode);
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                  setView(VIEWS.AR);
+                } else {
+                  cameraRef.current?.click();
+                }
+              }}
+              onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
+              
+              wasmEnabled={wasmEnabled}
+              setWasmEnabled={setWasmEnabled}
+              wasmFilter={wasmFilter}
+              setWasmFilter={setWasmFilter}
+              useAsyncQueue={useAsyncQueue}
+              setUseAsyncQueue={setUseAsyncQueue}
+              localOcrEnabled={localOcrEnabled}
+              setLocalOcrEnabled={setLocalOcrEnabled}
+              
+              vaultPin={vaultPin}
+              isVaultLocked={isVaultLocked}
+              setIsVaultLocked={setIsVaultLocked}
+              pinInput={pinInput}
+              setPinInput={setPinInput}
+              pinError={pinError}
+              setPinError={setPinError}
+              handleUnlockVault={handleUnlockVault}
+              showPinSetup={showPinSetup}
+              setShowPinSetup={setShowPinSetup}
+              newPin={newPin}
+              setNewPin={setNewPin}
+              handleSetupPin={handleSetupPin}
+              handleDisableEncryption={handleDisableEncryption}
+              cabinet={cabinet}
+              toggleCabinetItem={toggleCabinetItem}
+              activeInteractions={activeInteractions}
+              activeDuplications={activeDuplications}
+              activeSchedule={activeSchedule}
+              searchQuery={searchQuery}
+              handleSearchChange={handleSearchChange}
+              searchResults={searchResults}
+              isSearching={isSearching}
+              searchStatus={searchStatus}
+              handleSelectSearchResult={handleSelectSearchResult}
+              handleGlobalSearch={handleGlobalSearch}
+              
+              profiles={profiles}
+              activeProfileId={activeProfileId}
+              setActiveProfileId={setActiveProfileId}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              symptomInput={symptomInput}
+              setSymptomInput={setSymptomInput}
+              profileInput={profileInput}
+              setProfileInput={setProfileInput}
+              showAddProfile={showAddProfile}
+              setShowAddProfile={setShowAddProfile}
+              activeProfile={activeProfile}
+              handleSaveHealthCard={handleSaveHealthCard}
+              handleLogSymptom={handleLogSymptom}
+              handleDeleteSymptom={handleDeleteSymptom}
+              handleToggleNotification={handleToggleNotification}
+              handleUpdatePillCount={handleUpdatePillCount}
+              handleUpdateReminderTime={handleUpdateReminderTime}
+              handleToggleAdherence={handleToggleAdherence}
+              handleAddProfile={handleAddProfile}
+              handleDeleteProfile={handleDeleteProfile}
+              selectedCabinetIndex={selectedCabinetIndex}
+              setSelectedCabinetIndex={setSelectedCabinetIndex}
+              cabinetSearchResults={cabinetSearchResults}
+              setCabinetSearchResults={setCabinetSearchResults}
+              isCabinetSearching={isCabinetSearching}
+              setIsCabinetSearching={setIsCabinetSearching}
+              selectedMed={selectedMed}
+              cabDoseStrength={cabDoseStrength}
+              setCabDoseStrength={setCabDoseStrength}
+              cabDoseFreq={cabDoseFreq}
+              setCabDoseFreq={setCabDoseFreq}
+              cabScrubTime={cabScrubTime}
+              setCabScrubTime={setCabScrubTime}
+              handleUpdateCabinetItem={handleUpdateCabinetItem}
+              cabinetAddQuery={cabinetAddQuery}
+              cabinetAddResults={cabinetAddResults}
+              isCabinetAddSearching={isCabinetAddSearching}
+              handleCabinetAddSearch={handleCabinetAddSearch}
+              showCabinet3D={showCabinet3D}
+              setShowCabinet3D={setShowCabinet3D}
+              showManualAddModal={showManualAddModal}
+              setShowManualAddModal={setShowManualAddModal}
+              manualAddForm={manualAddForm}
+              setManualAddForm={setManualAddForm}
+              saveAllProfiles={saveAllProfiles}
+            />
+          )}
+          {view === VIEWS.AR && (
+            <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />
+          )}
+          {view === VIEWS.LOADING && (
+            <LoadingView 
+              t={t} 
+              step={step} 
+              preview={preview} 
+              processedPreview={processedPreview}
+              barcodeHit={barcodeHit} 
+              activeStepId={activeStepId}
+              completedStepIds={completedStepIds}
+            />
+          )}
+          {view === VIEWS.RESULTS && (
+            results?.isEmergencyCard ? (
+              <EmergencyCardResultView results={results} onReset={reset} t={t} />
+            ) : results?.isPrescription ? (
+              <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
+            ) : (
+              <ResultsPanel 
+                results={results} 
+                preview={preview} 
+                onReset={reset} 
+                t={t} 
+                lang={lang} 
+                isBookmarked={bookmarks.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)}
+                onToggleBookmark={() => toggleBookmark(results)}
+                profile={activeProfile}
+              />
+            )
+          )}
+          {view === VIEWS.ERROR && (
+            <ErrorView error={error} onReset={reset} t={t} />
+          )}
+        </div>
+      </div>
+
+      {/* Status Bar */}
+      <div className="window-statusbar">
+        <div>System status: Ready | Vault operator: {activeProfile?.name || 'Unencrypted Guest'}</div>
+        <div>Local database secured with AES-256 and WebCrypto API</div>
+      </div>
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
@@ -1808,59 +1906,7 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 18px 32px' }}>
-
-      {/* Dashboard Navigation Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        gap: 6, 
-        overflowX: 'auto', 
-        paddingBottom: 8, 
-        borderBottom: '1px solid var(--border)', 
-        marginTop: 16,
-        marginBottom: 16,
-        whiteSpace: 'nowrap'
-      }}>
-        <button 
-          className={`btn-tab ${activeTab === 'scan' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('scan')}
-          style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'scan' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'scan' ? '#e8f5ee' : 'transparent', color: activeTab === 'scan' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
-        >
-          📷 Scan & Search
-        </button>
-        {!isVaultLocked && (
-          <>
-            <button 
-              className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('cabinet')}
-              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'cabinet' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'cabinet' ? '#e8f5ee' : 'transparent', color: activeTab === 'cabinet' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
-            >
-              💊 Cabinet
-            </button>
-            <button 
-              className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('reminders')}
-              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'reminders' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'reminders' ? '#e8f5ee' : 'transparent', color: activeTab === 'reminders' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
-            >
-              📅 Schedule
-            </button>
-            <button 
-              className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('healthcard')}
-              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'healthcard' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'healthcard' ? '#e8f5ee' : 'transparent', color: activeTab === 'healthcard' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
-            >
-              🆔 Emergency ID
-            </button>
-            <button 
-              className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('symptoms')}
-              style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', border: activeTab === 'symptoms' ? '1px solid #1b7a4a' : '1px solid transparent', background: activeTab === 'symptoms' ? '#e8f5ee' : 'transparent', color: activeTab === 'symptoms' ? '#1b7a4a' : '#5f6368', borderRadius: 8, cursor: 'pointer' }}
-            >
-              📝 Track Symptoms
-            </button>
-          </>
-        )}
-      </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 4px 20px' }}>
 
       {activeTab === 'scan' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
