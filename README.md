@@ -43,7 +43,7 @@ npm run dev
 
 that's it. opens on `localhost:5173`.
 
-or you could just use my version here at agadahealth.vercel.app
+or you could just use my version here at [agadahealth.vercel.app](https://agadahealth.vercel.app)
 
 ## credits (well yes obv me and me)
 
