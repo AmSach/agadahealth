@@ -18,6 +18,39 @@ import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '..
 import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer.jsx'
 import { parseSalts, matchQuality } from '../services/dbService.js'
 
+const RETRO_ELEMENTS = ['▲', '●', '★', '⬡', '◆', '⚡'];
+
+function RetroParticles() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+      {Array.from({ length: 15 }).map((_, i) => {
+        const char = RETRO_ELEMENTS[i % RETRO_ELEMENTS.length];
+        const left = (i * 7) % 100;
+        const delay = (i * -3) % 20;
+        const duration = 12 + (i * 2) % 15;
+        const size = 16 + (i * 4) % 24;
+        return (
+          <span
+            key={i}
+            style={{
+              position: 'absolute',
+              left: `${left}%`,
+              bottom: '-50px',
+              fontSize: `${size}px`,
+              opacity: 0.12,
+              animation: `floatUp ${duration}s linear infinite`,
+              animationDelay: `${delay}s`,
+              color: 'var(--charcoal)',
+            }}
+          >
+            {char}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
 const loadTesseract = async () => {
@@ -1300,7 +1333,14 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div className="medical-console">
+    <>
+      <RetroParticles />
+      <div className="spiral-binder">
+        {Array.from({ length: 14 }).map((_, i) => (
+          <div key={i} className="spiral-ring"></div>
+        ))}
+      </div>
+      <div className="medical-console">
       
       <header className="console-header">
         <div className="console-title-block">
@@ -1507,10 +1547,9 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
     </div>
+    </>
   )
 }
-
-
 
 function EmergencyCardResultView({ results, onReset, t }) {
   const profile = results.emergencyProfile || {};
@@ -1775,26 +1814,27 @@ function HomeView({
       {activeTab === 'scan' && (
         <div className="clinical-grid">
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 380 }}>
+            <div className="washi-tape">// PROTOCOL: VISION_SCAN</div>
             <div>
               <div className="panel-header">
-                <span>Medicine Scanner</span>
+                <span>Scanner Probe Module</span>
               </div>
               
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-dark)' }}>
-                Analyze Medicine Strip or Prescription
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
+                Extract Drug Telemetry
               </h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Point your device camera at a medicine strip or prescription. The vision parser decodes chemical compositions, CDSCO registration status, and generic availability offline.
+                Point the visual sensor probe at a medicine strip. The OCR engine decodes chemical compositions in real-time.
               </p>
 
               <div className="probe-viewport" style={{ height: 160, marginBottom: 20 }}>
-                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}></div>
-                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}></div>
+                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
+                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
                 
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-light)' }}>PROBE_CAMERA_STANDBY</div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--charcoal)' }}>SENSOR_PROBE_STANDBY</div>
                 </div>
               </div>
             </div>
@@ -1810,25 +1850,26 @@ function HomeView({
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn-clinical-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1 }}>
-                  Upload Strip Image
+                  Load Strip Image
                 </button>
                 <button className="btn-clinical-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1 }}>
-                  Upload Rx Image
+                  Load Rx Image
                 </button>
               </div>
             </div>
           </div>
 
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}>
+            <div className="washi-tape">// DATA: CDSCO_INDEX</div>
             <div className="panel-header">
               <span>Registry Search</span>
             </div>
             
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-dark)' }}>
-              Search Registered Salts
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
+              Query Chemical Salts
             </h3>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Query the offline registry database index. Matching occurs locally in the browser cache.
+              Directly search the offline government database. Fuzzy matches salt composition records instantly.
             </p>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -1837,7 +1878,7 @@ function HomeView({
                 value={searchQuery} 
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
-                placeholder="Type brand or composition..."
+                placeholder="Search brand name or composition (e.g. Lipitor)..."
                 style={{ flex: 1 }}
               />
               <button className="btn-clinical-primary" onClick={() => handleGlobalSearch(searchQuery)}>
@@ -1849,12 +1890,12 @@ function HomeView({
               {searchResults && searchResults.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                   {searchResults.map((r, idx) => (
-                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justify: 'space-between', align: 'center', background: '#fafaf9', border: '1px solid var(--border)', padding: '8px 12px', cursor: 'pointer' }}>
+                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justify: 'space-between', align: 'center', background: '#fafaf9', border: '2px solid var(--charcoal)', padding: '8px 12px', cursor: 'pointer' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>{r.brandName || r.saltName}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{r.saltComposition || r.therapeuticClass}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--accent-forest)', fontWeight: 700 }}>ANALYZE</div>
+                      <div style={{ fontSize: 11, color: 'var(--neon-green)', fontWeight: 700 }}>ANALYZE</div>
                     </div>
                   ))}
                 </div>
@@ -1863,7 +1904,7 @@ function HomeView({
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: 8, letterSpacing: '0.04em' }}>Saved Compositions</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {bookmarks.map((b, idx) => (
-                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'var(--accent-forest-light)', border: '1px solid rgba(20,83,45,0.2)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', align: 'center', gap: 6 }}>
+                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'var(--accent-forest-light)', border: '2px solid var(--charcoal)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', align: 'center', gap: 6 }}>
                         <span style={{ fontWeight: 600, color: 'var(--accent-forest)' }}>{b.brandName || b.saltName}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--accent-clay)', fontWeight: 700, padding: 0, marginLeft: 4, height: 'auto', width: 'auto' }}>x</button>
                       </div>
@@ -1879,6 +1920,7 @@ function HomeView({
           </div>
 
           <div className="clinical-panel grid-col-12">
+            <div className="washi-tape clay">// SECURITY: AES-256</div>
             <div className="panel-header">
               <span>Cabinet Lock</span>
             </div>
