@@ -1343,8 +1343,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     <div className="medical-console">
       <header className="console-header">
         <div className="console-title-block">
-          <span className="console-title" style={{ fontFamily: 'var(--font-serif)', fontSize: 16 }}>agada</span>
-          <span className="console-status-pill" style={{ marginLeft: 12 }}>Sync Active</span>
+          <span className="console-title" style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 800 }}>agada</span>
         </div>
         <div>
           <select 
@@ -1516,10 +1515,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
         )}
       </div>
 
-      <footer className="clinical-footer">
-        <div>VAULT_LOCK: {isVaultLocked ? 'LOCKED' : 'UNLOCKED'} // OPERATOR: {activeProfile?.name ? activeProfile.name.toUpperCase() : 'GUEST'}</div>
-        <div>CDSCO: v2006.10 // SYSTEM: ONLINE</div>
-      </footer>
+
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
     </div>
@@ -1828,8 +1824,7 @@ function HomeView({
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 380 }}>
             <div>
               <div className="panel-header">
-                <span>Capture Interface</span>
-                <span style={{ fontSize: 10, background: 'var(--accent-forest-light)', color: 'var(--accent-forest)', padding: '2px 6px', border: '1px solid rgba(20,83,45,0.15)' }}>Vision Active</span>
+                <span>Medicine Scanner</span>
               </div>
               
               <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-dark)' }}>
@@ -1873,8 +1868,7 @@ function HomeView({
 
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}>
             <div className="panel-header">
-              <span>Registry Database</span>
-              <span style={{ fontSize: 10, background: 'var(--accent-clay-light)', color: 'var(--accent-clay)', padding: '2px 6px', border: '1px solid rgba(124,45,18,0.15)' }}>Local Matcher</span>
+              <span>Registry Search</span>
             </div>
             
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-dark)' }}>
@@ -1933,10 +1927,7 @@ function HomeView({
 
           <div className="clinical-panel grid-col-12">
             <div className="panel-header">
-              <span>Local Encryption</span>
-              <span style={{ fontSize: 10, background: isVaultLocked ? 'var(--accent-clay-light)' : 'var(--accent-forest-light)', color: isVaultLocked ? 'var(--accent-clay)' : 'var(--accent-forest)', padding: '2px 6px', border: '1px solid var(--border)' }}>
-                {isVaultLocked ? 'Locked' : 'Unlocked'}
-              </span>
+              <span>Cabinet Lock</span>
             </div>
 
             {isVaultLocked ? (
