@@ -3,7 +3,6 @@ import { scanMedicine, scanPrescription, compressAndEncode, lookupMedicineNameOn
 import { readBarcode } from '../services/barcodeService.js'
 import ResultsPanel, { BloodstreamSimulator } from '../components/ResultsPanel.jsx'
 import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
-import HamMenu from '../components/HamMenu.jsx'
 import HealthCard from '../components/HealthCard.jsx'
 import { useLang, useSetPage } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
@@ -1511,38 +1510,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   )
 }
 
-function FAQItem({ question, answer }) {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div style={{ border: '1.5px solid var(--border)', borderRadius: 10, background: '#fff', overflow: 'hidden', marginBottom: 8, boxShadow: 'var(--shadow)' }}>
-      <button 
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: 'none',
-          padding: '10px 12px',
-          fontSize: '12.5px',
-          fontWeight: 700,
-          color: 'var(--navy)',
-          cursor: 'pointer',
-          textAlign: 'left'
-        }}
-      >
-        <span>{question}</span>
-        <span style={{ fontSize: 10, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
-      </button>
-      {isOpen && (
-        <div style={{ padding: '10px 12px', fontSize: '11.5px', color: 'var(--textmd)', borderTop: '1.5px solid var(--border)', background: 'var(--bgsoft)', lineHeight: 1.5 }}>
-          {answer}
-        </div>
-      )}
-    </div>
-  );
-}
+
 
 function EmergencyCardResultView({ results, onReset, t }) {
   const profile = results.emergencyProfile || {};
