@@ -1339,232 +1339,180 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div className="desktop-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div className="cyber-console" style={{ flex: 1, position: 'relative' }}>
       
-      {/* Titlebar */}
-      <div className="window-titlebar">
-        <div className="window-dots">
-          <div className="window-dot close" onClick={reset}></div>
-          <div className="window-dot minimize"></div>
-          <div className="window-dot maximize"></div>
+      {/* Telemetry Header */}
+      <header className="telemetry-header">
+        <div className="brand-badge">
+          <div className="brand-icon">A</div>
+          <div>
+            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: 16, fontFamily: 'var(--font-mono)' }}>AGADA // BIO-OS v2.0</div>
+            <div style={{ color: 'var(--cyan)', fontSize: 10, fontFamily: 'var(--font-mono)' }}>STATUS: SYSTEM_READY // LOCAL_DATABASE_ACTIVE</div>
+          </div>
         </div>
-        <div className="window-title">Agada Suite v2006.1 - Medicine Intelligence Suite</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* Tab Selector */}
+        <div className="cyber-tabs">
+          <button 
+            className={`cyber-tab-btn ${activeTab === 'scan' ? 'active' : ''}`}
+            onClick={() => { reset(); setActiveTab('scan'); }}
+          >
+            📷 SCANNER
+          </button>
+          {!isVaultLocked && (
+            <>
+              <button 
+                className={`cyber-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
+                onClick={() => { reset(); setActiveTab('cabinet'); }}
+              >
+                💊 CABINET
+              </button>
+              <button 
+                className={`cyber-tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
+                onClick={() => { reset(); setActiveTab('reminders'); }}
+              >
+                📅 TIMELINE
+              </button>
+              <button 
+                className={`cyber-tab-btn ${activeTab === 'healthcard' ? 'active' : ''}`}
+                onClick={() => { reset(); setActiveTab('healthcard'); }}
+              >
+                🆔 EMERGENCY ID
+              </button>
+              <button 
+                className={`cyber-tab-btn ${activeTab === 'symptoms' ? 'active' : ''}`}
+                onClick={() => { reset(); setActiveTab('symptoms'); }}
+              >
+                📝 SYMPTOMS
+              </button>
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <select 
             value={lang} 
             onChange={(e) => setLang(e.target.value)} 
-            style={{ height: 26, fontSize: 11, padding: '0 4px', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 4, background: 'rgba(255,255,255,0.8)', cursor: 'pointer' }}
+            style={{ height: 32, fontSize: 11, background: 'rgba(3,7,18,0.8)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, cursor: 'pointer' }}
           >
-            <option value="en">English (US)</option>
-            <option value="hi">हिन्दी (Hindi)</option>
-            <option value="ja">日本語 (Japanese)</option>
+            <option value="en">LANG: EN</option>
+            <option value="hi">LANG: HI</option>
+            <option value="ja">LANG: JA</option>
           </select>
         </div>
-      </div>
+      </header>
 
-      {/* Menu Bar */}
-      <div className="window-menubar" style={{ display: 'flex', gap: 12, padding: '4px 16px', background: '#f1f5f9', borderBottom: '1px solid rgba(0,0,0,0.06)', fontSize: 11, color: '#475569', fontWeight: 600, borderTop: '1px solid rgba(255,255,255,0.8)' }}>
-        <span style={{ cursor: 'pointer' }} onClick={reset}>File</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => {
-          if (!isVaultLocked) {
-            setActiveTab('healthcard');
-          }
-        }}>Export</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => {
-          setWasmEnabled(prev => !prev);
-        }}>WASM Filter: {wasmEnabled ? "Enabled" : "Disabled"}</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => {
-          setLocalOcrEnabled(prev => !prev);
-        }}>Local OCR: {localOcrEnabled ? "Enabled" : "Disabled"}</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => setPage('docs')}>Help</span>
-      </div>
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {view === VIEWS.HOME && (
+          <HomeView
+            t={t}
+            setPage={setPage}
+            bookmarks={bookmarks}
+            handleSelectBookmark={handleSelectBookmark}
+            handleDeleteBookmark={handleDeleteBookmark}
+            onCamera={(mode) => { 
+              setScanMode(mode);
+              if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                setView(VIEWS.AR);
+              } else {
+                cameraRef.current?.click();
+              }
+            }}
+            onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
+            
+            wasmEnabled={wasmEnabled}
+            setWasmEnabled={setWasmEnabled}
+            wasmFilter={wasmFilter}
+            setWasmFilter={setWasmFilter}
+            useAsyncQueue={useAsyncQueue}
+            setUseAsyncQueue={setUseAsyncQueue}
+            localOcrEnabled={localOcrEnabled}
+            setLocalOcrEnabled={setLocalOcrEnabled}
+            
+            vaultPin={vaultPin}
+            isVaultLocked={isVaultLocked}
+            setIsVaultLocked={setIsVaultLocked}
+            pinInput={pinInput}
+            setPinInput={setPinInput}
+            pinError={pinError}
+            setPinError={setPinError}
+            handleUnlockVault={handleUnlockVault}
+            showPinSetup={showPinSetup}
+            setShowPinSetup={setShowPinSetup}
+            newPin={newPin}
+            setNewPin={setNewPin}
+            handleSetupPin={handleSetupPin}
+            handleDisableEncryption={handleDisableEncryption}
+            cabinet={cabinet}
+            toggleCabinetItem={toggleCabinetItem}
+            activeInteractions={activeInteractions}
+            activeDuplications={activeDuplications}
+            activeSchedule={activeSchedule}
+            searchQuery={searchQuery}
+            handleSearchChange={handleSearchChange}
+            searchResults={searchResults}
+            isSearching={isSearching}
+            searchStatus={searchStatus}
+            handleSelectSearchResult={handleSelectSearchResult}
+            handleGlobalSearch={handleGlobalSearch}
+            
+            profiles={profiles}
+            activeProfileId={activeProfileId}
+            setActiveProfileId={setActiveProfileId}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            symptomInput={symptomInput}
+            setSymptomInput={setSymptomInput}
+            profileInput={profileInput}
+            setProfileInput={setProfileInput}
+            showAddProfile={showAddProfile}
+            setShowAddProfile={setShowAddProfile}
+            activeProfile={activeProfile}
+            handleSaveHealthCard={handleSaveHealthCard}
+            handleLogSymptom={handleLogSymptom}
+            handleDeleteSymptom={handleDeleteSymptom}
+            handleToggleNotification={handleToggleNotification}
+            handleUpdatePillCount={handleUpdatePillCount}
+            handleUpdateReminderTime={handleUpdateReminderTime}
+            handleToggleAdherence={handleToggleAdherence}
+            handleAddProfile={handleAddProfile}
+            handleDeleteProfile={handleDeleteProfile}
+            selectedCabinetIndex={selectedCabinetIndex}
+            setSelectedCabinetIndex={setSelectedCabinetIndex}
+            cabinetSearchResults={cabinetSearchResults}
+            setCabinetSearchResults={setCabinetSearchResults}
+            isCabinetSearching={isCabinetSearching}
+            setIsCabinetSearching={setIsCabinetSearching}
+            selectedMed={selectedMed}
+            cabDoseStrength={cabDoseStrength}
+            setCabDoseStrength={setCabDoseStrength}
+            cabDoseFreq={cabDoseFreq}
+            setCabDoseFreq={setCabDoseFreq}
+            cabScrubTime={cabScrubTime}
+            setCabScrubTime={setCabScrubTime}
+            handleUpdateCabinetItem={handleUpdateCabinetItem}
+            cabinetAddQuery={cabinetAddQuery}
+            cabinetAddResults={cabinetAddResults}
+            isCabinetAddSearching={isCabinetAddSearching}
+            handleCabinetAddSearch={handleCabinetAddSearch}
+            showCabinet3D={showCabinet3D}
+            setShowCabinet3D={setShowCabinet3D}
+            showManualAddModal={showManualAddModal}
+            setShowManualAddModal={setShowManualAddModal}
+            manualAddForm={manualAddForm}
+            setManualAddForm={setManualAddForm}
+            saveAllProfiles={saveAllProfiles}
+          />
+        )}
 
-      {/* Window body */}
-      <div className="window-body">
-        {/* Left Sidebar */}
-        <div className="window-sidebar">
-          {/* Main Logo block inside Sidebar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.06)', marginBottom: 12 }}>
-            <div style={{ width: 28, height: 28, background: 'var(--green-gel)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 12, border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>A</div>
-            <div>
-              <div style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, lineHeight: 1.1 }}>Agada Health</div>
-              <div style={{ color: 'var(--text-light)', fontSize: 9.5 }}>Medicine OS v2006</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button 
-              className={`btn-tab ${activeTab === 'scan' ? 'active' : ''}`} 
-              onClick={() => { reset(); setActiveTab('scan'); }}
-            >
-              📷 {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan & Search'}
-            </button>
-            {!isVaultLocked && (
-              <>
-                <button 
-                  className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} 
-                  onClick={() => { reset(); setActiveTab('cabinet'); }}
-                >
-                  💊 Cabinet
-                </button>
-                <button 
-                  className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} 
-                  onClick={() => { reset(); setActiveTab('reminders'); }}
-                >
-                  📅 Schedule
-                </button>
-                <button 
-                  className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} 
-                  onClick={() => { reset(); setActiveTab('healthcard'); }}
-                >
-                  🆔 Emergency ID
-                </button>
-                <button 
-                  className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} 
-                  onClick={() => { reset(); setActiveTab('symptoms'); }}
-                >
-                  📝 Symptoms
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Operator Profile Selector */}
-          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-            <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 800, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Vault</div>
-            {isVaultLocked ? (
-              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
-                🔒 Vault is Locked
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <select 
-                  value={activeProfileId || ''} 
-                  onChange={(e) => setActiveProfileId(Number(e.target.value))}
-                  style={{ width: '100%', height: 30, fontSize: 11, padding: '0 4px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff' }}
-                >
-                  {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <button 
-                  onClick={() => setShowAddProfile(true)}
-                  style={{ fontSize: 10, padding: '4px 8px', width: '100%', height: 26, background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 6 }}
-                >
-                  + New Vault Profile
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Workspace area */}
-        <div className="window-workspace">
-          {view === VIEWS.HOME && (
-            <HomeView
-              t={t}
-              setPage={setPage}
-              bookmarks={bookmarks}
-              handleSelectBookmark={handleSelectBookmark}
-              handleDeleteBookmark={handleDeleteBookmark}
-              onCamera={(mode) => { 
-                setScanMode(mode);
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                  setView(VIEWS.AR);
-                } else {
-                  cameraRef.current?.click();
-                }
-              }}
-              onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
-              
-              wasmEnabled={wasmEnabled}
-              setWasmEnabled={setWasmEnabled}
-              wasmFilter={wasmFilter}
-              setWasmFilter={setWasmFilter}
-              useAsyncQueue={useAsyncQueue}
-              setUseAsyncQueue={setUseAsyncQueue}
-              localOcrEnabled={localOcrEnabled}
-              setLocalOcrEnabled={setLocalOcrEnabled}
-              
-              vaultPin={vaultPin}
-              isVaultLocked={isVaultLocked}
-              setIsVaultLocked={setIsVaultLocked}
-              pinInput={pinInput}
-              setPinInput={setPinInput}
-              pinError={pinError}
-              setPinError={setPinError}
-              handleUnlockVault={handleUnlockVault}
-              showPinSetup={showPinSetup}
-              setShowPinSetup={setShowPinSetup}
-              newPin={newPin}
-              setNewPin={setNewPin}
-              handleSetupPin={handleSetupPin}
-              handleDisableEncryption={handleDisableEncryption}
-              cabinet={cabinet}
-              toggleCabinetItem={toggleCabinetItem}
-              activeInteractions={activeInteractions}
-              activeDuplications={activeDuplications}
-              activeSchedule={activeSchedule}
-              searchQuery={searchQuery}
-              handleSearchChange={handleSearchChange}
-              searchResults={searchResults}
-              isSearching={isSearching}
-              searchStatus={searchStatus}
-              handleSelectSearchResult={handleSelectSearchResult}
-              handleGlobalSearch={handleGlobalSearch}
-              
-              profiles={profiles}
-              activeProfileId={activeProfileId}
-              setActiveProfileId={setActiveProfileId}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              symptomInput={symptomInput}
-              setSymptomInput={setSymptomInput}
-              profileInput={profileInput}
-              setProfileInput={setProfileInput}
-              showAddProfile={showAddProfile}
-              setShowAddProfile={setShowAddProfile}
-              activeProfile={activeProfile}
-              handleSaveHealthCard={handleSaveHealthCard}
-              handleLogSymptom={handleLogSymptom}
-              handleDeleteSymptom={handleDeleteSymptom}
-              handleToggleNotification={handleToggleNotification}
-              handleUpdatePillCount={handleUpdatePillCount}
-              handleUpdateReminderTime={handleUpdateReminderTime}
-              handleToggleAdherence={handleToggleAdherence}
-              handleAddProfile={handleAddProfile}
-              handleDeleteProfile={handleDeleteProfile}
-              selectedCabinetIndex={selectedCabinetIndex}
-              setSelectedCabinetIndex={setSelectedCabinetIndex}
-              cabinetSearchResults={cabinetSearchResults}
-              setCabinetSearchResults={setCabinetSearchResults}
-              isCabinetSearching={isCabinetSearching}
-              setIsCabinetSearching={setIsCabinetSearching}
-              selectedMed={selectedMed}
-              cabDoseStrength={cabDoseStrength}
-              setCabDoseStrength={setCabDoseStrength}
-              cabDoseFreq={cabDoseFreq}
-              setCabDoseFreq={setCabDoseFreq}
-              cabScrubTime={cabScrubTime}
-              setCabScrubTime={setCabScrubTime}
-              handleUpdateCabinetItem={handleUpdateCabinetItem}
-              cabinetAddQuery={cabinetAddQuery}
-              cabinetAddResults={cabinetAddResults}
-              isCabinetAddSearching={isCabinetAddSearching}
-              handleCabinetAddSearch={handleCabinetAddSearch}
-              showCabinet3D={showCabinet3D}
-              setShowCabinet3D={setShowCabinet3D}
-              showManualAddModal={showManualAddModal}
-              setShowManualAddModal={setShowManualAddModal}
-              manualAddForm={manualAddForm}
-              setManualAddForm={setManualAddForm}
-              saveAllProfiles={saveAllProfiles}
-            />
-          )}
-          {view === VIEWS.AR && (
+        {view === VIEWS.AR && (
+          <div style={{ padding: 24, maxWidth: 640, margin: '0 auto', width: '100%' }}>
             <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />
-          )}
-          {view === VIEWS.LOADING && (
+          </div>
+        )}
+        {view === VIEWS.LOADING && (
+          <div style={{ padding: 24, maxWidth: 600, margin: '0 auto', width: '100%' }}>
             <LoadingView 
               t={t} 
               step={step} 
@@ -1574,9 +1522,11 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
               activeStepId={activeStepId}
               completedStepIds={completedStepIds}
             />
-          )}
-          {view === VIEWS.RESULTS && (
-            results?.isEmergencyCard ? (
+          </div>
+        )}
+        {view === VIEWS.RESULTS && (
+          <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
+            {results?.isEmergencyCard ? (
               <EmergencyCardResultView results={results} onReset={reset} t={t} />
             ) : results?.isPrescription ? (
               <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
@@ -1591,18 +1541,20 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
                 onToggleBookmark={() => toggleBookmark(results)}
                 profile={activeProfile}
               />
-            )
-          )}
-          {view === VIEWS.ERROR && (
+            )}
+          </div>
+        )}
+        {view === VIEWS.ERROR && (
+          <div style={{ padding: 24, maxWidth: 500, margin: '0 auto', width: '100%' }}>
             <ErrorView error={error} onReset={reset} t={t} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Status Bar */}
-      <div className="window-statusbar">
-        <div>System status: Ready | Vault operator: {activeProfile?.name || 'Unencrypted Guest'}</div>
-        <div>Local database secured with AES-256 and WebCrypto API</div>
+      <div style={{ background: 'rgba(3,7,18,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 24px', fontSize: 11, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)' }}>
+        <div>SYSTEM_ENCRYPTION: AES-256-GCM // OPERATOR: {activeProfile?.name ? activeProfile.name.toUpperCase() : 'GUEST_USER'}</div>
+        <div>CDSCO_REGISTRY: OFFLINE_SYNC_OK</div>
       </div>
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
@@ -1909,464 +1861,202 @@ function HomeView({
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 4px 20px' }}>
 
       {activeTab === 'scan' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-      {/* Hero */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 28px' }}>
-
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.2, marginBottom: 10 }}>
-          {t.heroLine1 || 'scan any medicine.'}<br />
-          <span style={{ color: '#1b7a4a' }}>{t.heroLine2 || 'find cheaper generics.'}</span>
-        </h1>
-
-        <p style={{ fontSize: 14, color: '#5f6368', lineHeight: 1.5, maxWidth: 300, margin: '0 auto 28px' }}>
-          {t.heroDesc || 'point your camera at any medicine strip and agada will check if there\'s a cheaper generic with the same salt composition.'}
-        </p>
-
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 52, background: '#1b7a4a', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer' }}>
-            📷 {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
-          </button>
-          
-          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 52, background: '#1a1a2e', borderRadius: 10, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer' }}>
-            📝 {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
-          </button>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 40, background: '#fff', border: '1px solid #dadce0', borderRadius: 8, color: '#5f6368', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              {t.uploadStrip || 'Upload Strip'}
-            </button>
-            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 40, background: '#fff', border: '1px solid #dadce0', borderRadius: 8, color: '#5f6368', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              {t.uploadRx || 'Upload Rx'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* search */}
-      <div className="glass-card" style={{
-        padding: '14px',
-        marginTop: '14px',
-        marginBottom: '16px'
-      }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>
-          Search medicines
-        </h3>
-        <p style={{ fontSize: 11, color: '#9aa0a6', margin: '0 0 10px 0' }}>
-          type a brand name or salt composition. works offline.
-        </p>
-
-        <div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
-              placeholder="Search e.g. Crocin, Paracetamol, Atorvastatin..."
-              style={{
-                flex: 1,
-                height: 46,
-                padding: '0 12px',
-                borderRadius: 10,
-                border: '1.5px solid var(--bordermd)',
-                fontSize: 13.5,
-                color: 'var(--navy)',
-                outline: 'none',
-                background: '#fff',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.2s'
-              }}
-              onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
-              onBlur={(e) => e.target.style.borderColor = 'var(--bordermd)'}
-            />
-            <button 
-              onClick={() => handleGlobalSearch(searchQuery)}
-              style={{
-                height: 42,
-                padding: '0 16px',
-                background: '#1b7a4a',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Search
-            </button>
-          </div>
-          <div style={{ fontSize: 10, color: '#9aa0a6', marginTop: 6 }}>
-            {searchStatus}
-          </div>
-        </div>
-
-        {/* Real-time Search suggestions */}
-        {searchQuery && (
-          <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, maxHeight: 220, overflowY: 'auto' }}>
-            {isSearching && (
-              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--border)', borderTopColor: 'var(--green)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-                Searching database...
-              </div>
-            )}
-
-            {!isSearching && (!searchResults || (searchResults.cdsco.length === 0 && searchResults.ja.length === 0)) && (
-              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center' }}>
-                No matches found.
-              </div>
-            )}
-
-            {searchResults && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {searchResults.cdsco.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
-                      Approved CDSCO Formulations:
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {searchResults.cdsco.map((res, ridx) => (
-                        <div
-                          key={ridx}
-                          onClick={() => handleSelectSearchResult(res, 'cdsco')}
-                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--greenlt)'}
-                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
-                        >
-                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {res.row['Drug Name']}
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              Indication: {res.row['Indication'] || 'Maintenance Therapy'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {searchResults.ja.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, marginTop: 6 }}>
-                      Jan Aushadhi Generic Alternatives:
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {searchResults.ja.map((res, ridx) => (
-                        <div
-                          key={ridx}
-                          onClick={() => handleSelectSearchResult(res, 'ja')}
-                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--safflt)'}
-                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
-                        >
-                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {res.row['Generic Name']}
-                            </div>
-                            <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>
-                              MRP: ₹{res.row['MRP']} ({res.row['Unit Size']})
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Trust Badges */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
-        {[
-          ['📁', 'CDSCO DB', '3,300+ formulations'],
-          ['💊', 'Jan Aushadhi', 'Government generic list'],
-          ['🔎', 'Offline Search', 'Instant salt matching'],
-          ['🛡️', 'Local Privacy', 'Scans run on-device']
-        ].map(([icon, title, sub]) => (
-          <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
+        <div className="bento-grid">
+          {/* Left Tile: Scanner Probe Module */}
+          <div className="bento-card bento-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 400 }}>
             <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>{title}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{sub}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// MODULE: OPTICAL_PROBE_VISION</span>
+                <span style={{ fontSize: 10, background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>LOCAL_WASM_LOADED</span>
+              </div>
+              
+              <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: 'var(--text-main)' }}>
+                Analyze Medicine / Prescription
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+                Point your device camera probe at any medicine strip or prescription. Agada decodes chemical composition, schedule classification, and Jan Aushadhi generic availability.
+              </p>
+
+              <div className="scanner-viewport" style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, position: 'relative' }}>
+                <div className="scanner-laser"></div>
+                <div style={{ position: 'absolute', top: 12, left: 12, width: 14, height: 14, borderLeft: '2px solid var(--emerald)', borderTop: '2px solid var(--emerald)' }}></div>
+                <div style={{ position: 'absolute', top: 12, right: 12, width: 14, height: 14, borderRight: '2px solid var(--emerald)', borderTop: '2px solid var(--emerald)' }}></div>
+                <div style={{ position: 'absolute', bottom: 12, left: 12, width: 14, height: 14, borderLeft: '2px solid var(--emerald)', borderBottom: '2px solid var(--emerald)' }}></div>
+                <div style={{ position: 'absolute', bottom: 12, right: 12, width: 14, height: 14, borderRight: '2px solid var(--emerald)', borderBottom: '2px solid var(--emerald)' }}></div>
+                
+                <div style={{ textAlign: 'center', zIndex: 5 }}>
+                  <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>CAMERA_PROBE_VIEWPORT_STANDBY</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn-cyber-primary" onClick={() => onCamera('medicine')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  📷 Scan Medicine Strip
+                </button>
+                <button className="btn-cyber-primary" onClick={() => onCamera('prescription')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg, var(--cyan) 0%, #0891b2 100%)', boxShadow: 'var(--cyan-glow)' }}>
+                  📝 Scan Prescription
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-cyber-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1, fontSize: 12 }}>
+                  Upload Strip Image
+                </button>
+                <button className="btn-cyber-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1, fontSize: 12 }}>
+                  Upload Rx Image
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Settings Panel */}
-      <div className="glass-card" style={{ 
-        padding: '16px', 
-        marginTop: '20px', 
-        animation: 'fadeUp 0.5s ease 0.3s both'
-      }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12 }}>
-          Settings
-        </h3>
-        
-        {/* WASM Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={wasmEnabled} onChange={e => setWasmEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
-              Image enhancement
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
-            cleans up photos taken in bad lighting before running OCR. runs locally in your browser.
-          </div>
-          {wasmEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22, marginTop: 4 }}>
-              <span style={{ fontSize: 11, color: 'var(--textlt)', fontWeight: 600 }}>Filter Mode:</span>
-              <select value={wasmFilter} onChange={e => setWasmFilter(parseInt(e.target.value))} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--navy)', background: '#fff', fontWeight: 600 }}>
-                <option value={1}>Adaptive Binarization</option>
-                <option value={2}>Sobel Edge Detection</option>
-                <option value={3}>Contrast Stretching</option>
-              </select>
+          {/* Right Tile: Chemical Salts Terminal */}
+          <div className="bento-card bento-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 400 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// REGISTRY: CDSCO_SALT_DATABASE</span>
+              <span style={{ fontSize: 10, background: 'rgba(6,182,212,0.15)', color: 'var(--cyan)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>OFFLINE_INDEX_OK</span>
             </div>
-          )}
-        </div>
-        
-        {/* Async Stream Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
-              Background analysis
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
-            runs scans in the background so the app doesn't hang.
-          </div>
-        </div>
+            
+            <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: 'var(--text-main)' }}>
+              Search Salts & Brands
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+              Directly query official government generic compositions and commercial pharmaceutical brands offline.
+            </p>
 
-        {/* Local OCR Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={localOcrEnabled} onChange={e => setLocalOcrEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1b7a4a' }} />
-              Offline OCR
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
-            reads text from medicine strips directly in your browser. slower on cheap phones but your data stays on-device.
-          </div>
-        </div>
-
-        {/* ZK Vault Toggle / Control */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6 }}>
-              PIN lock
-            </span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: vaultPin ? '#e8f5ee' : '#efefef', color: vaultPin ? '#1b7a4a' : '#9aa0a6' }}>
-              {vaultPin ? 'locked' : 'off'}
-            </span>
-          </div>
-          <div style={{ fontSize: 11, color: '#9aa0a6', paddingLeft: 22, lineHeight: 1.45 }}>
-            encrypts your saved medicines with a 4-digit PIN. if you forget it, your data is gone.
-          </div>
-
-          <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-            {!vaultPin ? (
-              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#e8f5ee', color: '#1b7a4a', fontWeight: 600 }}>
-                Set PIN
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <input 
+                type="text" 
+                value={searchQuery} 
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
+                placeholder="Type brand e.g. Crocin, Paracetamol, Atorvastatin..."
+                style={{ flex: 1 }}
+              />
+              <button className="btn-cyber-primary" onClick={() => handleGlobalSearch(searchQuery)}>
+                Search
               </button>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              {searchResults && searchResults.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+                  {searchResults.map((r, idx) => (
+                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>{r.brandName || r.saltName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.saltComposition || r.therapeuticClass || 'Salt record'}</div>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>ANALYZE &gt;</div>
+                    </div>
+                  ))}
+                </div>
+              ) : bookmarks && bookmarks.length > 0 ? (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>Saved Compounds & Bookmarks</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {bookmarks.map((b, idx) => (
+                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
+                        <span>💊</span>
+                        <span style={{ fontWeight: 600 }}>{b.brandName || b.saltName}</span>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--rose)', fontWeight: 700, padding: 0, marginLeft: 4 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12.5 }}>
+                  Type a medicine name above to search our offline generic index.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Bento: Cryptographic User Vault */}
+          <div className="bento-card bento-col-12">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// CRYPTO_VAULT: AES-256-GCM LOCAL STORAGE</span>
+              <span style={{ fontSize: 10, background: isVaultLocked ? 'rgba(244,63,94,0.15)' : 'rgba(16,185,129,0.15)', color: isVaultLocked ? 'var(--rose)' : 'var(--emerald)', border: isVaultLocked ? '1px solid rgba(244,63,94,0.3)' : '1px solid rgba(16,185,129,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>
+                {isVaultLocked ? 'VAULT_ENCRYPTED_LOCKED' : 'VAULT_UNLOCKED'}
+              </span>
+            </div>
+
+            {isVaultLocked ? (
+              <div style={{ maxWidth: 420, margin: '0 auto', textAlign: 'center', padding: '16px 0' }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🔒</div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: 'var(--text-main)' }}>Enter Vault PIN</h3>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
+                  Your medicine cabinet, dosage schedule, and logs are encrypted in browser IndexedDB.
+                </p>
+                
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
+                  <input 
+                    type="password" 
+                    maxLength={6} 
+                    value={pinInput} 
+                    onChange={(e) => setPinInput(e.target.value)} 
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleUnlockVault() }}
+                    placeholder="6-Digit PIN"
+                    style={{ width: 160, textAlign: 'center', letterSpacing: '0.4em', fontSize: 18, height: 42 }}
+                  />
+                  <button className="btn-cyber-primary" onClick={handleUnlockVault} style={{ height: 42 }}>
+                    Unlock
+                  </button>
+                </div>
+                {pinError && <div style={{ color: 'var(--rose)', fontSize: 12, fontWeight: 600 }}>{pinError}</div>}
+                
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
+                  <button className="btn-cyber-secondary" onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px' }}>
+                    Setup New PIN
+                  </button>
+                  <button className="btn-cyber-secondary" onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)' }}>
+                    Use Guest Mode
+                  </button>
+                </div>
+              </div>
             ) : (
-              <>
-                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#efefef', color: '#1a1a2e', fontWeight: 600 }}>
-                  Lock now
-                </button>
-                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: '#fce8e6', color: '#d93025', fontWeight: 600 }}>
-                  Remove PIN
-                </button>
-              </>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--emerald)' }}>✓ Vault Decrypted & Active</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    Active Profile: <strong style={{ color: 'var(--text-main)' }}>{activeProfile?.name || 'Guest User'}</strong> | Cabinet contains <strong style={{ color: 'var(--text-main)' }}>{activeProfile?.cabinet?.length || 0}</strong> active medicines.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <select 
+                    value={activeProfileId || ''} 
+                    onChange={(e) => setActiveProfileId(Number(e.target.value))}
+                    style={{ height: 36, fontSize: 12, background: 'rgba(3,7,18,0.8)', color: '#fff', borderRadius: 8, padding: '0 8px', border: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>Profile: {p.name}</option>
+                    ))}
+                  </select>
+                  <button className="btn-cyber-secondary" onClick={() => setShowAddProfile(true)} style={{ fontSize: 12, height: 36, padding: '0 12px' }}>
+                    + Add Profile
+                  </button>
+                  <button className="btn-cyber-secondary" onClick={() => setIsVaultLocked(true)} style={{ fontSize: 12, height: 36, padding: '0 12px' }}>
+                    🔒 Lock Vault
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showAddProfile && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, padding: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+                <input 
+                  type="text" 
+                  value={profileInput} 
+                  onChange={e => setProfileInput(e.target.value)} 
+                  placeholder="Profile name (e.g. Mom, Dad)..." 
+                  style={{ flex: 1, height: 36 }}
+                />
+                <button className="btn-cyber-primary" onClick={() => handleAddProfile(profileInput)} style={{ height: 36, padding: '0 16px' }}>Save Profile</button>
+              </div>
             )}
           </div>
-
-          {showPinSetup && (
-            <div style={{ margin: '8px 0 0 22px', padding: '10px', border: '1.5px solid var(--border)', borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.25s' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--navy)' }}>Create a 4-Digit Security PIN:</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input type="password" maxLength={4} pattern="\d*" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,''))} placeholder="1234" style={{ width: 80, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bordermd)', fontSize: 12, textAlign: 'center', letterSpacing: '0.2em' }} />
-                <button onClick={() => handleSetupPin(newPin)} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: 'var(--green)', color: '#fff', fontWeight: 700 }}>Save</button>
-                <button onClick={() => { setShowPinSetup(false); setNewPin(''); setPinError('') }} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: '#fff', border: '1px solid var(--border)', color: 'var(--textlt)' }}>Cancel</button>
-              </div>
-              {pinError && <div style={{ fontSize: 10.5, color: 'var(--red)', fontWeight: 700 }}>{pinError}</div>}
-            </div>
-          )}
-        </div>
-
-        {/* Interactive Privacy & Security Guide */}
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
-          <button 
-            type="button"
-            onClick={() => setShowPrivacySchool(!showPrivacySchool)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: '#f4f6f8',
-              border: '1px solid #dadce0',
-              borderRadius: 10,
-              padding: '10px 14px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 700,
-              color: '#1a1a2e'
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Privacy & Security Guide</span>
-            <span>{showPrivacySchool ? 'Hide Guide' : 'Learn How It Works'}</span>
-          </button>
-          
-          {showPrivacySchool && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14, animation: 'fadeIn 0.3s ease' }}>
-              <div style={{ fontSize: 12.5, color: '#1a1a2e', lineHeight: 1.5, background: '#f4f6f8', padding: 12, borderRadius: 8, border: '1px solid #dadce0' }}>
-                <strong>How does Agada handle your privacy?</strong> All processing and storage happen entirely on your device. We do not upload your images, searches, or medical details to any external servers.
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>1. Local Database Storage</div>
-                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
-                    Your saved scans and medicine cabinet are stored securely in your browser's local sandbox (IndexedDB and localStorage). Deleting your browser cache permanently clears all records.
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'left', borderTop: '1px solid #f1f3f4', paddingTop: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>2. Optional PIN Protection</div>
-                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
-                    Enabling a PIN encrypts your medicine list on-device using AES-256 (standard Web Crypto API). Since the PIN is never saved anywhere else, your data is completely inaccessible if locked.
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'left', borderTop: '1px solid #f1f3f4', paddingTop: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>3. Offline Processing</div>
-                  <div style={{ fontSize: 11.5, color: '#5f6368', lineHeight: 1.5 }}>
-                    Search suggestions and phonetic matching are processed locally via a background Web Worker. If offline vision is enabled, text extraction runs directly inside your browser.
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Saved Scans Registry */}
-      {isVaultLocked ? (
-        <div className="glass-card" style={{ 
-          marginTop: 24, 
-          padding: '16px', 
-          textAlign: 'center',
-          animation: 'fadeUp 0.5s ease 0.35s both'
-        }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>Saved Medicines Vault</h3>
-          <p style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 12 }}>Your local scan history is encrypted. Enter your 4-digit PIN to unlock it.</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-            <input type="password" maxLength={4} pattern="\d*" value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,''))} placeholder="••••" style={{ width: 80, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--bordermd)', fontSize: 13, textAlign: 'center', letterSpacing: '0.2em' }} />
-            <button onClick={() => handleUnlockVault(pinInput)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, background: 'var(--green)', color: '#fff', fontWeight: 600 }}>Unlock</button>
-          </div>
-          {pinError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, fontWeight: 600 }}>{pinError}</div>}
-        </div>
-      ) : (
-        bookmarks && bookmarks.length > 0 && (
-          <div style={{ marginTop: 24, marginBottom: 12, animation: 'fadeUp 0.5s ease 0.35s both' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔒 Saved Medicines ({bookmarks.length}) {vaultPin && <span style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 400 }}>(Encrypted)</span>}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-              {bookmarks.map((b, idx) => {
-                const isInCabinet = cabinet.some(item => item.brandName === b.brandName && item.saltComposition === b.saltComposition);
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => handleSelectBookmark(b)}
-                    style={{
-                      background: '#fff',
-                      border: isInCabinet ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
-                      borderRadius: 12,
-                      padding: '10px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.01)',
-                      transition: 'all 0.15s'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--green)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = isInCabinet ? 'var(--green)' : 'var(--border)';
-                      e.currentTarget.style.transform = 'none';
-                    }}
-                  >
-                    <div 
-                      onClick={(e) => { e.stopPropagation(); toggleCabinetItem(b, e); }} 
-                      title="Add/remove from interaction check cabinet"
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        width: 28, 
-                        height: 28, 
-                        borderRadius: 8, 
-                        border: `1.5px solid ${isInCabinet ? 'var(--green)' : 'var(--bordermd)'}`, 
-                        background: isInCabinet ? 'var(--green)' : '#fff',
-                        color: isInCabinet ? '#fff' : 'transparent',
-                        fontWeight: 900,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      ✓
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {b.brandName}
-                      </div>
-                      <div style={{ fontSize: 10.5, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {b.saltComposition}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => handleDeleteBookmark(e, b)}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: 'transparent',
-                        color: 'var(--textlt)',
-                        fontSize: 14,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        transition: 'color 0.2s'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
-                      onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )
-      )}
         </div>
       )}
 
