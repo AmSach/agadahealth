@@ -72,6 +72,66 @@ const PK_LIBRARY = {
     typicalDose: 500,
     partition: 'hydrophilic',
     maxDailyDoseMg: 3000,
+  },
+  duloxetine: {
+    name: 'Duloxetine',
+    halfLifeElimination: 12.0,
+    halfLifeAbsorption: 1.0,
+    vd: 2.6,
+    bioavailability: 0.5,
+    minEffectiveConc: 0.03,
+    minToxicConc: 0.15,
+    typicalDose: 60,
+    partition: 'lipophilic',
+    maxDailyDoseMg: 120,
+  },
+  azithromycin: {
+    name: 'Azithromycin',
+    halfLifeElimination: 68.0,
+    halfLifeAbsorption: 0.5,
+    vd: 31.0,
+    bioavailability: 0.37,
+    minEffectiveConc: 0.4,
+    minToxicConc: 3.0,
+    typicalDose: 500,
+    partition: 'lipophilic',
+    maxDailyDoseMg: 500,
+  },
+  cetirizine: {
+    name: 'Cetirizine',
+    halfLifeElimination: 8.3,
+    halfLifeAbsorption: 0.4,
+    vd: 0.4,
+    bioavailability: 0.7,
+    minEffectiveConc: 0.1,
+    minToxicConc: 0.8,
+    typicalDose: 10,
+    partition: 'hydrophilic',
+    maxDailyDoseMg: 10,
+  },
+  telmisartan: {
+    name: 'Telmisartan',
+    halfLifeElimination: 24.0,
+    halfLifeAbsorption: 0.5,
+    vd: 7.0,
+    bioavailability: 0.42,
+    minEffectiveConc: 0.04,
+    minToxicConc: 0.3,
+    typicalDose: 40,
+    partition: 'lipophilic',
+    maxDailyDoseMg: 80,
+  },
+  amlodipine: {
+    name: 'Amlodipine',
+    halfLifeElimination: 35.0,
+    halfLifeAbsorption: 1.2,
+    vd: 21.0,
+    bioavailability: 0.64,
+    minEffectiveConc: 0.005,
+    minToxicConc: 0.025,
+    typicalDose: 5,
+    partition: 'lipophilic',
+    maxDailyDoseMg: 10,
   }
 }
 
@@ -84,6 +144,13 @@ export function getPKParameters(saltComposition) {
     }
   }
 
+  let detectedDose = 500
+  const match = saltComposition.match(/(\d+)\s*mg/i)
+  if (match) {
+    detectedDose = parseInt(match[1]) || 500
+  }
+  const calculatedMax = detectedDose <= 50 ? detectedDose * 2 : detectedDose <= 200 ? detectedDose * 3 : detectedDose * 4
+
   return {
     name: saltComposition.split(' ')[0] || 'Drug',
     halfLifeElimination: 4.0,
@@ -92,9 +159,9 @@ export function getPKParameters(saltComposition) {
     bioavailability: 0.7,
     minEffectiveConc: 1.0,
     minToxicConc: 30.0,
-    typicalDose: 500,
+    typicalDose: detectedDose,
     partition: 'hydrophilic',
-    maxDailyDoseMg: 2000,
+    maxDailyDoseMg: calculatedMax,
   }
 }
 
