@@ -8,6 +8,7 @@ import HealthCard from '../components/HealthCard.jsx'
 import { useLang, useSetPage } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
 
+// Import Wasm, Crypto and ARScanner components
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
@@ -21,6 +22,7 @@ import { parseSalts, matchQuality } from '../services/dbService.js'
 
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
+// Dynamic script loader for Tesseract.js
 const loadTesseract = async () => {
   if (window.Tesseract) return window.Tesseract;
   return new Promise((resolve, reject) => {
@@ -35,6 +37,7 @@ const loadTesseract = async () => {
   });
 };
 
+// Global cached Tesseract worker promise to prevent double creation and keep it warm
 let tesseractWorkerPromise = null;
 
 const getTesseractWorker = async () => {
@@ -73,15 +76,15 @@ function extractCandidateQueries(text) {
   for (let line of lines) {
     // Replace non-alphanumeric (except space) with space
     let cleaned = line.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-
+    // Split into tokens
     let tokens = cleaned.split(/\s+/).map(t => t.trim()).filter(Boolean);
-
+    // Filter tokens
     let filteredTokens = tokens.filter(token => {
-
+      // Filter out pure numbers
       if (/^\d+$/.test(token)) return false;
-
+      // Filter out noise words
       if (NOISE_WORDS.has(token)) return false;
-
+      // Keep only tokens longer than 2 characters
       return token.length >= 3;
     });
     
@@ -198,16 +201,20 @@ export default function Scanner() {
   const cameraRef = useRef(null)
   const uploadRef = useRef(null)
 
+  // WASM Pre-processing settings
   const [wasmEnabled, setWasmEnabled] = useState(true)
-  const [wasmFilter, setWasmFilter] = useState(1)
+  const [wasmFilter, setWasmFilter] = useState(1) // 1 = Adaptive, 2 = Sobel, 3 = Contrast Stretch
   const [processedPreview, setProcessedPreview] = useState(null)
 
+  // Local OCR settings
   const [localOcrEnabled, setLocalOcrEnabled] = useState(true)
 
+  // SSE Stream states
   const [useAsyncQueue, setUseAsyncQueue] = useState(true)
   const [activeStepId, setActiveStepId] = useState(null)
   const [completedStepIds, setCompletedStepIds] = useState([])
 
+  // ZK local encryption states
   const [bookmarks, setBookmarks] = useState([])
   const [isVaultLocked, setIsVaultLocked] = useState(false)
   const [vaultPin, setVaultPin] = useState('')
@@ -216,6 +223,7 @@ export default function Scanner() {
   const [showPinSetup, setShowPinSetup] = useState(false)
   const [newPin, setNewPin] = useState('')
 
+  // Medicine Cabinet & Profiles
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
   const [activeTab, setActiveTab] = useState('cabinet')
@@ -242,22 +250,26 @@ export default function Scanner() {
   const [activeDuplications, setActiveDuplications] = useState([])
   const [activeSchedule, setActiveSchedule] = useState({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
 
+  // Client-Side Search Engine states
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [isSearching, setIsSearching] = useState(false)
   const [searchWorker, setSearchWorker] = useState(null)
   const [searchStatus, setSearchStatus] = useState('Initializing search engine...')
 
+  // Smart Cabinet Hub detail state variables
   const [selectedCabinetIndex, setSelectedCabinetIndex] = useState(0)
   const cabinetSearchQueryRef = useRef('')
   const [cabinetSearchResults, setCabinetSearchResults] = useState(null)
   const [isCabinetSearching, setIsCabinetSearching] = useState(false)
 
+  // Direct Cabinet Adding Search States
   const cabinetAddQueryRef = useRef('')
   const [cabinetAddQuery, setCabinetAddQuery] = useState('')
   const [cabinetAddResults, setCabinetAddResults] = useState(null)
   const [isCabinetAddSearching, setIsCabinetAddSearching] = useState(false)
 
+  // Cabinet View Toggles & Add Modal Form
   const [showCabinet3D, setShowCabinet3D] = useState(true)
   const [showManualAddModal, setShowManualAddModal] = useState(false)
   const [manualAddForm, setManualAddForm] = useState({
@@ -335,10 +347,12 @@ export default function Scanner() {
     }
   }, [selectedCabinetIndex, selectedMed?.brandName, selectedMed?.saltComposition, selectedMed?.strength, selectedMed?.frequency, handleCabinetSearch])
 
+  // Initialize Search worker and database cache
   React.useEffect(() => {
     let active = true;
     let worker = null;
 
+    // Pre-warm Tesseract worker in the background
     getTesseractWorker().catch(err => {
       console.warn("Tesseract pre-warm failed (will retry on scan):", err);
     });
@@ -465,9 +479,10 @@ export default function Scanner() {
     }
   }
 
+  // Load bookmarks and profiles from IndexedDB
   const loadAllData = async (pin = vaultPin) => {
     try {
-
+      // 1. Load bookmarks
       let savedStr = await getSecureLogs()
       if (!savedStr) {
         savedStr = localStorage.getItem('agada_bookmarks')
@@ -492,7 +507,8 @@ export default function Scanner() {
       }
       parsedBookmarks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
       setBookmarks(parsedBookmarks)
-
+      
+      // 2. Load Profiles
       const keys = await listProfileIds()
       let loadedProfiles = []
       for (const k of keys) {
@@ -545,6 +561,7 @@ export default function Scanner() {
     }
   }
 
+  // Toggles an item in the active profile's cabinet
   const toggleCabinetItem = useCallback(async (bookmark, e) => {
     if (e) e.stopPropagation()
     const updated = profiles.map(p => {
@@ -571,6 +588,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }, [profiles, activeProfileId])
 
+  // Update a profile's emergency health card details
   const handleSaveHealthCard = async (formData) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -581,6 +599,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Log a symptom for the active profile
   const handleLogSymptom = async (text) => {
     if (!text.trim()) return
     const updated = profiles.map(p => {
@@ -597,6 +616,7 @@ export default function Scanner() {
     setSymptomInput('')
   }
 
+  // Delete a symptom
   const handleDeleteSymptom = async (idx) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -608,6 +628,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Toggle notification alerts for a medicine
   const handleToggleNotification = async (med) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -624,6 +645,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Update pill stock counts
   const handleUpdatePillCount = async (med, diff) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -658,6 +680,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Update reminder take-times
   const handleUpdateReminderTime = async (slot, val) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -669,6 +692,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Toggle daily dose adherence checklist items
   const handleToggleAdherence = async (dateStr, slot) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -682,6 +706,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Add a new family profile
   const handleAddProfile = async (name) => {
     if (!name.trim()) return
     const cleanId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '_')
@@ -708,6 +733,7 @@ export default function Scanner() {
     setShowAddProfile(false)
   }
 
+  // Delete a profile
   const handleDeleteProfile = async (profileId) => {
     if (profiles.length <= 1) return
     const updated = profiles.filter(p => p.id !== profileId)
@@ -718,6 +744,7 @@ export default function Scanner() {
     localStorage.setItem('agada_active_profile_id', nextId)
   }
 
+  // Notification Reminder Background loop
   React.useEffect(() => {
     if (activeProfile && activeProfile.cabinet && activeProfile.cabinet.length > 0) {
       const times = activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
@@ -730,6 +757,7 @@ export default function Scanner() {
     }
   }, [profiles, activeProfileId])
 
+  // Load bookmarks and profiles on view load
   React.useEffect(() => {
     if (view === VIEWS.HOME) {
       loadAllData()
@@ -879,10 +907,10 @@ export default function Scanner() {
       }
 
       if (localOcrEnabled && scanMode === 'medicine') {
-
+        // Run Local OCR Pipeline client-side
         setActiveStepId('started')
         setCompletedStepIds([])
-        await new Promise(r => setTimeout(r, 400))
+        await new Promise(r => setTimeout(r, 400)) // small layout delay
 
         // 1. Vision Step (OCR)
         setCompletedStepIds(prev => [...prev, 'started'])
@@ -915,6 +943,7 @@ export default function Scanner() {
           throw new Error("Could not identify any medicine names from the extracted text.");
         }
 
+        // Helper to query searchWorker with promises
         const getSearchResultsPromise = (queryStr) => {
           return new Promise((resolve) => {
             const handler = (e) => {
@@ -934,10 +963,12 @@ export default function Scanner() {
           });
         };
 
+        // Query the search worker for all candidates
         const allSearchResults = await Promise.all(
           candidates.map(c => getSearchResultsPromise(c))
         );
 
+        // Find the best match across all candidates by identifying the single candidate with the highest overall score in either database
         let bestCdscoMatch = null;
         let bestJaMatch = null;
         let bestCdscoScore = 0;
@@ -963,10 +994,12 @@ export default function Scanner() {
           }
         });
 
+        // Minimum score threshold to prevent bad hallucination matches
         if (bestCdscoScore < 0.5 && bestJaScore < 0.5) {
           throw new Error("Could not find any matching medicine salts in the CDSCO approved registry.");
         }
 
+        // Determine salt composition and brand name
         let saltName = '';
         if (bestJaMatch) {
           saltName = bestJaMatch.row['Generic Name'];
@@ -1010,6 +1043,7 @@ export default function Scanner() {
 
         const localInfo = getLocalMedicineInfo(saltName);
 
+        // Build alternatives from search worker results for the best candidate
         const allAlts = [];
         const jaMatchesForBest = allSearchResults[candidates.indexOf(bestCandidate)]?.ja || [];
         
@@ -1096,7 +1130,7 @@ export default function Scanner() {
       }
 
       if (!useAsyncQueue) {
-
+        // Fallback to synchronous OCR handler
         let res
         if (scanMode === 'prescription') {
           await new Promise(r => setTimeout(r, 600))
@@ -1116,7 +1150,7 @@ export default function Scanner() {
         setResults(res)
         setView(VIEWS.RESULTS)
       } else {
-
+        // Serverless Live POST stream queue handler
         const response = await fetch('/api/scan-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1152,6 +1186,7 @@ export default function Scanner() {
               try {
                 const event = JSON.parse(dataStr)
 
+                // Map events to visual stepper state
                 if (event.step === 'started') {
                   setActiveStepId('started')
                 } else if (event.step === 'vision_start') {
@@ -1197,6 +1232,7 @@ export default function Scanner() {
     }
   }, [scanMode, useAsyncQueue, localOcrEnabled, searchWorker])
 
+// Base64 helper to convert camera capture to Blob for QR/barcode scanner
 function base64ToBlob(base64, mime = 'image/jpeg') {
   const byteString = atob(base64)
   const ab = new ArrayBuffer(byteString.length)
@@ -1207,6 +1243,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   return new Blob([ab], { type: mime })
 }
 
+  // Handle image capture from live WebRTC stream
   const handleCapturedFrame = useCallback(async (base64, directBarcodeText = null) => {
     setView(VIEWS.LOADING)
     setError(null)
@@ -1235,6 +1272,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     await startAnalysis(base64, barcodeData)
   }, [startAnalysis])
 
+  // Handle standard file selection
   const handleFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
@@ -1251,7 +1289,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     setPreview(URL.createObjectURL(file))
 
     try {
-
+      // Helper to wrap promises with a timeout fallback
       const timeoutPromise = (promise, ms) => {
         return new Promise((resolve) => {
           const timer = setTimeout(() => resolve(null), ms);
@@ -1302,13 +1340,14 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
-
+      
+      {/* Navbar header */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--navy)', color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, background: 'var(--green)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 15 }}>A.</div>
           <div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 17, lineHeight: 1.1, fontFamily: 'var(--font-mono)' }}>agada (अगद) 🍃</div>
-            <div style={{ color: 'var(--neon-green)', fontSize: 10.5, fontFamily: 'var(--font-mono)' }}>home science garage project v2.1</div>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: 17, lineHeight: 1.1 }}>Agada</div>
+            <div style={{ color: '#9CA3AF', fontSize: 10.5 }}>Know Your Medicine</div>
           </div>
         </div>
         <button id="menu-toggle-btn" onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
@@ -1330,6 +1369,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
         onSymptoms={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('symptoms'); }}
       />
 
+      {/* Beta banner */}
       <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
         <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong>  -  {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
@@ -1534,12 +1574,13 @@ function EmergencyCardResultView({ results, onReset, t }) {
         flexDirection: 'column',
         gap: '16px'
       }}>
-        
+        {/* Patient Name */}
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', textAlign: 'left' }}>
           <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PATIENT NAME</span>
           <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--navy)', marginTop: '2px' }}>{profile.name || 'Not Specified'}</div>
         </div>
 
+        {/* Blood Group & Allergies */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', textAlign: 'left' }}>
           <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase' }}>BLOOD GROUP</span>
@@ -1566,11 +1607,13 @@ function EmergencyCardResultView({ results, onReset, t }) {
           </div>
         </div>
 
+        {/* Chronic Conditions */}
         <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '14px', textAlign: 'left' }}>
           <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>CHRONIC CONDITIONS</span>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.4 }}>{profile.chronicConditions || 'None Logged'}</div>
         </div>
 
+        {/* Emergency Contact */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
           <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EMERGENCY CONTACT</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1600,6 +1643,7 @@ function EmergencyCardResultView({ results, onReset, t }) {
           </div>
         </div>
 
+        {/* Actions */}
         <button 
           onClick={onReset}
           style={{
@@ -1660,16 +1704,6 @@ function HomeView({
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
-
-  const selectCabinetItem = (idx) => {
-    setSelectedCabinetIndex(idx);
-    setTimeout(() => {
-      const el = document.getElementById('cabinet-detail-panel');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }, 100);
-  };
 
   const handleQuickAdd = async (medName, saltName) => {
     const updated = profiles.map(p => {
@@ -1767,38 +1801,22 @@ function HomeView({
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
 
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '10%', left: '5%', fontSize: '24px', opacity: 0.15, transform: 'rotate(15deg)', animation: 'float-shape 15s ease-in-out infinite' }}>📐</div>
-        <div style={{ position: 'absolute', top: '25%', right: '8%', fontSize: '28px', opacity: 0.12, transform: 'rotate(-25deg)', animation: 'float-shape 22s ease-in-out infinite' }}>⬡</div>
-        <div style={{ position: 'absolute', bottom: '15%', left: '7%', fontSize: '32px', opacity: 0.10, transform: 'rotate(45deg)', animation: 'float-shape 18s ease-in-out infinite' }}>👾</div>
-        <div style={{ position: 'absolute', bottom: '30%', right: '5%', fontSize: '26px', opacity: 0.14, transform: 'rotate(10deg)', animation: 'float-shape 25s ease-in-out infinite' }}>⚡</div>
-        <div style={{ position: 'absolute', top: '45%', left: '12%', fontSize: '22px', opacity: 0.08, transform: 'rotate(-5deg)', animation: 'float-shape 19s ease-in-out infinite' }}>◆</div>
-        <div style={{ position: 'absolute', top: '65%', right: '15%', fontSize: '30px', opacity: 0.11, transform: 'rotate(35deg)', animation: 'float-shape 21s ease-in-out infinite' }}>★</div>
-        <div style={{ position: 'absolute', top: '15%', left: '45%', fontSize: '24px', opacity: 0.07, transform: 'rotate(120deg)', animation: 'float-shape 26s ease-in-out infinite' }}>🛸</div>
-        <div style={{ position: 'absolute', bottom: '5%', left: '35%', fontSize: '28px', opacity: 0.09, transform: 'rotate(-40deg)', animation: 'float-shape 20s ease-in-out infinite' }}>■</div>
-        <div style={{ position: 'absolute', bottom: '45%', right: '40%', fontSize: '26px', opacity: 0.06, transform: 'rotate(15deg)', animation: 'float-shape 24s ease-in-out infinite' }}>▲</div>
-      </div>
-
+      {/* Modern Hero Section */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
           <span style={{ fontSize: 14 }}>✨</span> {t.knowYourMedicine || 'Know Your Medicine'}
         </div>
 
-        <div className="spiral-binder">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="spiral-ring"></div>
-          ))}
-        </div>
-
-        <h1 style={{ fontSize: 34, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.2, marginBottom: 14, fontFamily: 'var(--font-sans)' }}>
-          chemists in india upcharge the fuck out of you.<br />
-          <span style={{ color: 'var(--neon-green)', fontFamily: 'var(--font-mono)' }}>let's stop overpaying.</span>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
+          {t.heroLine1 || 'Verify.'}<br />
+          <span style={{ background: 'linear-gradient(90deg, var(--green), #0D9488)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t.heroLine2 || 'Never overpay.'}</span>
         </h1>
 
-        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 360, margin: '0 auto 36px', fontFamily: 'var(--font-sans)' }}>
-          i built something that should have existed already. snap a photo of any medicine strip and see what the salt actually costs.
+        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 36px' }}>
+          {t.heroDesc || 'Agada reads any medicine strip to find authenticity, side effects, and cheaper Jan Aushadhi alternatives instantly.'}
         </p>
 
+        {/* Floating Scanner Graphic */}
         <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
@@ -1808,6 +1826,7 @@ function HomeView({
           <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
         </div>
 
+        {/* Primary Call to Action */}
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
           <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
             <span style={{ fontSize: 22 }}>📷</span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
@@ -1828,6 +1847,7 @@ function HomeView({
         </div>
       </div>
 
+      {/* Offline search engine section */}
       <div style={{
         background: '#fff',
         border: '1.5px solid var(--border)',
@@ -1893,6 +1913,7 @@ function HomeView({
           </div>
         </div>
 
+        {/* Real-time Search suggestions */}
         {searchQuery && (
           <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, maxHeight: 220, overflowY: 'auto' }}>
             {isSearching && (
@@ -1977,6 +1998,7 @@ function HomeView({
         )}
       </div>
 
+      {/* Trust Badges */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
         {[
           ['🛡️', 'CDSCO DB', '3,300+ tracked'],
@@ -1994,6 +2016,7 @@ function HomeView({
         ))}
       </div>
 
+      {/* Settings Panel */}
       <div style={{ 
         background: '#fff', 
         border: '1.5px solid var(--border)', 
@@ -2006,7 +2029,8 @@ function HomeView({
         <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           ⚙️ Settings & Device Security
         </h3>
-
+        
+        {/* WASM Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -2029,7 +2053,8 @@ function HomeView({
             </div>
           )}
         </div>
-
+        
+        {/* Async Stream Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -2043,6 +2068,7 @@ function HomeView({
           </div>
         </div>
 
+        {/* Local OCR Toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -2056,6 +2082,7 @@ function HomeView({
           </div>
         </div>
 
+        {/* ZK Vault Toggle / Control */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2099,6 +2126,7 @@ function HomeView({
           )}
         </div>
 
+        {/* Interactive Privacy & Security Guide (Privacy School) */}
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
           <button 
             type="button"
@@ -2177,6 +2205,7 @@ function HomeView({
                 🛡️ <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
               </div>
 
+              {/* Tab Selector */}
               <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
                 {[
                   { id: 'diary', label: '📓 Local Diary', sub: 'Data Location' },
@@ -2215,6 +2244,7 @@ function HomeView({
                 })}
               </div>
 
+              {/* Tab Content */}
               <div style={{ background: 'var(--bgsoft)', border: '1.5px solid var(--border)', borderRadius: 12, padding: 14 }}>
                 {schoolTab === 'diary' && (
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2412,6 +2442,7 @@ function HomeView({
         </div>
       </div>
 
+      {/* Saved Scans Registry */}
       {isVaultLocked ? (
         <div style={{ 
           marginTop: 24, 
@@ -2524,6 +2555,7 @@ function HomeView({
         )
       )}
 
+      {/* Personal Medicine OS Dashboard */}
       {!isVaultLocked && (
         <div style={{ 
           marginTop: 20, 
@@ -2534,7 +2566,7 @@ function HomeView({
           boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.4s both'
         }}>
-          
+          {/* Profile Selector Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, background: 'var(--navy)', color: '#fff', padding: '10px 14px', borderRadius: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 16 }}>👤</span>
@@ -2561,6 +2593,7 @@ function HomeView({
             </div>
           </div>
 
+          {/* Add Profile Inline Form */}
           {showAddProfile && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, padding: 12, background: 'var(--bgsoft)', borderRadius: 10, animation: 'fadeIn 0.25s' }}>
               <input 
@@ -2574,6 +2607,7 @@ function HomeView({
             </div>
           )}
 
+          {/* Dashboard Navigation Tabs */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
             <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet</button>
             <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>⏰ Daily Schedule</button>
@@ -2581,21 +2615,20 @@ function HomeView({
             <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Track Symptoms</button>
           </div>
 
+          {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
-            <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+            <div>
               <style>{`
                 .cabinet-3d-container {
                   background: #fff;
                   border-radius: 16px;
-                  padding: 12px;
+                  padding: 20px;
                   box-shadow: var(--shadow);
                   display: flex;
                   flex-direction: column;
-                  gap: 20px;
+                  gap: 24px;
                   border: 1px solid var(--border);
                   margin-bottom: 24px;
-                  box-sizing: border-box;
-                  width: 100%;
                 }
                 .cabinet-shelf-3d {
                   position: relative;
@@ -2606,8 +2639,6 @@ function HomeView({
                   align-items: center;
                   justify-content: space-around;
                   padding: 12px 0;
-                  box-sizing: border-box;
-                  width: 100%;
                 }
                 .cabinet-shelf-ledge {
                   position: absolute;
@@ -2690,6 +2721,7 @@ function HomeView({
                 </div>
               </div>
 
+              {/* Direct Cabinet Add Search Box */}
               <div style={{ position: 'relative', marginBottom: 16 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
@@ -2790,13 +2822,14 @@ function HomeView({
                     </div>
                   ) : null}
                   <p style={{ fontSize: 13, color: 'var(--textlt)', margin: 0, lineHeight: 1.6, textAlign: 'left' }}>
-                    💥 CRAP! YOUR MEDICINE CABINET IS COMPLETELY EMPTY! 💥 I stayed up until 3:47 AM hacking this 3D virtual shelf view because boring lists make me sleep. Refill it by searching "Crocin" or "Calpol" above, or manually mount your stash!
+                    i built this 3D shelf view at 3 AM because list views are boring. if you haven't scanned anything yet, search for "Crocin" or "Calpol" above, or manually add your pill stash to populate your cabinet. (your medicine cabinet is empty).
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start', boxSizing: 'border-box' }}>
-
-                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
+                <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start' }}>
+                  
+                  {/* Left Column: Inventory List or 3D shelves grid */}
+                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                     
                     {showCabinet3D ? (
                       /* 3D Shelves View */
@@ -2842,7 +2875,7 @@ function HomeView({
                                   return (
                                     <div 
                                       key={idx} 
-                                      onClick={() => selectCabinetItem(realIdx)}
+                                      onClick={() => setSelectedCabinetIndex(realIdx)}
                                       className="med-box-hoverable"
                                       style={{
                                         transform: isSelected ? 'translateY(-6px)' : 'translateY(0)',
@@ -2878,7 +2911,8 @@ function HomeView({
                                     </div>
                                   );
                                 })}
-
+                                
+                                {/* Fill remainder slots to keep layout balanced */}
                                 {shelfItems.length < itemsPerShelf && Array.from({ length: itemsPerShelf - shelfItems.length }).map((_, emptyIdx) => (
                                   <div key={`empty-${emptyIdx}`} className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
                                     <span style={{ fontSize: '20px', color: '#475569' }}>＋</span>
@@ -2905,7 +2939,7 @@ function HomeView({
                           return (
                             <div 
                               key={idx} 
-                              onClick={() => selectCabinetItem(idx)}
+                              onClick={() => setSelectedCabinetIndex(idx)}
                               style={{ 
                                 display: 'flex', 
                                 flexDirection: 'column', 
@@ -2953,6 +2987,7 @@ function HomeView({
                                 </button>
                               </div>
 
+                              {/* Visual stock progress meter */}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: 11.5, color: 'var(--textmd)', fontWeight: 700 }}>
@@ -2969,6 +3004,7 @@ function HomeView({
                                 </div>
                               </div>
 
+                              {/* Dosing Actions and notifications */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <button 
@@ -3035,6 +3071,7 @@ function HomeView({
                       </>
                     )}
 
+                    {/* Interaction Warning Sub-Panel */}
                     {cabinet.length >= 2 && (
                       <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {activeInteractions.length > 0 && (
@@ -3107,6 +3144,7 @@ function HomeView({
                     )}
                   </div>
 
+                  {/* Right Column: Smart Cabinet Hub Details */}
                   {selectedMed && (() => {
                     const pkParams = getPKParameters(selectedMed.saltComposition || selectedMed.brandName);
                     
@@ -3131,6 +3169,7 @@ function HomeView({
                       return m ? parseInt(m[1]) : 500;
                     })();
 
+                    // Simulated PK data
                     const cabDoseTimes = cabDoseFreq === 1 ? [0] 
                                     : cabDoseFreq === 2 ? [0, 12] 
                                     : cabDoseFreq === 3 ? [0, 8, 16] 
@@ -3150,9 +3189,11 @@ function HomeView({
                     const currentPoint = cabPkData.find(d => d.time === cabScrubTime) || cabPkData[0] || { time: 0, conc: 0 };
                     const currentConc = currentPoint.conc;
 
+                    // Expiry check
                     const isExpired = selectedMed.expiryDate && new Date(selectedMed.expiryDate) < new Date();
                     const isExpiringSoon = selectedMed.expiryDate && !isExpired && (new Date(selectedMed.expiryDate) - new Date()) < (30 * 24 * 60 * 60 * 1000);
 
+                    // Adherence Compliance Score
                     const ad = activeProfile.adherence || {};
                     let totalDoseSlotsLogged = 0;
                     let totalDaysWithLogs = 0;
@@ -3173,6 +3214,7 @@ function HomeView({
                     }).join(' ') : '';
                     const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : '';
 
+                    // Adaptive safety result
                     const safetyResult = checkDosageSafety(
                       selectedMed.saltComposition || selectedMed.brandName,
                       cabDoseStrength,
@@ -3184,93 +3226,94 @@ function HomeView({
                     );
 
                     return (
-                      <div id="cabinet-detail-panel" style={{ 
-                        flex: '1.2 1.2 320px', 
-                        minWidth: 0,
-                        maxWidth: '100%',
+                      <div style={{ 
+                        flex: '2 2 400px', 
                         display: 'flex', 
                         flexDirection: 'column', 
                         gap: 16, 
                         background: '#fff', 
                         border: '1.5px solid var(--border)', 
                         borderRadius: 18, 
-                        padding: 16, 
+                        padding: 20, 
                         boxShadow: 'var(--shadow)',
-                        animation: 'fadeUp 0.3s ease',
-                        boxSizing: 'border-box'
+                        animation: 'fadeUp 0.3s ease'
                       }}>
-
+                        
+                        {/* Header Row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
                           <div style={{ textAlign: 'left' }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 NEURAL PILL DECRYPTOR HACK (CABINET DETAIL)</span>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 SMART CABINET HUB</span>
                             <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', margin: '4px 0 2px' }}>{selectedMed.brandName}</h3>
                             <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
                           </div>
-
+                          
+                          {/* Clean Flat Interactive SVG Capsule */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg viewBox="0 0 40 40" width="36" height="36" className="svg-capsule-pulse" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))', cursor: 'pointer' }} title="Active composition indicator">
                               <g transform="rotate(45 20 20)">
-                                
+                                {/* Top half */}
                                 <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                                
+                                {/* Bottom half */}
                                 <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                                
+                                {/* Middle separator */}
                                 <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
                               </g>
                             </svg>
                           </div>
                         </div>
 
+                        {/* Expiry & Batch Tracker Section */}
                         <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 14, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 BATCH EXPLOIT & EXPIRY AGING DETECTOR</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 Batch & Expiry Tracker</span>
                           
                           {isExpired && (
                             <div style={{ padding: '8px 10px', background: 'var(--redlt)', border: '1px solid #FCA5A5', color: 'var(--red)', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ☠️ PILLS OUT OF DATE / EXPIRED! GET RID OF IT BEFORE IT MUTATES!! DO NOT CONSUME!
+                              ❌ EXPIRED! Please dispose of this medication safely. Do not consume.
                             </div>
                           )}
                           {isExpiringSoon && (
                             <div style={{ padding: '8px 10px', background: 'var(--safflt)', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ⚠️ CLOCK IS TICKING: Expiry date is under 30 days! Gulp it down or get a fresh batch!
+                              ⚠️ EXPIRING SOON: This medicine expires in less than 30 days!
                             </div>
                           )}
 
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 80px', minWidth: 0 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>BATCH NO.</label>
                               <input 
                                 type="text" 
                                 value={selectedMed.batchNumber || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { batchNumber: e.target.value })}
                                 placeholder="e.g. B2502"
-                                style={{ height: 32, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
+                                style={{ height: 32, padding: '0 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, outline: 'none', background: '#fff' }}
                               />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 100px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>MFG. DATE</label>
                               <input 
                                 type="date" 
                                 value={selectedMed.mfgDate || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { mfgDate: e.target.value })}
-                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
                               />
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', flex: '1 1 100px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
                               <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--textlt)' }}>EXP. DATE</label>
                               <input 
                                 type="date" 
                                 value={selectedMed.expiryDate || ''} 
                                 onChange={e => handleUpdateCabinetItem(selectedMed, { expiryDate: e.target.value })}
-                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff', width: '100%', boxSizing: 'border-box' }}
+                                style={{ height: 32, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11, outline: 'none', background: '#fff' }}
                               />
                             </div>
                           </div>
                         </div>
 
+                        {/* Adherence Intake Logger */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ textAlign: 'left' }}>
-                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 ADHERENCE SCORE / PILL TAKING COMPLIANCE RATE</div>
+                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 Medication Adherence Rate</div>
                               <div style={{ fontSize: 18, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>{compliancePct}% compliance</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
@@ -3278,46 +3321,11 @@ function HomeView({
                               <div id="cabinet-stock-level" style={{ fontSize: 16, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>Stock Level: {selectedMed.pillCount || 0} / 30 pills</div>
                             </div>
                           </div>
-
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #bfdbfe', paddingTop: 8, marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
-                              <label style={{ fontSize: 9.5, fontWeight: 800, color: '#1e40af', letterSpacing: '0.02em' }}>EDIT PILLS</label>
-                              <input 
-                                type="number" 
-                                value={selectedMed.pillCount || 0}
-                                onChange={e => handleUpdateCabinetItem(selectedMed, { pillCount: parseInt(e.target.value) || 0 })}
-                                style={{ width: 64, height: 26, padding: '0 6px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 11.5, outline: 'none', background: '#fff', textAlign: 'center', fontWeight: 800 }}
-                              />
-                            </div>
-                            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, -1); }}
-                                title="Take 1 pill"
-                                style={{ height: 26, padding: '0 8px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
-                              >
-                                -1
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, 1); }}
-                                title="Add 1 pill"
-                                style={{ height: 26, padding: '0 8px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
-                              >
-                                +1
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleUpdatePillCount(selectedMed, 30); }}
-                                style={{ height: 26, padding: '0 8px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 10.5, fontWeight: 800, cursor: 'pointer', boxShadow: 'var(--shadow)' }}
-                              >
-                                +30 Refill
-                              </button>
-                            </div>
-                          </div>
-
                           <button 
                             onClick={async () => {
                               const currentCount = selectedMed.pillCount || 0;
                               if (currentCount <= 0) {
-                                alert("ERR: ZERO STOCK ALERT! You popped your very last pill! Mount a fresh batch to log more doses!");
+                                alert("No pills left in stock! Please add pills before logging intake.");
                                 return;
                               }
                               const nextCount = Math.max(0, currentCount - 1);
@@ -3378,9 +3386,10 @@ function HomeView({
                           </button>
                         </div>
 
+                        {/* Dosage Safety Warnings Panel */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ PHYSIOLOGICAL SAFETY LIMIT CHECK</span>
+                            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ Daily Safety Check</span>
                             <span style={{ fontSize: 10, fontWeight: 700, color: safetyResult.safe ? '#166534' : '#991b1b', background: safetyResult.safe ? '#dcfce7' : '#fef2f2', padding: '1px 8px', borderRadius: 10 }}>
                               {safetyResult.safe ? 'SAFE LIMIT' : 'LIMIT EXCEEDED'}
                             </span>
@@ -3390,7 +3399,7 @@ function HomeView({
                             <div className="danger-overdose-banner" style={{ background: '#fef2f2', border: '2px solid #ef4444', borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                 <span style={{ fontSize: 16 }}>⚠️</span>
-                                <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>☠️ LETHAL TOXIC OVERDOSE THRESHOLD WARNING ☠️</span>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>DANGEROUS OVERDOSE WARNING</span>
                               </div>
                               <p style={{ fontSize: 12.5, color: '#b91c1c', margin: 0, lineHeight: 1.4, fontWeight: 600, textAlign: 'left' }}>
                                 {safetyResult.reason}
@@ -3403,6 +3412,7 @@ function HomeView({
                           )}
                         </div>
 
+                        {/* Adaptive Pharmacokinetics Graph */}
                         {pkParams && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3419,6 +3429,7 @@ function HomeView({
                                   </linearGradient>
                                 </defs>
 
+                                {/* Grid Lines & Ticks */}
                                 {[0, 6, 12, 18, 24].map(t => (
                                   <g key={t}>
                                     <line x1={getX(t)} y1="15" x2={getX(t)} y2="125" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
@@ -3426,6 +3437,7 @@ function HomeView({
                                   </g>
                                 ))}
 
+                                {/* Therapeutic Band */}
                                 {pkParams.minEffectiveConc < maxConc && (
                                   <rect
                                     x="35"
@@ -3442,6 +3454,7 @@ function HomeView({
                                 {areaD && <path d={areaD} fill="url(#cab-curve-grad)" />}
                                 {pathD && <path d={pathD} fill="none" stroke="#0d8a68" strokeWidth="2.5" />}
 
+                                {/* Scrubber Indicator */}
                                 <line x1={getX(cabScrubTime)} y1="15" x2={getX(cabScrubTime)} y2="125" stroke="#3b82f6" strokeWidth="1" strokeDasharray="2,2" />
                                 <circle cx={getX(cabScrubTime)} cy={getY(currentConc)} r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1" />
 
@@ -3450,6 +3463,7 @@ function HomeView({
                               </svg>
                             </div>
 
+                            {/* Scrubber Timeline */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#1e293b', padding: 12, borderRadius: 12 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {cabScrubTime.toFixed(1)}h</span>
@@ -3468,6 +3482,7 @@ function HomeView({
                               />
                             </div>
 
+                            {/* Segmented Strength & Freq Controls */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--bgsoft)', padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
                                 <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--navy)' }}>Strength:</label>
@@ -3496,19 +3511,21 @@ function HomeView({
                               </div>
                             </div>
 
+                            {/* Clinical Bio-Parameter Info Box */}
                             <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 12px', textAlign: 'left' }}>
                               <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>📈 Scientific Dosing Parameters:</div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
-                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
-                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
-                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Bioavailability (F):</strong> {Math.round(pkParams.bioavailability * 100)}%</div>
-                                <div style={{ flex: '1 1 130px', minWidth: 0 }}>• <strong>Active Composition:</strong> {pkParams.partition === 'lipophilic' ? 'Lipophilic (Fat solubility)' : 'Hydrophilic (Water solubility)'}</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
+                                <div>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
+                                <div>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
+                                <div>• <strong>Bioavailability (F):</strong> {Math.round(pkParams.bioavailability * 100)}%</div>
+                                <div>• <strong>Active Composition:</strong> {pkParams.partition === 'lipophilic' ? 'Lipophilic (Fat solubility)' : 'Hydrophilic (Water solubility)'}</div>
                               </div>
                             </div>
 
                           </div>
                         )}
 
+                        {/* Jan Aushadhi Savings Finder */}
                         <div style={{ borderTop: '1.5px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>🏛 Jan Aushadhi generic equivalents</span>
@@ -3556,14 +3573,15 @@ function HomeView({
                 </div>
               )}
 
+              {/* Recent Doses History Logs Timeline */}
               <div style={{ marginTop: 24, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                 <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
-                  ⏳ HISTORICAL INTAKE EXPLOIT LOGS ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
+                  ⏳ Recent Intake Logs ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
                 </h4>
                 
                 {!activeProfile.doseHistory || activeProfile.doseHistory.length === 0 ? (
                   <p style={{ fontSize: 12, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', textAlign: 'left' }}>
-                    🤷 ZERO BIO-LOGS FOUND. Hit 'Log Dose Taken' on your cabinet medicine page to register an event!
+                    No intake logs recorded yet. Tap "Log Dose Taken" inside a cabinet medicine card to record.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', paddingRight: 4 }}>
@@ -3589,6 +3607,7 @@ function HomeView({
                 )}
               </div>
 
+              {/* Manual Add Medicine Modal dialog Overlay */}
               {showManualAddModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
                   <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -3691,7 +3710,7 @@ function HomeView({
                       </div>
 
                       <button type="submit" style={{ height: 44, background: 'linear-gradient(135deg, var(--green), #0d9488)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8, boxShadow: '0 4px 12px rgba(13,138,104,0.2)' }}>
-                        💾 MOUNT PILLS TO CABINET DIRECTORY
+                        Save Medicine to Cabinet
                       </button>
                     </form>
                   </div>
@@ -3701,9 +3720,10 @@ function HomeView({
             </div>
           )}
 
+          {/* TAB 2: Alarms & Adherence */}
           {activeTab === 'reminders' && (
             <div>
-              
+              {/* Daily Reminder Time Pickers */}
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ Set Your Daily Pill Times</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => {
@@ -3747,12 +3767,14 @@ function HomeView({
                 })}
               </div>
 
+              {/* Daily Adherence Grid */}
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
               {(() => {
                 const dateStr = new Date().toDateString();
                 const ad = activeProfile.adherence || {};
                 const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
-
+                
+                // Check if all scheduled slots are done
                 const activeSlots = ['Morning', 'Afternoon', 'Evening', 'Bedtime'];
                 const completedAll = activeSlots.every(slot => !!todayAd[slot]);
 
@@ -3823,6 +3845,7 @@ function HomeView({
                 );
               })()}
 
+              {/* Chronotherapy Daily Schedule Timeline */}
               {activeSchedule && activeSchedule.schedule && (
                 <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3921,14 +3944,17 @@ function HomeView({
             </div>
           )}
 
+          {/* TAB 3: Health Card & QR */}
           {activeTab === 'healthcard' && (
             <HealthCard profile={activeProfile} onSaveProfile={handleSaveHealthCard} />
           )}
 
+          {/* TAB 4: Symptoms & ADR Warnings */}
           {activeTab === 'symptoms' && (
             <div>
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 10 }}>⚠️ Track How You Feel (Side Effects)</h4>
-
+              
+              {/* Symptom logger input form */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <input 
                   type="text" 
@@ -3966,6 +3992,7 @@ function HomeView({
                 </button>
               </div>
 
+              {/* Flagged ADR Side-effect alert warnings */}
               {(() => {
                 const cabSalts = cabinet.map(c => c.saltComposition);
                 const symTexts = (activeProfile.symptoms || []).map(s => s.text);
@@ -4004,6 +4031,7 @@ function HomeView({
                 return null;
               })()}
 
+              {/* Symptoms history log */}
               <h5 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>📋 My Logged Symptoms</h5>
               {(!activeProfile.symptoms || activeProfile.symptoms.length === 0) ? (
                 <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
@@ -4036,6 +4064,7 @@ function HomeView({
         </div>
       )}
 
+      {/* Footer links */}
       <div style={{ textAlign: 'center', padding: '16px 0 4px', display: 'flex', justifyContent: 'center', gap: 20 }}>
         <button id="footer-privacy-link" onClick={() => setPage('privacy')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
           {t.privacyTitle || 'Privacy Policy'}
@@ -4059,7 +4088,8 @@ function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeSte
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', animation: 'fadeIn 0.3s ease' }}>
-
+      
+      {/* Visual Image Previews */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
         {preview && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
