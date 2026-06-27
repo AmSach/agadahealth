@@ -21,7 +21,6 @@
   --font-sans: 'DM Sans', system-ui, sans-serif;
   --font-mono: monospace;
 
-  /* Accent mappings for page bindings */
   --accent-forest: var(--clinical-green-mid);
   --accent-forest-light: #f4fbf7;
   --accent-clay: var(--clinical-red-mid);

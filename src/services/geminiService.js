@@ -1,43 +1,25 @@
-/**
- * geminiService.js v5 - Agada AI Service
- *
- * Key changes from v4:
- * - All Groq calls proxied through /api/groq (keys never sent to browser)
- * - Removed VITE_GROQ_KEY_* client-side key rotation
- * - Key rotation + model cascade still happen server-side in api/groq.js
- * - QR saltFromQR = ground truth, skips vision call entirely for that field
- * - Strict: if QR has salt, DB lookup uses ONLY that. Vision AI = fallback only.
- * - Parallel: vision + DB preload in parallel from start
- * - Pharmacy deep links for live prices (no CORS issues)
- */
+
 
 import { ensureLoaded, lookupJanAushadhi, lookupCDSCO, buildSavingsSummary, parseSalts } from './dbService.js'
 import { logAIResponse } from './debugLog.js'
 import { batchFetchDavaIndiaPrices } from './davaIndiaService.js'
 
-// ─── MODEL CASCADE ────────────────────────────────────────────────────────────
-// Vision models - tried in order by api/groq.js proxy (server-side)
-// NOTE: llama-3.2-*-vision-preview models are decommissioned as of 2025
-// Use llama-4-scout for vision (validated working)
 const VISION_MODELS = [
-  'meta-llama/llama-4-scout-17b-16e-instruct',  // FASTEST, BEST FOR OCR - use this first
-  'meta-llama/llama-4-maverick-17b-128e-instruct', // larger, better for complex labels
-]
-// Text-only models - for description + generics (no image)
-const TEXT_MODELS = [
-  'llama-3.3-70b-versatile',   // best quality
-  'llama-3.1-70b-versatile',   // fallback
-  'llama-3.1-8b-instant',      // fast fallback if others rate-limited
-  'gemma2-9b-it',              // last resort
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'meta-llama/llama-4-maverick-17b-128e-instruct',
 ]
 
-// ─── PROXY URL - all AI calls go through here, keys stay server-side ──────────
+const TEXT_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+  'llama-3.1-8b-instant',
+  'gemma2-9b-it',
+]
+
 const GROQ_PROXY = '/api/groq'
 
-// keyIndex unused - key rotation happens server-side in /api/groq
 let keyIndex = 0
 
-// ─── VISION PROMPT - lean, exact, fast ───────────────────────────────────────
 const IMAGE_READ_PROMPT = `Medicine label reader. Extract ONLY what is printed. No advice.
 
 SALT NAME: Drug name only, NO dose (e.g. "Amoxycillin" not "Amoxycillin 500mg"). Copy exactly.
@@ -61,8 +43,6 @@ Fake signals (only list if actually SEEN): pixelated text on clear image, font m
 JSON only, no markdown:
 {"productType":"MEDICINE|INJECTION|LIQUID|TOPICAL|AYURVEDIC|SUPPLEMENT","brandName":null,"saltName":null,"doseStr":null,"manufacturer":null,"mrp":null,"unitSize":null,"batchNumber":null,"expiryDate":null,"licenceNumber":null,"genuineSignalsFound":[],"fakeSignalsFound":[],"confidence":85,"cannotRead":false,"cannotReadReason":null}`
 
-// ─── MERGE SALT + DOSE ───────────────────────────────────────────────────────
-// Recombines split saltName + doseStr fields from vision AI into "Salt Dose" string
 function mergeSaltDose(saltName, doseStr) {
   if (!saltName) return null
   if (!doseStr) return saltName
@@ -70,22 +50,17 @@ function mergeSaltDose(saltName, doseStr) {
   const doses  = doseStr.split(/\+|,|\/|\band\b/i).map(d => d.trim()).filter(Boolean)
   if (salts.length === doses.length) return salts.map((s, i) => `${s} ${doses[i]}`).join(' and ')
   if (salts.length === 1 && doses.length === 1) return `${salts[0]} ${doses[0]}`
-  // Count mismatch (e.g. 2 salts, doses split differently) - best effort: append full doseStr to first salt
-  // Better to pass something through than silently drop the whole composition
+
   return `${saltName} ${doseStr}`
 }
 
-// ─── SCHEDULE H/H1/X OVERRIDE MAP ────────────────────────────────────────────
-// Drugs that are commonly misclassified by AI. Ground truth from Indian drug schedules.
-// Schedule H, H1, X = prescription required. OTC = false.
-// This overrides whatever the AI says - not exhaustive, catches the most common errors.
 const SCHEDULE_RX = new Set([
-  // Schedule X (narcotics/psychotropics - always Rx)
+
   'alprazolam','clonazepam','diazepam','lorazepam','nitrazepam','triazolam',
   'midazolam','zolpidem','zopiclone','buprenorphine','tramadol','codeine',
   'morphine','oxycodone','fentanyl','pethidine','pentazocine','phenobarbitone',
   'phenobarbital','methylphenidate','modafinil',
-  // Schedule H1 (high risk - always Rx)
+
   'amoxycillin','amoxicillin','azithromycin','ciprofloxacin','levofloxacin',
   'norfloxacin','ofloxacin','metronidazole','tinidazole','doxycycline',
   'clindamycin','cephalexin','cefixime','cefpodoxime','ceftriaxone','cefuroxime',
@@ -122,26 +97,24 @@ const SCHEDULE_OTC = new Set([
 function resolveRx(saltComposition, aiSaid) {
   if (!saltComposition) return aiSaid
   const s = saltComposition.toLowerCase()
-  // Check Rx list first - if any known Rx salt appears, it's prescription
+
   for (const drug of SCHEDULE_RX) {
     if (s.includes(drug)) return true
   }
-  // Check OTC list - if matches an OTC drug, it's not prescription
+
   for (const drug of SCHEDULE_OTC) {
     if (s.includes(drug)) return false
   }
-  // Fall back to AI answer
+
   return aiSaid
 }
 
-// ─── DESCRIPTION PROMPT ───────────────────────────────────────────────────────
 const mkDescPrompt = (brand, salt, type) =>
 `Indian patient medicine info. Medicine: ${brand||'Unknown'} (${salt||'Unknown'}). Type: ${type||'MEDICINE'}.
 PRESCRIPTION RULE: Set prescriptionRequired=true if this drug is Schedule H, H1, or X under Indian drug law (requires a doctor's prescription). Set false ONLY for genuinely OTC drugs (paracetamol, antacids, antihistamines, vitamins, minerals). When in doubt, set true.
 No brand suggestions. General drug class only. JSON only:
 {"whatItDoes":"2-3 plain sentences","howToTake":"general guidance","commonUses":["","",""],"prescriptionRequired":false,"sideEffects":["","",""],"importantWarnings":["",""],"overdoseRisk":"plain language","ayurvedicWarning":null,"supplementWarning":null,"doNotTakeWith":null}`
 
-// ─── GENERICS PROMPT ─────────────────────────────────────────────────────────
 const mkGenericsPrompt = (salt, productType) => {
   const routeRule = productType === 'INJECTION'
     ? 'ONLY injectable forms (vial/ampoule/IV). NEVER tablets or oral forms.'
@@ -165,8 +138,6 @@ JSON array only, no markdown, 1-3 items:
 [{"name":"Full Brand Name Strength","brand":"Manufacturer","salt":"${salt}","packSize":"10 tablets","estimatedMrp":25,"perUnit":2.5,"availableAt":"Any chemist","isJanAushadhi":false,"aiEstimated":true}]`
 }
 
-// ─── PHARMACY DEEP LINKS ─────────────────────────────────────────────────────
-// Full salt+dose in query so user lands on the right strength, not just the salt
 export function pharmacyLinks(saltComposition) {
   if (!saltComposition) return []
   const q = encodeURIComponent(saltComposition)
@@ -178,32 +149,18 @@ export function pharmacyLinks(saltComposition) {
   ]
 }
 
-// ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcodeData = null) {
 
-  // Start DB load immediately - parallel with everything else
   const dbPromise = ensureLoaded().catch(() => {})
 
-  // ── GROUND TRUTH from QR ──────────────────────────────────────────────────
-  // If QR has salt: this IS the correct composition. Vision AI cannot override it.
   const qrSalt     = barcodeData?.saltFromQR  || null
   const qrBrand    = barcodeData?.brandFromQR || null
   const qrBatch    = barcodeData?.batchNumber || null
   const qrExpiry   = barcodeData?.expiryDate  || null
   const qrMrp      = barcodeData?.mrpFromQR   || null
 
-  // ── Phase 1: Vision AI reads label ───────────────────────────────────────
-  // If QR already gave us salt+brand, we still call vision for:
-  //   manufacturer, unitSize, mrp, batch (if not in QR), authenticity signals
-  // But we cap tokens lower since less work needed
   const img = await callVision(imageBase64, mimeType, IMAGE_READ_PROMPT)
 
-  // ── Hard block: not a medicine ───────────────────────────────────────────
-  // If the AI identifies this as a non-medicine product (adhesive, cosmetic,
-  // food, household chemical etc.) - stop immediately, return a clear rejection.
-  // ── Hard block: hazardous substance ──────────────────────────────────────
-  // If the AI identifies this as a dangerous chemical (acid, H2O2, bleach etc.)
-  // - stop immediately with a DANGER warning. Never show medicine info for these.
   if (img.productType === 'HAZARDOUS') {
     return {
       productType:     'HAZARDOUS',
@@ -250,8 +207,6 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     }
   }
 
-
-  // Reconstruct salt from separated saltName + doseStr fields
   const mergedSalt  = mergeSaltDose(img.saltName, img.doseStr)
   const finalSalt   = qrSalt   || mergedSalt
   const finalBrand  = qrBrand  || img.brandName
@@ -259,28 +214,17 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   const finalExpiry = qrExpiry || img.expiryDate
   const finalMrp    = qrMrp    || img.mrp
 
-  // Dose gate: behaviour depends on product type
-  // MEDICINE/INJECTION - dose is safety-critical for alternatives, but many Indian packs
-  //   only print the dose on the back panel. If salt is clearly readable we proceed -
-  //   alternatives lookup uses salt-only which is still valid and safe.
-  // TOPICAL/LIQUID/AYURVEDIC/SUPPLEMENT - dose is often absent by design (e.g. "apply as needed"),
-  //   so we always allow lookup without a dose number.
   const typeNeedsDose = !img.productType || img.productType === 'MEDICINE' || img.productType === 'INJECTION'
   const hasDoseNumber = /\d+\s*(mg|mcg|g|iu)/i.test(finalSalt || '') || /\d+\s*(mg|mcg|g|iu)/i.test(img.doseStr || '')
   const hasSalt       = !!(finalSalt && finalSalt.trim().length > 3)
-  // doseConfirmed = true when:
-  //   - QR gave us the salt (ground truth), OR
-  //   - dose number is visible in the extracted text, OR
-  //   - product type doesn't need a dose (topical/supplement/etc.), OR
-  //   - salt is clearly readable (front-of-pack; dose may be on back - still scannable)
+
   const doseConfirmed = !!qrSalt || hasDoseNumber || !typeNeedsDose || hasSalt
 
-  // Only block if we have NO salt AND no dose - truly unreadable label
   if (!doseConfirmed && !hasSalt) {
     img.cannotRead = true
     img.cannotReadReason = img.cannotReadReason || 'Could not read medicine name or dose. Try scanning a clearer image or the barcode.'
   } else {
-    // Salt is readable - clear any erroneous "dose not visible" block the AI may have set
+
     if (img.cannotRead && img.cannotReadReason && /dose/i.test(img.cannotReadReason)) {
       img.cannotRead = false
       img.cannotReadReason = null
@@ -296,13 +240,11 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
 
   await dbPromise
 
-  // ── Phase 2: DB lookup - only when dose is confirmed ──────────────────────
   const jaLookup    = doseConfirmed ? lookupJanAushadhi(finalSalt, finalMrp, img.unitSize) : { best: null, doseMismatch: null, noDose: false }
   const cdscoResult = lookupCDSCO(finalSalt)
   const jaBest      = jaLookup.best
   const jaDoseDiff  = jaLookup.doseMismatch
 
-  // ── Phase 3: description + up to 3 branded generics (parallel) ───────────
   let info = null, aiGenerics = []
   if (finalSalt || finalBrand) {
     const [infoRes, genRes] = await Promise.allSettled([
@@ -310,11 +252,10 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       (finalSalt && doseConfirmed) ? callText(mkGenericsPrompt(finalSalt, img.productType)) : Promise.resolve(null),
     ])
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
-    // Override AI's prescriptionRequired with ground truth from schedule map
+
     if (info) info.prescriptionRequired = resolveRx(finalSalt, info.prescriptionRequired)
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      // Extract primary drug names from the query salt for validation
-      // e.g. "Flunarizine 10mg" → ["flunarizine"]
+
       const queryDrugNames = (finalSalt || '')
         .toLowerCase()
         .split(/\band\b|\+|,/i)
@@ -324,19 +265,17 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       const seen = new Set()
       aiGenerics = genRes.value
         .filter(g => g && g.name && g.brand)
-        // Salt validation: the returned salt field must contain all primary drug names
-        // This catches hallucinations like "Flumark" (different salt) for "Flunarizine"
+
         .filter(g => {
           if (!queryDrugNames.length) return true
           const returnedSalt = (g.salt || '').toLowerCase()
           const returnedName = (g.name || '').toLowerCase()
-          // Every query drug name must appear in EITHER the salt field or the product name
-          // If salt field is wrong/missing, check name as fallback
+
           return queryDrugNames.every(drug =>
             returnedSalt.includes(drug) || returnedName.includes(drug)
           )
         })
-        // Deduplicate by manufacturer
+
         .filter(g => {
           const key = (g.brand || '').toLowerCase()
           if (seen.has(key)) return false
@@ -347,40 +286,34 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     }
   }
 
-  // 1 JA verified + up to 3 AI-estimated branded generics
   let allAlts = [
     ...(jaBest ? [jaBest] : []),
     ...aiGenerics,
   ]
 
-  // ── DavaIndia live price enrichment ──────────────────────────────────────
-  // Fetch real prices from DavaIndia for each alternative in parallel.
-  // If a price comes back, it replaces the AI-estimated price and marks the
-  // entry as highConfidence=true with priceSource='DavaIndia'.
-  // Gracefully degrades - if proxy is down, allAlts stay as-is.
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
       allAlts = allAlts.map(alt => {
         const key = alt.salt || alt.name
         const dava = davaMap.get(key)
-        if (!dava) return alt  // no DavaIndia result - keep AI estimate as-is
+        if (!dava) return alt
         return {
           ...alt,
-          // Override price fields with DavaIndia live data
+
           mrp:           dava.mrp,
           estimatedMrp:  dava.mrp,
           packSize:      dava.packSize || alt.packSize,
           perUnit:       dava.perUnit  ?? alt.perUnit,
-          // Source & confidence flags
+
           priceSource:   'DavaIndia',
           highConfidence: true,
-          aiEstimated:   false,  // it's a real price now, not AI estimated
-          davaIndiaName: dava.name,  // actual product name on DavaIndia
+          aiEstimated:   false,
+          davaIndiaName: dava.name,
         }
       })
     } catch {
-      // batchFetch should never throw, but belt-and-suspenders
+
     }
   }
 
@@ -390,7 +323,6 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
     authenticity.warning = ((authenticity.warning || '') + ' Low confidence - verify with pharmacist.').trim()
   }
 
-  // Flag when salt is readable but dose is absent (e.g. dose printed on back of pack only)
   const doseUnconfirmed = hasSalt && !hasDoseNumber && !qrSalt && typeNeedsDose
 
   return {
@@ -415,7 +347,7 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       hasGenerics:          allAlts.length > 0,
       janAushadhiAvailable: !!jaBest,
       topAlternatives:      allAlts,
-      doseMismatchAlt:      jaDoseDiff,   // singular - one dose-mismatch at most
+      doseMismatchAlt:      jaDoseDiff,
       jaCount:              jaBest ? 1 : 0,
       savingsSummary:       buildSavingsSummary(jaBest, finalMrp, img.unitSize),
       pharmacyLinks:        pharmacyLinks(finalSalt),
@@ -431,7 +363,6 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
   }
 }
 
-// ─── AUTHENTICITY ─────────────────────────────────────────────────────────────
 function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
   const genuine = img.genuineSignalsFound || []
   const fake    = img.fakeSignalsFound    || []
@@ -470,13 +401,8 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
   }
 }
 
-// ─── GROQ CALLERS ─────────────────────────────────────────────────────────────
-// For each model, ALL keys are tried before moving to the next model.
-// This ensures a decommissioned/rate-limited model doesn't silently kill the
-// cascade - every backup model gets a fair shot with every available key.
-
 async function callVision(b64, mime, prompt) {
-  // Keys are managed server-side in /api/groq - no client-side keys needed
+
   let lastErr = 'no models available'
   const t0 = Date.now()
   for (const model of VISION_MODELS) {
@@ -492,8 +418,8 @@ async function callVision(b64, mime, prompt) {
           ]}]
         })
       })
-      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys - try next model
-      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone - try next model
+      if (res.status === 429) { lastErr = `${model} rate-limited`; continue }
+      if (res.status === 404) { lastErr = `${model} decommissioned`; continue }
       if (!res.ok) { const e = await res.json().catch(()=>({})); lastErr = e?.error?.message || `${res.status}`; continue }
       const data = await res.json()
       const rawResponse = data?.choices?.[0]?.message?.content
@@ -509,7 +435,7 @@ async function callVision(b64, mime, prompt) {
 }
 
 async function callText(prompt) {
-  // Keys are managed server-side in /api/groq - no client-side keys needed
+
   let lastErr = 'no models'
   const t0 = Date.now()
   const phase = prompt.includes('pharmacist') ? 'generics' : 'description'
@@ -520,8 +446,8 @@ async function callText(prompt) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, max_tokens: 800, temperature: 0.1, messages: [{ role: 'user', content: prompt }] })
       })
-      if (res.status === 429) { lastErr = `${model} rate-limited`; continue } // proxy exhausted all keys - try next model
-      if (res.status === 404) { lastErr = `${model} decommissioned`; continue } // model gone - try next model
+      if (res.status === 429) { lastErr = `${model} rate-limited`; continue }
+      if (res.status === 404) { lastErr = `${model} decommissioned`; continue }
       if (!res.ok) { lastErr = `${res.status}`; continue }
       const data = await res.json()
       const rawResponse = data?.choices?.[0]?.message?.content
@@ -531,7 +457,7 @@ async function callText(prompt) {
       lastErr = 'JSON parse'
     } catch(e) { lastErr = e.message }
   }
-  return null // text calls are non-fatal
+  return null
 }
 
 function safeJSON(t) {
@@ -554,7 +480,6 @@ function fallbackInfo(type) {
   return { whatItDoes: 'Medicine information unavailable.', commonUses:[], sideEffects:[], importantWarnings:[], prescriptionRequired:false }
 }
 
-// ─── IMAGE COMPRESSION ────────────────────────────────────────────────────────
 export async function compressAndEncode(file) {
   return new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(file)
@@ -585,7 +510,6 @@ export async function compressAndEncode(file) {
   })
 }
 
-// ─── PRESCRIPTION SCAN ────────────────────────────────────────────────────────
 export const PRESCRIPTION_PROMPT = `Medical prescription reader. Extract ONLY patient name, doctor/hospital name, date, and the list of prescribed medicines.
 Strive to read handwriting accurately. Infer common medical abbreviations (e.g., "1-0-1" = Morning & Night, "BD" = twice a day, "PC" = after food, "OD" = once a day).
 If the image is totally unreadable or NOT a medical prescription, set cannotRead=true.
@@ -623,15 +547,13 @@ export async function scanPrescription(imageBase64, mimeType = 'image/jpeg') {
   }
 }
 
-// ─── PRESCRIPTION MEDICINE LOOKUP (QoL) ──────────────────────────────────────
 export async function lookupMedicineNameOnly(name) {
-  // Start DB load immediately
+
   await ensureLoaded()
 
   let finalBrand = name
   let saltComposition = name
 
-  // Call text prompt to resolve query (brand name) to standard active generic salt composition
   try {
     const resolvePrompt = `You are an Indian pharmacological API. Given a search query (which can be a brand name, generic salt name, or combination), resolve it into the generic active ingredient salt name(s) (including typical strength/dose, e.g. "Paracetamol 500mg" or "Pantoprazole 40mg + Domperidone 30mg") and the active brand name.
 Query: "${name}"
@@ -651,13 +573,11 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
     console.error("Failed to resolve brand to salt composition:", e)
   }
 
-  // Lookup CDSCO and Jan Aushadhi using the resolved salt composition
   const cdscoResult = lookupCDSCO(saltComposition)
   const jaLookup = lookupJanAushadhi(saltComposition, null, null)
   const jaBest = jaLookup.best
   const jaDoseDiff = jaLookup.doseMismatch
 
-  // Call text prompt for description and generics using resolved brand/salt
   let info = null, aiGenerics = []
   try {
     const [infoRes, genRes] = await Promise.allSettled([
@@ -667,7 +587,7 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
     info = infoRes.status === 'fulfilled' ? infoRes.value : null
     if (info) info.prescriptionRequired = resolveRx(saltComposition, info.prescriptionRequired)
     if (genRes.status === 'fulfilled' && Array.isArray(genRes.value)) {
-      // Extract primary drug names from the query salt for validation
+
       const queryDrugNames = (saltComposition || '')
         .toLowerCase()
         .split(/\band\b|\+|,/i)
@@ -702,7 +622,6 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
     ...aiGenerics,
   ]
 
-  // Enriched with live prices if possible
   if (allAlts.length > 0) {
     try {
       const davaMap = await batchFetchDavaIndiaPrices(allAlts)
@@ -725,7 +644,6 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
     } catch {}
   }
 
-  // Filter out the queried brand from alternatives list
   try {
     const cleanBrand = finalBrand.toLowerCase().replace(/\s*\d.*/g, '').trim()
     if (cleanBrand.length > 2) {
@@ -785,5 +703,4 @@ JSON ONLY, NO OTHER TEXT OR MARKDOWN:
     }
   }
 }
-
 

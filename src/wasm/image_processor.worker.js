@@ -1,5 +1,4 @@
-// src/wasm/image_processor.worker.js
-// Dedicated Web Worker for off-thread WebAssembly image pre-processing and focus analytics
+
 
 let wasmInstance = null;
 
@@ -28,8 +27,7 @@ self.onmessage = async function(e) {
     }
     
     const { filterType, width, height, data } = e.data;
-    
-    // Get WASM exports
+
     const exports = wasmInstance.exports;
     const bufferPtr = exports.getBufferPtr();
     const bufferSize = exports.getBufferSize();
@@ -38,21 +36,17 @@ self.onmessage = async function(e) {
       self.postMessage({ type: 'error', error: 'Image size exceeds WebAssembly memory limit.' });
       return;
     }
-    
-    // Copy image data to WASM linear memory
+
     const wasmMemory = new Uint8Array(exports.memory.buffer);
     wasmMemory.set(data, bufferPtr);
-    
-    // Execute filter
+
     exports.processImage(width, height, filterType);
-    
-    // Calculate focus metric
+
     let focusMetric = 0;
     if (exports.computeFocusMetric) {
       focusMetric = exports.computeFocusMetric(width, height);
     }
-    
-    // Detect bounding box of the medicine strip
+
     const packedCoords = exports.detectBoundingBox(width, height);
     let cropCoords = null;
     if (packedCoords !== 0n) {
@@ -63,10 +57,9 @@ self.onmessage = async function(e) {
       
       cropCoords = { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
     }
-    
-    // Extract output buffer
+
     const outputBuffer = new Uint8Array(exports.memory.buffer, bufferPtr, data.length);
-    const outputCopy = new Uint8Array(outputBuffer); // Make a copy to transfer ownership
+    const outputCopy = new Uint8Array(outputBuffer);
     
     self.postMessage({
       type: 'processed',
@@ -75,6 +68,6 @@ self.onmessage = async function(e) {
       height,
       cropCoords,
       focusMetric
-    }, [outputCopy.buffer]); // Transfer buffer for 0-copy performance
+    }, [outputCopy.buffer]);
   }
 };

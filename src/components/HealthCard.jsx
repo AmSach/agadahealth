@@ -36,7 +36,7 @@ export default function HealthCard({ profile, onSaveProfile }) {
   }, [profile]);
 
   useEffect(() => {
-    // Generate emergency QR payload (Formatted plain-text for universal scanner readability)
+
     const qrPayload = `--- AGADA EMERGENCY MEDICAL ID ---
 Patient: ${formData.name || 'Not Specified'}
 Age: ${formData.age || '30'} | Gender: ${formData.gender || 'male'}
@@ -55,8 +55,8 @@ Zero-Knowledge Offline Medical Pass`;
         margin: 4,
         width: 300,
         color: {
-          dark: '#000000', // pure black
-          light: '#ffffff' // pure white
+          dark: '#000000',
+          light: '#ffffff'
         }
       },
       (err, url) => {

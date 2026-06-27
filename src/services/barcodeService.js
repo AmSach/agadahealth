@@ -1,12 +1,4 @@
-/**
- * barcodeService.js v2 - Agada Barcode / QR Reader
- *
- * Reads Indian pharma QR codes (MoHFW Track & Trace + manufacturer formats)
- * GS1 AIs: 01=GTIN, 10=Batch, 17=Expiry, 21=Serial, 240=Product description
- * Plain text: "Brand:X|Salt:Y|Batch:Z|Exp:MM/YYYY|MRP:N"
- *
- * saltFromQR = GROUND TRUTH when present - overrides AI vision reading
- */
+
 
 let ZXing = null
 
@@ -86,7 +78,6 @@ function parseAll(raw) {
   return { raw, ...parsed }
 }
 
-// ─── GS1 ─────────────────────────────────────────────────────────────────────
 function parseGS1(raw) {
   const result = {}
   const parenMatches = [...raw.matchAll(/\((\d{2,3})\)([^(]+)/g)]
@@ -115,7 +106,6 @@ function applyAI(result, ai, val) {
   if (ai === '240') { result.productDescription = val; extractSalt(val, result) }
 }
 
-// GS1 AI 240 contains e.g. "PARACETAMOL 500MG TABLETS IP" or "Crocin (Paracetamol 500mg)"
 function extractSalt(desc, result) {
   const branded = desc.match(/^(.+?)\s*\((.+?)\)/)
   if (branded) { result.brandFromQR = branded[1].trim(); result.saltFromQR = branded[2].trim(); return }
@@ -123,7 +113,6 @@ function extractSalt(desc, result) {
   if (clean.length > 3) result.saltFromQR = clean
 }
 
-// ─── PIPE / SEMICOLON TEXT ───────────────────────────────────────────────────
 function parsePipeText(raw) {
   if (!raw.includes('|') && !raw.includes(';')) return null
   const result = {}
@@ -143,7 +132,6 @@ function parsePipeText(raw) {
   return Object.keys(result).length ? result : null
 }
 
-// ─── KEY:VALUE LINES ─────────────────────────────────────────────────────────
 function parseKVText(raw) {
   const result = {}
   for (const line of raw.split(/\n/)) {
@@ -156,13 +144,12 @@ function parseKVText(raw) {
     if (kl.includes('salt') || kl.includes('comp')) result.saltFromQR = v.trim()
     if (kl.includes('brand'))                       result.brandFromQR = v.trim()
   }
-  // First line with dosage = likely product name/salt
+
   const first = raw.split('\n')[0]?.trim()
   if (!result.saltFromQR && first && /\d+\s*(mg|mcg|g|ml)/i.test(first)) extractSalt(first, result)
   return Object.keys(result).length ? result : null
 }
 
-// ─── URL QR ──────────────────────────────────────────────────────────────────
 function parseURLQR(raw) {
   if (!raw.startsWith('http')) return null
   try {
@@ -173,7 +160,6 @@ function parseURLQR(raw) {
   } catch { return null }
 }
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function fmt6(s) {
   if (!s || s.length < 6) return s
   const yy = s.slice(0,2), mm = s.slice(2,4), dd = s.slice(4,6)

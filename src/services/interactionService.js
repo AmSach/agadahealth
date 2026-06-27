@@ -1,15 +1,9 @@
-// src/services/interactionService.js
-// Client-side drug-drug interaction analyzer for the Cabinet drawer using Graph Traversals
 
-/**
- * Normalizes a salt string by cleaning doses, salt forms, and whitespace.
- * @param {string} salt - e.g. "Aspirin 75mg" or "Sildenafil Citrate"
- * @returns {string} - e.g. "aspirin" or "sildenafil"
- */
+
 export function normalizeSaltName(salt) {
   return (salt || '').toLowerCase()
-    .replace(/\b\d+(\s*(mg|mcg|g|ml))?\b/g, '') // remove dosages
-    .replace(/\b(sodium|potassium|citrate|maleate|succinate|hydrochloride|hcl|phosphate|sulfate)\b/g, '') // remove common salt forms
+    .replace(/\b\d+(\s*(mg|mcg|g|ml))?\b/g, '')
+    .replace(/\b(sodium|potassium|citrate|maleate|succinate|hydrochloride|hcl|phosphate|sulfate)\b/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -17,8 +11,8 @@ export function normalizeSaltName(salt) {
 
 class ClinicalGraph {
   constructor() {
-    this.nodes = new Map(); // id -> { id, type, name, severity, title }
-    this.edges = new Map(); // sourceId -> [{ targetId, relType, weight }]
+    this.nodes = new Map();
+    this.edges = new Map();
   }
 
   addNode(id, type, props = {}) {
@@ -36,7 +30,6 @@ class ClinicalGraph {
     this.edges.get(target).push({ targetId: source, relType, weight });
   }
 
-  // BFS traversal to discover paths of connection between drug salts
   findPaths(startNode, endNode, maxDepth = 4) {
     const queue = [[startNode, []]];
     const visited = new Set();
@@ -64,11 +57,9 @@ class ClinicalGraph {
   }
 }
 
-// Instantiate and seed the clinical entities graph
 export const clinicalGraphInstance = new ClinicalGraph();
 const g = clinicalGraphInstance;
 
-// Add drug salt nodes
 g.addNode('aspirin', 'SALT', { name: 'Aspirin' });
 g.addNode('warfarin', 'SALT', { name: 'Warfarin' });
 g.addNode('ibuprofen', 'SALT', { name: 'Ibuprofen' });
@@ -83,7 +74,6 @@ g.addNode('glimepiride', 'SALT', { name: 'Glimepiride' });
 g.addNode('paracetamol', 'SALT', { name: 'Paracetamol' });
 g.addNode('acetaminophen', 'SALT', { name: 'Acetaminophen' });
 
-// Add therapeutic class nodes
 g.addNode('nsaid', 'CLASS', { name: 'NSAID (Pain Reliever)' });
 g.addNode('anticoagulant', 'CLASS', { name: 'Anticoagulant (Blood Thinner)' });
 g.addNode('vasodilator', 'CLASS', { name: 'PDE5 Vasodilator' });
@@ -96,14 +86,12 @@ g.addNode('biguanide', 'CLASS', { name: 'Biguanide (Anti-Diabetic)' });
 g.addNode('sulfonylurea', 'CLASS', { name: 'Sulfonylurea (Anti-Diabetic)' });
 g.addNode('analgesic', 'CLASS', { name: 'Analgesic (Antipyretic)' });
 
-// Add biological pathways / toxic risks nodes
 g.addNode('bleeding_risk', 'PATHWAY', { name: 'Severe Bleeding Risk', severity: 'CRITICAL', title: 'Severe Bleeding Pathway Collision' });
 g.addNode('hypotension_risk', 'PATHWAY', { name: 'Severe Hypotension Risk', severity: 'CRITICAL', title: 'Fatal Blood Pressure Drop Pathway' });
 g.addNode('hyperkalemia_risk', 'PATHWAY', { name: 'Hyperkalemia Risk', severity: 'CRITICAL', title: 'Hyperkalemia Pathway Collision' });
 g.addNode('statin_toxicity', 'PATHWAY', { name: 'Statin Toxicity Risk', severity: 'MODERATE', title: 'Statin Muscle Toxicity Pathway' });
 g.addNode('hypoglycemia_risk', 'PATHWAY', { name: 'Hypoglycemia Risk', severity: 'MODERATE', title: 'Double Antidiabetic Hypoglycemia Pathway' });
 
-// Add side effect nodes
 g.addNode('dry_cough', 'SIDEEFFECT', { name: 'Dry Cough', description: 'ACE inhibitor-induced cough' });
 g.addNode('stomach_bleed', 'SIDEEFFECT', { name: 'Stomach Bleed', description: 'NSAID-induced gastrointestinal bleeding or irritation' });
 g.addNode('muscle_pain', 'SIDEEFFECT', { name: 'Muscle Pain', description: 'Statin-induced myalgia or rhabdomyolysis' });
@@ -112,7 +100,6 @@ g.addNode('dizziness', 'SIDEEFFECT', { name: 'Dizziness', description: 'Blood pr
 g.addNode('nausea', 'SIDEEFFECT', { name: 'Nausea', description: 'Common gastrointestinal side effect' });
 g.addNode('headache', 'SIDEEFFECT', { name: 'Headache', description: 'Vasodilator-induced cerebral pressure' });
 
-// Seed subclass/member relationships
 g.addEdge('aspirin', 'nsaid', 'MEMBER_OF');
 g.addEdge('ibuprofen', 'nsaid', 'MEMBER_OF');
 g.addEdge('warfarin', 'anticoagulant', 'MEMBER_OF');
@@ -127,7 +114,6 @@ g.addEdge('glimepiride', 'sulfonylurea', 'MEMBER_OF');
 g.addEdge('paracetamol', 'analgesic', 'MEMBER_OF');
 g.addEdge('acetaminophen', 'analgesic', 'MEMBER_OF');
 
-// Seed side effect relationships
 g.addEdge('lisinopril', 'dry_cough', 'CAUSES');
 g.addEdge('aspirin', 'stomach_bleed', 'CAUSES');
 g.addEdge('ibuprofen', 'stomach_bleed', 'CAUSES');
@@ -137,7 +123,6 @@ g.addEdge('amlodipine', 'dizziness', 'CAUSES');
 g.addEdge('metformin', 'nausea', 'CAUSES');
 g.addEdge('nitroglycerin', 'headache', 'CAUSES');
 
-// Seed pathway potentiators / interactions
 g.addEdge('nsaid', 'bleeding_risk', 'POTENTIATES');
 g.addEdge('anticoagulant', 'bleeding_risk', 'POTENTIATES');
 
@@ -153,14 +138,8 @@ g.addEdge('ccb', 'statin_toxicity', 'POTENTIATES');
 g.addEdge('biguanide', 'hypoglycemia_risk', 'POTENTIATES');
 g.addEdge('sulfonylurea', 'hypoglycemia_risk', 'POTENTIATES');
 
-// Add direct salt-to-salt interactions
 g.addEdge('ibuprofen', 'aspirin', 'INTERACTS_WITH', 2);
 
-/**
- * Checks active cabinet salts for contraindications using graph traversals.
- * @param {Array<string>} activeSalts - List of active ingredients in the cabinet.
- * @returns {Array<object>} - Detected interactions with descriptions.
- */
 export function checkInteractions(activeSalts) {
   if (!Array.isArray(activeSalts) || activeSalts.length < 2) return [];
 
@@ -177,7 +156,6 @@ export function checkInteractions(activeSalts) {
       const s1 = normalized[i];
       const s2 = normalized[j];
 
-      // Find matching keys in the graph nodes map
       const node1Key = Array.from(g.nodes.keys()).find(k => s1.clean.includes(k) || k.includes(s1.clean));
       const node2Key = Array.from(g.nodes.keys()).find(k => s2.clean.includes(k) || k.includes(s2.clean));
 
@@ -187,7 +165,6 @@ export function checkInteractions(activeSalts) {
       if (processedPairs.has(pairKey)) continue;
       processedPairs.add(pairKey);
 
-      // BFS lookup to find path connections up to depth 4
       const paths = g.findPaths(node1Key, node2Key, 4);
 
       for (const path of paths) {
@@ -242,11 +219,6 @@ export function checkInteractions(activeSalts) {
   return collisions;
 }
 
-/**
- * Checks active cabinet salts for therapeutic class duplication via graph MEMBER_OF edges.
- * @param {Array<string>} activeSalts - List of active ingredients.
- * @returns {Array<object>} - Duplications with warnings.
- */
 export function checkTherapeuticDuplication(activeSalts) {
   if (!Array.isArray(activeSalts) || activeSalts.length < 2) return [];
 
@@ -289,8 +261,6 @@ export function checkTherapeuticDuplication(activeSalts) {
   return duplicates;
 }
 
-
-// Map of common salts to their ideal take-time, food guidelines, and clinical rationales
 export const CHRONOTHERAPY_METADATA = {
   'omeprazole': { idealTime: 'Morning', foodRelation: 'Empty Stomach (30m before breakfast)', rationale: 'PPIs require active proton pumps to bind; taking before first meal maximizes acid suppression.' },
   'pantoprazole': { idealTime: 'Morning', foodRelation: 'Empty Stomach (30m before breakfast)', rationale: 'PPIs require active proton pumps to bind; taking before first meal maximizes acid suppression.' },
@@ -309,12 +279,6 @@ export const CHRONOTHERAPY_METADATA = {
   'telmisartan': { idealTime: 'Morning', foodRelation: 'With or without food', rationale: 'Long half-life allows morning dosing for stable 24h pressure control.' }
 };
 
-/**
- * Dynamically orchestrates medication schedules based on active cabinet ingredients.
- * Applies chronotherapeutic guidelines and spacing for moderate drug-drug interactions.
- * @param {Array<object>} cabinetItems - Items in the cabinet.
- * @returns {object} - { schedule: { Morning: [], Afternoon: [], Evening: [], Bedtime: [] }, notes: [] }
- */
 export function orchestrateMedicationSchedule(cabinetItems) {
   const schedule = {
     'Morning': [],
@@ -328,7 +292,6 @@ export function orchestrateMedicationSchedule(cabinetItems) {
     return { schedule, notes };
   }
 
-  // Normalize cabinet items
   const processed = cabinetItems.map(item => {
     const clean = normalizeSaltName(item.saltComposition);
     const metaKey = Object.keys(CHRONOTHERAPY_METADATA).find(k => clean.includes(k));
@@ -345,7 +308,6 @@ export function orchestrateMedicationSchedule(cabinetItems) {
     };
   });
 
-  // Check if we need to space out Aspirin and Ibuprofen
   const hasAspirin = processed.some(item => item.clean.includes('aspirin'));
   const hasIbuprofen = processed.some(item => item.clean.includes('ibuprofen'));
 
@@ -365,7 +327,6 @@ export function orchestrateMedicationSchedule(cabinetItems) {
     });
   }
 
-  // Assign to slots
   processed.forEach(item => {
     const slot = item.meta.idealTime || 'Morning';
     if (schedule[slot]) {
@@ -381,12 +342,6 @@ export function orchestrateMedicationSchedule(cabinetItems) {
   return { schedule, notes };
 }
 
-/**
- * Flags potential adverse drug reactions (ADRs) based on active salts in the cabinet and logged symptoms.
- * @param {Array<string>} activeSalts - List of active ingredients in the cabinet.
- * @param {Array<string>} loggedSymptoms - List of symptoms reported by the user.
- * @returns {Array<object>} - Matching side effects with warning explanations.
- */
 export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
   if (!Array.isArray(activeSalts) || activeSalts.length === 0 || !Array.isArray(loggedSymptoms) || loggedSymptoms.length === 0) {
     return [];
@@ -397,7 +352,7 @@ export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
   const flags = [];
 
   for (const saltClean of normalizedSalts) {
-    // Find matching salt node in graph
+
     const saltNodeKey = Array.from(g.nodes.keys()).find(k => {
       const cleanK = k.replace(/[^a-z0-9]/g, '');
       const cleanS = saltClean.replace(/[^a-z0-9]/g, '');
@@ -406,7 +361,7 @@ export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
     if (!saltNodeKey) continue;
 
     for (const symptom of normalizedSymptoms) {
-      // Find matching side effect node in graph
+
       const sideEffectNodeKey = Array.from(g.nodes.keys()).find(k => {
         const node = g.nodes.get(k);
         const cleanK = k.replace(/[^a-z0-9]/g, '');
@@ -415,7 +370,6 @@ export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
       });
       if (!sideEffectNodeKey) continue;
 
-      // Find path from salt to side effect (depth <= 3)
       const paths = g.findPaths(saltNodeKey, sideEffectNodeKey, 3);
       if (paths.length > 0) {
         const sideEffectNode = g.nodes.get(sideEffectNodeKey);
@@ -431,5 +385,4 @@ export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
 
   return flags;
 }
-
 

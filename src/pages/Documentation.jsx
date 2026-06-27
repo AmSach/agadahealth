@@ -3,13 +3,13 @@ import React from 'react'
 export default function Documentation({ onBack }) {
   return (
     <div style={{ padding: '24px 20px', maxWidth: '700px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
+      
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 16 }}>
         <button onClick={onBack} className="btn-cyber-secondary" style={{ fontSize: 12, height: 32, padding: '0 12px', display: 'flex', alignItems: 'center' }}>
           &lt; BACK_TO_CONSOLE
         </button>
         <h2 style={{ fontSize: 18, margin: 0, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
-          // API_DOCUMENTATION
+
         </h2>
       </div>
 
@@ -23,7 +23,6 @@ export default function Documentation({ onBack }) {
         </div>
       </div>
 
-      {/* Endpoint 1 */}
       <div className="bento-card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--font-mono)' }}>POST</span>
@@ -52,7 +51,6 @@ export default function Documentation({ onBack }) {
         </div>
       </div>
 
-      {/* Endpoint 2 */}
       <div className="bento-card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--font-mono)' }}>POST</span>
@@ -74,7 +72,6 @@ export default function Documentation({ onBack }) {
         </div>
       </div>
 
-      {/* Endpoint 3 */}
       <div className="bento-card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: 'rgba(6,182,212,0.15)', color: 'var(--cyan)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--font-mono)' }}>GET</span>
@@ -85,7 +82,6 @@ export default function Documentation({ onBack }) {
         </p>
       </div>
 
-      {/* Endpoint 4 */}
       <div className="bento-card" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: 'rgba(6,182,212,0.15)', color: 'var(--cyan)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--font-mono)' }}>GET</span>
@@ -96,7 +92,6 @@ export default function Documentation({ onBack }) {
         </p>
       </div>
 
-      {/* Footer */}
       <button onClick={onBack} className="btn-cyber-primary" style={{ margin: '16px auto 32px' }}>
         BACK_TO_CONSOLE
       </button>

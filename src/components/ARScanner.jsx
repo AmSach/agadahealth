@@ -8,14 +8,13 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   
   const [error, setError] = useState(null)
   const [statusText, setStatusText] = useState('Initializing camera...')
-  const [stabilityScore, setStabilityScore] = useState(0) // 0 to 100 for progress ring
+  const [stabilityScore, setStabilityScore] = useState(0)
   const [worker, setWorker] = useState(null)
-  const [filterMode, setFilterMode] = useState(0) // 0 = none, 1 = binarization, 2 = edges
+  const [filterMode, setFilterMode] = useState(0)
 
-  // Tracking refs for requestAnimationFrame loop
   const streamRef = useRef(null)
   const animFrameRef = useRef(null)
-  const lastCoordsRef = useRef(null) // For smoothing coordinates (EMA)
+  const lastCoordsRef = useRef(null)
   const stableFramesCountRef = useRef(0)
   const workerBusyRef = useRef(false)
 
@@ -35,22 +34,19 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     }
   }, [])
 
-  // Initialize Worker and camera stream
   useEffect(() => {
     let active = true
     let newWorker = null
 
     async function startScanner() {
       try {
-        // Instantiate Vite worker
+
         newWorker = new ImageProcessorWorker()
-        
-        // Fetch wasm bytes to transfer to the worker
+
         const response = await fetch('/image_processor.wasm')
         if (!response.ok) throw new Error("Failed to load Wasm binary bytes.")
         const bytes = await response.arrayBuffer()
-        
-        // Setup message routing
+
         newWorker.onmessage = (e) => {
           if (!active) return
           const { type } = e.data
@@ -68,10 +64,8 @@ export default function ARScanner({ onCapture, onCancel, t }) {
           }
         }
 
-        // Initialize wasm in worker
         newWorker.postMessage({ type: 'init', wasmBytes: bytes }, [bytes])
 
-        // Request back-facing environment camera
         const constraints = {
           video: {
             facingMode: 'environment',
@@ -113,19 +107,17 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     }
   }, [])
 
-  // Start the frame analysis loop once video starts playing
   const handleCanPlay = () => {
     if (animFrameRef.current) return
     animFrameRef.current = requestAnimationFrame(analyzeFrame)
   }
 
-  // Smooth bounding box coordinates using Exponential Moving Average (EMA)
   const smoothCoords = (newCoords) => {
     if (!lastCoordsRef.current) {
       lastCoordsRef.current = newCoords
       return newCoords
     }
-    const alpha = 0.35 // smoothing factor
+    const alpha = 0.35
     const old = lastCoordsRef.current
     const smoothed = {
       minX: old.minX + alpha * (newCoords.minX - old.minX),
@@ -139,7 +131,6 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     return smoothed
   }
 
-  // Master frame processing and CV analysis loop
   const analyzeFrame = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -156,7 +147,6 @@ export default function ARScanner({ onCapture, onCancel, t }) {
       return
     }
 
-    // Set canvas dimensions to match the incoming camera aspect
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width
       canvas.height = height
@@ -168,7 +158,6 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     const imgData = ctx.getImageData(0, 0, width, height)
     workerBusyRef.current = true
 
-    // Delegate processing to Web Worker, transferring the pixel buffer to avoid copying
     worker.postMessage({
       type: 'process',
       filterType: filterMode,
@@ -188,18 +177,16 @@ export default function ARScanner({ onCapture, onCancel, t }) {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     const { width, height, cropCoords, focusMetric } = data
-    
-    // Draw the processed image back onto canvas if a filter mode is active
+
     if (filterMode > 0) {
       const outputImgData = new ImageData(new Uint8ClampedArray(data.data), width, height)
       ctx.putImageData(outputImgData, 0, 0)
     } else {
-      // Re-draw raw video frame
+
       const video = videoRef.current
       if (video) ctx.drawImage(video, 0, 0, width, height)
     }
 
-    // --- Real-time Barcode/QR Code Scanner ---
     if (barcodeDetectorRef.current) {
       barcodeDetectorRef.current.detect(canvas)
         .then(barcodes => {
@@ -209,7 +196,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
               console.log("Barcode detected natively in stream:", rawText)
               hasCapturedRef.current = true
               setStatusText("Barcode Detected! Decoding...")
-              // Visual feedback: green flash
+
               ctx.fillStyle = 'rgba(16, 185, 129, 0.45)'
               ctx.fillRect(0, 0, width, height)
               setTimeout(() => {
@@ -220,7 +207,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
         })
         .catch(err => console.error("Native detector error:", err))
     } else {
-      // Fallback: poll ZXing every 18 frames (~300ms)
+
       zxingFrameCountRef.current++
       if (zxingFrameCountRef.current % 18 === 0) {
         decodeBarcodeFromCanvas(canvas).then(rawText => {
@@ -228,7 +215,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
             console.log("Barcode decoded via ZXing fallback:", rawText)
             hasCapturedRef.current = true
             setStatusText("Barcode Detected! Decoding...")
-            // Visual feedback: green flash
+
             ctx.fillStyle = 'rgba(16, 185, 129, 0.45)'
             ctx.fillRect(0, 0, width, height)
             setTimeout(() => {
@@ -238,49 +225,42 @@ export default function ARScanner({ onCapture, onCancel, t }) {
         })
       }
     }
-    
-    // Smooth crop coordinates using EMA
+
     let smoothed = null
     if (cropCoords) {
       smoothed = smoothCoords(cropCoords)
     } else {
       lastCoordsRef.current = null
     }
-    
-    // Draw AR Guide overlay indicators and check auto-trigger
+
     drawGuides(ctx, width, height, smoothed, focusMetric)
   }
 
-  // Draw AR Neon overlays and check auto-trigger thresholds
   const drawGuides = (ctx, width, height, cropCoords, focusScore) => {
     // Focus metric configuration: variance > 10.0 is generally in focus
     const MIN_FOCUS = 8.5
     const isFocused = focusScore > MIN_FOCUS
 
-    // Guide center rectangle reference
     const guideW = Math.round(width * 0.7)
     const guideH = Math.round(height * 0.45)
     const guideX = Math.round((width - guideW) / 2)
     const guideY = Math.round((height - guideH) / 2)
 
-    // Draw central target frame
     ctx.strokeStyle = isFocused ? '#10B981' : 'rgba(255, 255, 255, 0.4)'
     ctx.lineWidth = 4
     ctx.setLineDash([15, 10])
     ctx.strokeRect(guideX, guideY, guideW, guideH)
     ctx.setLineDash([])
 
-    // Check if a bounding box is detected
     if (cropCoords && cropCoords.w > 80 && cropCoords.h > 80) {
-      // Draw neon bounding box around medicine strip
+
       ctx.strokeStyle = isFocused ? '#10B981' : '#F59E0B'
       ctx.lineWidth = 3
       ctx.shadowBlur = 12
       ctx.shadowColor = isFocused ? '#10B981' : '#F59E0B'
       ctx.strokeRect(cropCoords.minX, cropCoords.minY, cropCoords.w, cropCoords.h)
-      ctx.shadowBlur = 0 // reset shadow
+      ctx.shadowBlur = 0
 
-      // Size check: strip should occupy a reasonable portion of the target area
       const isInside = cropCoords.minX > guideX - 40 && 
                        cropCoords.maxX < guideX + guideW + 40 &&
                        cropCoords.minY > guideY - 40 &&
@@ -306,35 +286,30 @@ export default function ARScanner({ onCapture, onCancel, t }) {
       stableFramesCountRef.current = Math.max(0, stableFramesCountRef.current - 1)
     }
 
-    // Set stability score progress (e.g. requires 8 consecutive frames for auto-capture)
     const thresholdFrames = 8
     const progress = Math.min(100, Math.round((stableFramesCountRef.current / thresholdFrames) * 100))
     setStabilityScore(progress)
 
-    // Trigger auto-capture when stable criteria is met
     if (stableFramesCountRef.current >= thresholdFrames) {
       triggerCapture(cropCoords)
     }
   }
 
-  // Trigger frame extraction and capture
   const triggerCapture = (cropCoords, directBarcodeText = null) => {
-    // Cancel loop
+
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     animFrameRef.current = null
 
-    // Extract captured frame
     const canvas = canvasRef.current
     const video = videoRef.current
     if (!canvas || !video) return
 
-    // Stop streams
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop())
     }
 
     try {
-      // Create a clean canvas to capture the raw frame from the video element (no guide boxes/overlays)
+
       const cleanCanvas = document.createElement('canvas')
       cleanCanvas.width = video.videoWidth || canvas.width || 640
       cleanCanvas.height = video.videoHeight || canvas.height || 480
@@ -344,9 +319,8 @@ export default function ARScanner({ onCapture, onCancel, t }) {
 
       let finalCanvas = cleanCanvas
 
-      // Crop if a valid coordinates box is available and we don't have direct barcode text
       if (!directBarcodeText && cropCoords && cropCoords.w > 100 && cropCoords.h > 100) {
-        // Safe clamp coordinate boundaries to prevent DOMException errors
+
         const sMinX = Math.max(0, Math.min(cleanCanvas.width - 1, Math.round(cropCoords.minX || 0)))
         const sMinY = Math.max(0, Math.min(cleanCanvas.height - 1, Math.round(cropCoords.minY || 0)))
         const sMaxX = Math.max(0, Math.min(cleanCanvas.width, Math.round(cropCoords.maxX || (sMinX + cropCoords.w))))
@@ -360,8 +334,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
           cropCanvas.width = sW
           cropCanvas.height = sH
           const cropCtx = cropCanvas.getContext('2d')
-          
-          // Draw cropped section from the clean canvas
+
           cropCtx.drawImage(cleanCanvas, sMinX, sMinY, sW, sH, 0, 0, sW, sH)
           finalCanvas = cropCanvas
         }
@@ -401,17 +374,13 @@ export default function ARScanner({ onCapture, onCancel, t }) {
 
   return (
     <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', background: '#000', overflow: 'hidden', minHeight: '80vh' }}>
-      
-      {/* Video stream container */}
+
       <video ref={videoRef} onCanPlay={handleCanPlay} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
-      
-      {/* Canvas overlays */}
+
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, zIndex: 2 }} />
 
-      {/* Interface Guides overlay */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10, background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)', padding: '24px 18px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-        
-        {/* Status text banner */}
+
         <div style={{ 
           background: 'rgba(26,43,74,0.75)', 
           backdropFilter: 'blur(8px)',
@@ -427,7 +396,6 @@ export default function ARScanner({ onCapture, onCancel, t }) {
           {statusText}
         </div>
 
-        {/* Dynamic auto-capture progress indicator */}
         {stabilityScore > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 140, height: 6, background: 'rgba(255,255,255,0.2)', borderRadius: 3, overflow: 'hidden' }}>
@@ -437,15 +405,12 @@ export default function ARScanner({ onCapture, onCancel, t }) {
           </div>
         )}
 
-        {/* Control toolbar */}
         <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 8 }}>
-          
-          {/* Cancel */}
+
           <button onClick={onCancel} style={{ flex: 1, height: 46, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, color: '#fff', fontSize: 13, fontWeight: 600 }}>
             Cancel
           </button>
 
-          {/* Manual Shutter Button */}
           <button onClick={handleManualCapture} style={{ 
             width: 62, 
             height: 62, 
@@ -461,7 +426,6 @@ export default function ARScanner({ onCapture, onCancel, t }) {
             <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--green)' }} />
           </button>
 
-          {/* Filter options toggle */}
           <button onClick={() => setFilterMode(m => (m + 1) % 3)} style={{ 
             flex: 1, 
             height: 46, 

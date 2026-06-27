@@ -41,7 +41,6 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
     )
   }
 
-  // Ensure arrays fallbacks
   const medicines = data.medicines || []
 
   const LayoutWrapper = ({ children }) => (
@@ -82,7 +81,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
 
   return (
     <LayoutWrapper>
-      {/* Top Banner - Doctor / Patient Info */}
+      
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '16px', boxShadow: 'var(--shadow)', animation: 'fadeUp 0.4s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           {preview ? (
@@ -107,7 +106,6 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
         </div>
       </div>
 
-      {/* Medicines List */}
       <div style={{ animation: 'fadeUp 0.4s ease 0.1s both' }}>
         <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', margin: '0 0 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>💊 Prescribed Medicines ({medicines.length})</h3>
         
@@ -173,7 +171,6 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
         )}
       </div>
 
-      {/* Disclaimer */}
       <div style={{ padding: '12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 11.5, color: '#991B1B', lineHeight: 1.6, animation: 'fadeUp 0.4s ease 0.2s both' }}>
         <strong>⚠️ Disclaimer</strong>: This is an AI transcription of the prescription. Handwriting interpretation can contain errors. <strong>Always verify with the original prescription or consult your pharmacist before consuming any medication.</strong>
       </div>

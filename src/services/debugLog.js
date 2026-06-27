@@ -1,13 +1,4 @@
-/**
- * debugLog.js - Agada AI Response Logger
- *
- * Stores every raw AI JSON response in localStorage keyed by timestamp.
- * Access at any time via: window.__agadaLogs()
- * Or open the in-app debug panel at /?debug=1
- *
- * Storage: localStorage['agada_logs'] - survives page refresh, cleared manually.
- * Limit: keeps last 100 entries (auto-trims oldest).
- */
+
 
 const STORAGE_KEY = 'agada_logs'
 const MAX_ENTRIES = 100
@@ -18,7 +9,7 @@ export function logAIResponse({ phase, prompt, rawResponse, parsed, salt, brand,
     const entry = {
       id:          Date.now(),
       ts:          new Date().toISOString(),
-      phase,           // 'vision' | 'description' | 'generics'
+      phase,
       salt:        salt || null,
       brand:       brand || null,
       durationMs:  durationMs || null,
@@ -28,7 +19,7 @@ export function logAIResponse({ phase, prompt, rawResponse, parsed, salt, brand,
       ok:          !!parsed,
     }
     existing.push(entry)
-    // Trim to MAX_ENTRIES
+
     const trimmed = existing.slice(-MAX_ENTRIES)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
   } catch (e) {
@@ -54,7 +45,6 @@ export function exportLogsJSON() {
   a.click(); URL.revokeObjectURL(url)
 }
 
-// Global helpers accessible from browser console
 if (typeof window !== 'undefined') {
   window.__agadaLogs   = getLogs
   window.__agadaClear  = clearLogs

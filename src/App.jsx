@@ -11,7 +11,7 @@ export const useSetPage = () => useContext(PageContext).setPage
 
 export default function App() {
   const [lang, setLang] = useState('en')
-  const [page, setPage] = useState('home') // 'home' | 'privacy' | 'terms' | 'docs'
+  const [page, setPage] = useState('home')
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>

@@ -1,27 +1,9 @@
-/**
- * dbService.js v7 - Agada  (DEFINITIVE)
- *
- * Every match rule has a precise reason. Nothing is heuristic.
- *
- * BLOCKING RULES (hard, not soft):
- *  1. Form bucket mismatch  - solid / liquid / injection / topical must match exactly
- *  2. Drug-prefix mismatch  - levo-/s-/dextro-/nor-/des- prefix = different drug, never interchangeable
- *  3. Extra salt in product  - combo product never shown for simpler query
- *  4. Combipack             - always blocked (multiple drugs in one pack)
- *  5. Every salt's dose     - ALL salts checked, combo tolerance ±5%, single ±10%
- *
- * RANKING (soft, after hard blocks pass):
- *  - SR/ER/prolonged-release gets +5 penalty (prefer immediate release)
- *  - Then cheapest per-unit price wins
- *
- * SYNONYMS: amoxicillin↔amoxycillin, clavulanic acid↔clavulanate, etc.
- */
+
 
 let jaDB    = null
 let cdscoDb = null
 let loadPromise = null
 
-// ─── CSV ─────────────────────────────────────────────────────────────────────
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (!lines.length) return []
@@ -53,8 +35,6 @@ export async function ensureLoaded() {
   await loadPromise
 }
 
-// ─── SYNONYM MAP ─────────────────────────────────────────────────────────────
-// Both spellings map to the SAME canonical so matching works across DB naming.
 const SYNONYMS = {
   'amoxicillin':           'amoxycillin',
   'clavulanic acid':       'clavulanate',
@@ -82,37 +62,28 @@ function normName(raw) {
   return SYNONYMS[n] || n
 }
 
-// ─── FORM BUCKET ──────────────────────────────────────────────────────────────
-// Products from different buckets are NEVER interchangeable, period.
 function formBucket(text) {
   const t = (text || '').toLowerCase()
   if (/\bgel\b|\bcream\b|\bointment\b|\blotion\b|\bshampoo\b|\bsoap\b|\btopical\b|\btubes?\b/.test(t)) return 'topical'
   if (/\binjection\b|\binfusion\b|\biv\b|\bampoules?\b|\bvials?\b/.test(t))                 return 'injection'
   if (/\bsuspension\b|\bsyrup\b|\bdrops?\b|\bsolution\b|\boral\s+liquid\b|\bper\s+\d+\s*ml\b|\bbottles?\b/.test(t)) return 'liquid'
-  return 'solid' // tablets, capsules, dispersible, ODT, strips - all equivalent for substitution
+  return 'solid'
 }
 
-// ─── DRUG-MODIFYING PREFIX ────────────────────────────────────────────────────
-// If a salt name starts with a pharmacological modifier, it's a DIFFERENT drug.
-// levo-thyroxine ≠ thyroxine, s(-)-amlodipine ≠ amlodipine
-// Exception: if BOTH names share the same prefix → same drug (levofloxacin == levofloxacin)
 const DRUG_PREFIX = /^(levo|dextro|nor|des|fos|s\s*[-\s]|r\s*[-\s]|methyl|ethyl|iso|neo)\s*/i
 
-// ─── SALT PARSER ─────────────────────────────────────────────────────────────
-// Strips form/route/salt-type words; preserves dose numbers; expands parenthetical doses.
 const STRIP_WORDS = /\b(tablets?|capsules?|injection|syrup|oral|per|suspension|drops?|infusion|solution|cream|ointment|gel|spray|lotion|shampoo|paediatric|prolonged|sustained|modified|extended|gastro|resistant|resistance|ip|bp|usp|sr|er|xr|mr|forte|plus|ml|gm|hydrochloride|dihydrochloride|hcl|hbr|sulphate|sulfate|phosphate|maleate|tartrate|mesylate|acetate|citrate|gluconate|nitrate|fumarate|release|tablet|capsule|trihydrate|monohydrate|anhydrous|dispersible|enteric|coated|origin|dna|rdna|w\/w|w\/v|v\/v)\b/gi
 
 export function parseSalts(text, formText = '') {
   if (!text) return []
-  // Combipacks always blocked - they contain multiple separate drugs
+
   if (/\bcombipack\b/i.test(text)) return []
 
   const form = formBucket(text + ' ' + formText)
 
-  // Expand parenthetical dose content before stripping parens (requires a digit before the unit)
   let t = text.replace(/\(([^)]*\b\d+\s*(?:mg|mcg|g|iu|%)\b[^)]*)\)/gi, ' $1 ')
-  t = t.replace(/\([^)]*\)/g, ' ')       // remove remaining non-dose parens
-  t = t.replace(/\b\d+%\/\d+%/g, ' ')    // remove % ratios (insulin 30%/70%) but preserve single % like 1.16%
+  t = t.replace(/\([^)]*\)/g, ' ')
+  t = t.replace(/\b\d+%\/\d+%/g, ' ')
 
   return t
     .split(/\band\b|,|\+|&/i)
@@ -129,14 +100,10 @@ export function parseSalts(text, formText = '') {
     }).filter(Boolean)
 }
 
-// ─── SALT NAME MATCH ─────────────────────────────────────────────────────────
-// Word-boundary substring match - but BLOCKED if either name has a drug-modifying prefix
-// that the other lacks. Prevents levo-thyroxine matching thyroxine.
 function saltNameMatch(a, b) {
   const na = normName(a), nb = normName(b)
   if (na === nb) return true
 
-  // If one has a drug-modifying prefix and the other doesn't → different drug
   const aHasPrefix = DRUG_PREFIX.test(na)
   const bHasPrefix = DRUG_PREFIX.test(nb)
   if (aHasPrefix !== bHasPrefix) return false
@@ -146,17 +113,13 @@ function saltNameMatch(a, b) {
          new RegExp('\\b' + esc(nb) + '\\b', 'i').test(na)
 }
 
-// ─── MATCH QUALITY ───────────────────────────────────────────────────────────
 export function matchQuality(qSalts, pSalts) {
   if (!qSalts.length || !pSalts.length) return 'blocked'
 
-  // Rule 0: every query salt must have a dose - prevents wrong-dose matches
   if (qSalts.every(s => s.dose == null)) return 'no_dose'
 
-  // Rule 1: form bucket must match exactly
   if (qSalts[0].form !== pSalts[0].form) return 'blocked'
 
-  // Rule 2: salt names must match both ways (no extra salts in either direction)
   for (const qs of qSalts) {
     if (!pSalts.some(ps => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
@@ -164,9 +127,8 @@ export function matchQuality(qSalts, pSalts) {
     if (!qSalts.some(qs => saltNameMatch(qs.name, ps.name))) return 'blocked'
   }
 
-  // Rule 3: ALL salt doses must match within tolerance
   const isCombo = qSalts.length > 1
-  const tol = isCombo ? 0.05 : 0.10  // ±5% combos, ±10% single
+  const tol = isCombo ? 0.05 : 0.10
 
   let hasMismatch = false
   for (const qs of qSalts) {
@@ -179,7 +141,6 @@ export function matchQuality(qSalts, pSalts) {
   return hasMismatch ? 'dose_mismatch' : 'exact'
 }
 
-// ─── PER-UNIT PRICE ──────────────────────────────────────────────────────────
 function perUnit(mrp, unitSize) {
   if (!mrp || !unitSize) return null
   const n = unitSize.match(/(\d+)/)
@@ -204,8 +165,6 @@ function inferUnitLabel(packStr) {
   return 'tablet'
 }
 
-// ─── SR RANKING ──────────────────────────────────────────────────────────────
-// Prefer immediate-release unless query explicitly asks for SR/ER
 function srPenalty(productName, queryRaw) {
   const q = (queryRaw || '').toLowerCase()
   const wantsSR = /\bsr\b|\ber\b|\bxr\b|\bprolonged\b|\bsustained\b|\bextended\b/.test(q)
@@ -213,13 +172,11 @@ function srPenalty(productName, queryRaw) {
   return /\bprolonged\b|\bsustained\b|\bextended\b|\bmodified\b/.test(productName.toLowerCase()) ? 1 : 0
 }
 
-// ─── JAN AUSHADHI LOOKUP ─────────────────────────────────────────────────────
 export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) {
   if (!jaDB || !saltComposition) return { best: null, doseMismatch: null, noDose: false }
   const qSalts = parseSalts(saltComposition, brandedUnitSize)
   if (!qSalts.length) return { best: null, doseMismatch: null, noDose: false }
 
-  // Gate: all salts must have a dose - otherwise any dose would match
   if (!qSalts.every(s => s.dose != null)) {
     return { best: null, doseMismatch: null, noDose: true }
   }
@@ -262,7 +219,6 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
     else doseMismatch.push(entry)
   }
 
-  // Sort: prefer immediate-release, then cheapest
   exact.sort((a, b) => a.srPenalty - b.srPenalty || a.mrp - b.mrp)
   doseMismatch.sort((a, b) => a.srPenalty - b.srPenalty || a.mrp - b.mrp)
 
@@ -271,7 +227,6 @@ export function lookupJanAushadhi(saltComposition, brandedMrp, brandedUnitSize) 
   return { best, doseMismatch: dmBest, noDose: false }
 }
 
-// ─── CDSCO LOOKUP ────────────────────────────────────────────────────────────
 export function lookupCDSCO(saltComposition) {
   if (!cdscoDb || !saltComposition) return { found: false, badge: null }
   const qSalts = parseSalts(saltComposition)
@@ -290,8 +245,6 @@ export function lookupCDSCO(saltComposition) {
   return { found: true, badge: `✓ ${displayName} is CDSCO-approved`, indication: indication || null }
 }
 
-// ─── PHARMACY LINKS ───────────────────────────────────────────────────────────
-// Full salt+dose in URL so user lands on the correct product strength directly
 export function pharmacyLinks(saltComposition) {
   if (!saltComposition) return []
   const q = encodeURIComponent(saltComposition)
@@ -303,7 +256,6 @@ export function pharmacyLinks(saltComposition) {
   ]
 }
 
-// ─── SAVINGS SUMMARY ─────────────────────────────────────────────────────────
 export function buildSavingsSummary(best, brandedMrp, brandedUnitSize) {
   if (!best?.mrp) return null
   const brandedPU = brandedMrp && brandedUnitSize ? perUnit(parseFloat(brandedMrp), brandedUnitSize) : null

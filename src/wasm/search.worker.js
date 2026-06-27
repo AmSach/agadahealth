@@ -1,20 +1,14 @@
-// src/wasm/search.worker.js
-// Client-side background thread Search Engine utilizing BM25, Levenshtein, and Metaphone phonetic hashes.
+
 
 let cdscoIndex = [];
 let janAushadhiIndex = [];
 
-// Average document length parameters for BM25
 let cdscoAvgDl = 0;
 let jaAvgDl = 0;
 
-// BM25 parameters
 const K1 = 1.2;
 const B = 0.75;
 
-/**
- * Phonetic reduction algorithm (Simplified Metaphone)
- */
 function getPhoneticCode(word) {
   if (!word) return '';
   let str = word.toUpperCase().replace(/[^A-Z]/g, '');
@@ -159,9 +153,6 @@ function getPhoneticCode(word) {
   return code;
 }
 
-/**
- * Standard Levenshtein Distance calculation
- */
 function levenshteinDistance(s1, s2) {
   const len1 = s1.length;
   const len2 = s2.length;
@@ -183,9 +174,6 @@ function levenshteinDistance(s1, s2) {
   return matrix[len1][len2];
 }
 
-/**
- * Tokenizes and cleans a string
- */
 function tokenize(text) {
   return (text || '').toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
@@ -193,9 +181,6 @@ function tokenize(text) {
     .filter(t => t.length > 1);
 }
 
-/**
- * Indexes a raw catalog for searching
- */
 function buildIndex(rows, textKey) {
   let totalLen = 0;
   const indexed = rows.map((row, idx) => {
@@ -203,7 +188,6 @@ function buildIndex(rows, textKey) {
     const tokens = tokenize(text);
     totalLen += tokens.length;
 
-    // Precompute phonetic hashes for all tokens
     const phonetics = tokens.map(t => getPhoneticCode(t));
 
     return {
@@ -220,9 +204,6 @@ function buildIndex(rows, textKey) {
   return { indexed, avgDl };
 }
 
-/**
- * Computes BM25 IDF for a query term
- */
 function computeIDF(term, collection) {
   const N = collection.length;
   let df = 0;
@@ -234,9 +215,6 @@ function computeIDF(term, collection) {
   return Math.log(((N - df + 0.5) / (df + 0.5)) + 1);
 }
 
-/**
- * Performs BM25 relevance scoring and Metaphone phonetic matching
- */
 function searchCatalog(query, indexedColl, avgDl) {
   if (!query) return [];
   const queryTokens = tokenize(query);
@@ -245,14 +223,12 @@ function searchCatalog(query, indexedColl, avgDl) {
   const queryPhonetics = queryTokens.map(t => getPhoneticCode(t));
   const results = [];
 
-  // Compute IDFs for query tokens
   const idfs = queryTokens.map(term => computeIDF(term, indexedColl));
 
   for (const doc of indexedColl) {
     let bm25Score = 0;
     let phoneticScore = 0;
 
-    // 1. BM25 scoring for exact token matches
     queryTokens.forEach((qToken, qIdx) => {
       const idf = idfs[qIdx];
       const tf = doc.tokens.filter(t => t === qToken).length;
@@ -263,7 +239,6 @@ function searchCatalog(query, indexedColl, avgDl) {
       }
     });
 
-    // 2. Metaphone phonetic scoring for typos
     queryPhonetics.forEach((qPhonetic) => {
       if (qPhonetic) {
         const matchCount = doc.phonetics.filter(dp => dp === qPhonetic).length;
@@ -273,7 +248,6 @@ function searchCatalog(query, indexedColl, avgDl) {
       }
     });
 
-    // 3. Typo distance matching (Levenshtein check on primary query)
     const textWords = doc.text.split(' ');
     let bestEditDistance = 999;
     queryTokens.forEach(qToken => {
@@ -303,11 +277,9 @@ function searchCatalog(query, indexedColl, avgDl) {
     }
   }
 
-  // Sort descending by score
   return results.sort((a, b) => b.score - a.score).slice(0, 10);
 }
 
-// Background thread event router
 self.onmessage = function (e) {
   const { type, data } = e.data;
 
@@ -344,7 +316,6 @@ self.onmessage = function (e) {
       const cdscoRows = parse(cdscoText);
       const jaRows = parse(jaText);
 
-      // Build search indices
       const cdscoData = buildIndex(cdscoRows, 'Drug Name');
       cdscoIndex = cdscoData.indexed;
       cdscoAvgDl = cdscoData.avgDl;

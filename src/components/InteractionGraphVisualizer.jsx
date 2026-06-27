@@ -7,7 +7,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
   const [hoveredNode, setHoveredNode] = useState(null)
   const [graphStats, setGraphStats] = useState({ nodesCount: 0, edgesCount: 0, clashesCount: 0 })
 
-  // Keep simulation states in ref to prevent React re-renders from restarting the loop
   const simulationRef = useRef({
     nodes: [],
     edges: [],
@@ -18,15 +17,13 @@ export default function InteractionGraphVisualizer({ cabinet }) {
     height: 240
   })
 
-  // Build/Re-build the visual graph model when cabinet items change
   useEffect(() => {
     if (!Array.isArray(cabinet) || cabinet.length < 2) return
 
     const g = clinicalGraphInstance
     const nodesMap = new Map() // canonical key -> node properties
-    const edgesList = [] // array of { source, target, type }
+    const edgesList = []
 
-    // Helper: add node safe
     const addNodeSafe = (id, type, name, extra = {}) => {
       const key = id.toLowerCase()
       if (!nodesMap.has(key)) {
@@ -45,12 +42,11 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       return key
     }
 
-    // Helper: add edge safe
     const addEdgeSafe = (source, target, type) => {
       const sKey = source.toLowerCase()
       const tKey = target.toLowerCase()
       if (nodesMap.has(sKey) && nodesMap.has(tKey)) {
-        // Prevent duplicate edges
+
         const exists = edgesList.some(e => 
           (e.source === sKey && e.target === tKey) || 
           (e.source === tKey && e.target === sKey)
@@ -61,7 +57,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       }
     }
 
-    // 1. Add all Cabinet Drug Brands
     const brandToSaltMap = new Map()
     cabinet.forEach(item => {
       const brandKey = addNodeSafe(item.brandName, 'DRUG', item.brandName, {
@@ -73,20 +68,18 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       }
     })
 
-    // 2. Discover connections in the Clinical Graph
     const cabinetSaltsClean = Array.from(brandToSaltMap.values())
-    const activeGraphNodes = new Set() // graph node keys active in cabinet
-    const collisionsSet = new Set() // active pathway/clash nodes
+    const activeGraphNodes = new Set()
+    const collisionsSet = new Set()
 
     cabinetSaltsClean.forEach(cleanSalt => {
-      // Find matching node in standard clinical database
+
       const nodeKey = Array.from(g.nodes.keys()).find(k => cleanSalt.includes(k) || k.includes(cleanSalt))
       if (nodeKey) {
         activeGraphNodes.add(nodeKey)
       }
     })
 
-    // Add Salt Nodes & Brand-to-Salt edges
     brandToSaltMap.forEach((cleanSalt, brandKey) => {
       const nodeKey = Array.from(g.nodes.keys()).find(k => cleanSalt.includes(k) || k.includes(cleanSalt))
       const saltNameDisp = nodeKey ? g.nodes.get(nodeKey).name : cleanSalt
@@ -94,7 +87,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       addEdgeSafe(brandKey, saltKey, 'CONTAINS')
     })
 
-    // Connect Active Salts to their Classes & check Pathways
     const activeNodesArr = Array.from(activeGraphNodes)
     let clashesCount = 0
 
@@ -105,13 +97,12 @@ export default function InteractionGraphVisualizer({ cabinet }) {
         const paths = g.findPaths(u, v, 4)
 
         paths.forEach(path => {
-          // Identify pathway collisions
+
           const pathwayId = path.find(nId => g.nodes.get(nId)?.type === 'PATHWAY')
           if (pathwayId) {
             clashesCount++
             collisionsSet.add(pathwayId)
-            
-            // Add intermediate class/pathway nodes to rendering map
+
             path.forEach(nId => {
               const info = g.nodes.get(nId)
               if (info) {
@@ -122,7 +113,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
               }
             })
 
-            // Add edges along the collision path
             for (let idx = 0; idx < path.length - 1; idx++) {
               addEdgeSafe(path[idx], path[idx + 1], 'PATHWAY_LINK')
             }
@@ -131,20 +121,18 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       }
     }
 
-    // Add standard structural edges for active salts (like member of classes)
     activeNodesArr.forEach(saltKey => {
       const neighbors = g.edges.get(saltKey) || []
       neighbors.forEach(edge => {
         const targetNode = g.nodes.get(edge.targetId)
-        // If target is a class or side effect, add it and edge
+
         if (targetNode && (targetNode.type === 'CLASS' || targetNode.type === 'SIDEEFFECT')) {
-          // Only add classes linked to pathways or side effects to avoid cluttering if not relevant
+
           const isRelatedToClash = Array.from(collisionsSet).some(cId => {
             const pathList = g.findPaths(saltKey, cId, 3)
             return pathList.length > 0
           })
-          
-          // Add default class node regardless for visual depth, side effects only if clicked/clashing
+
           if (targetNode.type === 'CLASS' || isRelatedToClash) {
             addNodeSafe(edge.targetId, targetNode.type, targetNode.name, {
               description: targetNode.description
@@ -155,7 +143,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       })
     })
 
-    // Fallback: If no clashing pathways found, add standard class node for context
     if (collisionsSet.size === 0) {
       activeNodesArr.forEach(saltKey => {
         const neighbors = g.edges.get(saltKey) || []
@@ -180,12 +167,10 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       clashesCount: collisionsSet.size
     })
 
-    // Reset selection if nodes disappeared
     setSelectedNode(null)
     setHoveredNode(null)
   }, [cabinet])
 
-  // Physics force simulation loop
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -197,27 +182,26 @@ export default function InteractionGraphVisualizer({ cabinet }) {
     sim.height = canvas.clientHeight
 
     const runFrame = () => {
-      // 1. Update Physics Forces
+
       const nodes = sim.nodes
       const edges = sim.edges
       const width = sim.width
       const height = sim.height
 
       if (nodes.length > 0) {
-        // Friction / Drag constant
+
         const friction = 0.85
-        // Repulsion force constant (nodes push apart)
+
         const kRepel = 240
-        // Attraction force constant (links pull together)
+
         const kAttract = 0.05
-        // rest length of links
+
         const restLength = 55
-        // Gravity pull to center
+
         const kGravity = 0.015
         const centerX = width / 2
         const centerY = height / 2
 
-        // A. Repulsion
         for (let i = 0; i < nodes.length; i++) {
           const u = nodes[i]
           for (let j = i + 1; j < nodes.length; j++) {
@@ -237,7 +221,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
           }
         }
 
-        // B. Attraction
         edges.forEach(edge => {
           const u = nodes.find(n => n.id === edge.source)
           const v = nodes.find(n => n.id === edge.target)
@@ -255,7 +238,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
           }
         })
 
-        // C. Gravity & Updates
         nodes.forEach(u => {
           if (u === sim.draggingNode) {
             u.x = sim.mouseX
@@ -263,7 +245,7 @@ export default function InteractionGraphVisualizer({ cabinet }) {
             u.vx = 0
             u.vy = 0
           } else {
-            // Pull to center
+
             u.vx += (centerX - u.x) * kGravity
             u.vy += (centerY - u.y) * kGravity
 
@@ -272,17 +254,14 @@ export default function InteractionGraphVisualizer({ cabinet }) {
             u.x += u.vx
             u.y += u.vy
 
-            // Constrain boundaries
             u.x = Math.max(u.radius + 10, Math.min(width - u.radius - 10, u.x))
             u.y = Math.max(u.radius + 10, Math.min(height - u.radius - 10, u.y))
           }
         })
       }
 
-      // 2. Render Canvas Frame
       ctx.clearRect(0, 0, width, height)
 
-      // Draw Grid Background
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.03)'
       ctx.lineWidth = 1
       const gridSize = 30
@@ -299,7 +278,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
         ctx.stroke()
       }
 
-      // Draw Edges
       edges.forEach(edge => {
         const u = nodes.find(n => n.id === edge.source)
         const v = nodes.find(n => n.id === edge.target)
@@ -317,7 +295,7 @@ export default function InteractionGraphVisualizer({ cabinet }) {
             ctx.strokeStyle = isHighlighted ? 'rgba(239, 68, 68, 0.8)' : 'rgba(239, 68, 68, 0.2)'
             ctx.lineWidth = isHighlighted ? 2.5 : 1.2
             if (isHighlighted) {
-              // Glowing effect for clash links
+
               ctx.shadowColor = '#ef4444'
               ctx.shadowBlur = 4
             }
@@ -328,11 +306,10 @@ export default function InteractionGraphVisualizer({ cabinet }) {
           }
           
           ctx.stroke()
-          ctx.shadowBlur = 0 // reset glow
+          ctx.shadowBlur = 0
         }
       })
 
-      // Draw Nodes
       nodes.forEach(u => {
         const isHovered = hoveredNode?.id === u.id
         const isSelected = selectedNode?.id === u.id
@@ -343,27 +320,25 @@ export default function InteractionGraphVisualizer({ cabinet }) {
             ))
           : true
 
-        // Node Color theme mapping
-        let color = '#3b82f6' // default Blue (SALT)
+        let color = '#3b82f6'
         let strokeColor = '#2563eb'
         if (u.type === 'DRUG') {
-          color = '#10b981' // Green (DRUG)
+          color = '#10b981'
           strokeColor = '#059669'
         } else if (u.type === 'CLASS') {
-          color = '#f59e0b' // Amber (CLASS)
+          color = '#f59e0b'
           strokeColor = '#d97706'
         } else if (u.type === 'PATHWAY') {
-          color = '#ef4444' // Red (PATHWAY)
+          color = '#ef4444'
           strokeColor = '#dc2626'
         } else if (u.type === 'SIDEEFFECT') {
-          color = '#a855f7' // Purple (SIDEEFFECT)
+          color = '#a855f7'
           strokeColor = '#9333ea'
         }
 
         ctx.beginPath()
         ctx.arc(u.x, u.y, u.radius + (isHovered ? 2 : 0), 0, Math.PI * 2)
 
-        // Dim node if not highlighted
         ctx.fillStyle = isHighlighted ? color : `${color}22`
         ctx.fill()
         
@@ -374,7 +349,7 @@ export default function InteractionGraphVisualizer({ cabinet }) {
           ctx.shadowColor = strokeColor
           ctx.shadowBlur = 6
         } else if (u.type === 'PATHWAY' && isHighlighted) {
-          // Pulse effect for toxic pathways
+
           const pulse = 2 + Math.sin(Date.now() * 0.005) * 2
           ctx.shadowColor = '#ef4444'
           ctx.shadowBlur = pulse
@@ -383,7 +358,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
         ctx.stroke()
         ctx.shadowBlur = 0
 
-        // Draw Labels
         ctx.font = isHovered || isSelected ? 'bold 10px Inter, sans-serif' : '500 9px Inter, sans-serif'
         ctx.fillStyle = isSelected 
           ? '#1e293b' 
@@ -406,7 +380,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
     }
   }, [selectedNode, hoveredNode])
 
-  // Mouse Interaction Handlers
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -415,7 +388,7 @@ export default function InteractionGraphVisualizer({ cabinet }) {
     const y = e.clientY - rect.top
 
     const nodes = simulationRef.current.nodes
-    // Find clicked node
+
     const clickedNode = nodes.find(n => {
       const dx = n.x - x
       const dy = n.y - y
@@ -443,7 +416,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
     const nodes = simulationRef.current.nodes
     if (simulationRef.current.draggingNode) return
 
-    // Check hover status
     const hoverNode = nodes.find(n => {
       const dx = n.x - x
       const dy = n.y - y
@@ -495,7 +467,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
         Interactive drug-pathway graph. Drag nodes to explore. Hover or click to trace chemical classifications and clash points.
       </p>
 
-      {/* Interactive Physics Canvas */}
       <div style={{ position: 'relative', width: '100%', height: '240px', background: '#fff', borderRadius: 12, border: '1.5px solid var(--border)', overflow: 'hidden' }}>
         <canvas
           ref={canvasRef}
@@ -509,7 +480,6 @@ export default function InteractionGraphVisualizer({ cabinet }) {
         />
       </div>
 
-      {/* Node Detail HUD Panel */}
       <div style={{
         background: '#fff',
         border: '1.5px solid var(--border)',
