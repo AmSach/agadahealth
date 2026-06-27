@@ -1339,70 +1339,69 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div className="cyber-console" style={{ flex: 1, position: 'relative' }}>
-      
-      {/* Telemetry Header */}
-      <header className="telemetry-header">
-        <div className="brand-badge">
-          <div className="brand-icon">A</div>
+    <div className="medical-console">
+      {/* Console Title Bar */}
+      <header className="console-header">
+        <div className="console-title-block">
+          <div className="brand-icon" style={{ background: 'var(--clinical-blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, fontWeight: 800, fontSize: 14 }}>A</div>
           <div>
-            <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: 16, fontFamily: 'var(--font-mono)' }}>AGADA // BIO-OS v2.0</div>
-            <div style={{ color: 'var(--cyan)', fontSize: 10, fontFamily: 'var(--font-mono)' }}>STATUS: SYSTEM_READY // LOCAL_DATABASE_ACTIVE</div>
+            <span className="console-title">Agada Medicine Suite v2006.2</span>
+            <span className="console-status-pill" style={{ marginLeft: 8 }}>OFFLINE_SYNC: ACTIVE</span>
           </div>
         </div>
-
-        {/* Tab Selector */}
-        <div className="cyber-tabs">
-          <button 
-            className={`cyber-tab-btn ${activeTab === 'scan' ? 'active' : ''}`}
-            onClick={() => { reset(); setActiveTab('scan'); }}
-          >
-            📷 SCANNER
-          </button>
-          {!isVaultLocked && (
-            <>
-              <button 
-                className={`cyber-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
-                onClick={() => { reset(); setActiveTab('cabinet'); }}
-              >
-                💊 CABINET
-              </button>
-              <button 
-                className={`cyber-tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
-                onClick={() => { reset(); setActiveTab('reminders'); }}
-              >
-                📅 TIMELINE
-              </button>
-              <button 
-                className={`cyber-tab-btn ${activeTab === 'healthcard' ? 'active' : ''}`}
-                onClick={() => { reset(); setActiveTab('healthcard'); }}
-              >
-                🆔 EMERGENCY ID
-              </button>
-              <button 
-                className={`cyber-tab-btn ${activeTab === 'symptoms' ? 'active' : ''}`}
-                onClick={() => { reset(); setActiveTab('symptoms'); }}
-              >
-                📝 SYMPTOMS
-              </button>
-            </>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <select 
             value={lang} 
             onChange={(e) => setLang(e.target.value)} 
-            style={{ height: 32, fontSize: 11, background: 'rgba(3,7,18,0.8)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, cursor: 'pointer' }}
+            style={{ width: 120, height: 28, fontSize: 11, padding: '0 4px', border: '1px solid var(--border-color)', borderRadius: 4 }}
           >
-            <option value="en">LANG: EN</option>
-            <option value="hi">LANG: HI</option>
-            <option value="ja">LANG: JA</option>
+            <option value="en">Language: English</option>
+            <option value="hi">Language: हिन्दी</option>
+            <option value="ja">Language: 日本語</option>
           </select>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Tab Navigation Menu */}
+      <nav className="console-tabs">
+        <button 
+          className={`console-tab-btn ${activeTab === 'scan' ? 'active' : ''}`}
+          onClick={() => { reset(); setActiveTab('scan'); }}
+        >
+          📷 Scan & Search
+        </button>
+        {!isVaultLocked && (
+          <>
+            <button 
+              className={`console-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
+              onClick={() => { reset(); setActiveTab('cabinet'); }}
+            >
+              💊 Medicine Vault
+            </button>
+            <button 
+              className={`console-tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
+              onClick={() => { reset(); setActiveTab('reminders'); }}
+            >
+              📅 Intake Schedule
+            </button>
+            <button 
+              className={`console-tab-btn ${activeTab === 'healthcard' ? 'active' : ''}`}
+              onClick={() => { reset(); setActiveTab('healthcard'); }}
+            >
+              🆔 Emergency ID
+            </button>
+            <button 
+              className={`console-tab-btn ${activeTab === 'symptoms' ? 'active' : ''}`}
+              onClick={() => { reset(); setActiveTab('symptoms'); }}
+            >
+              📝 Clinical Logs
+            </button>
+          </>
+        )}
+      </nav>
+
+      {/* Main Workspace Frame */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {view === VIEWS.HOME && (
           <HomeView
@@ -1551,11 +1550,11 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
         )}
       </div>
 
-      {/* Status Bar */}
-      <div style={{ background: 'rgba(3,7,18,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 24px', fontSize: 11, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)' }}>
-        <div>SYSTEM_ENCRYPTION: AES-256-GCM // OPERATOR: {activeProfile?.name ? activeProfile.name.toUpperCase() : 'GUEST_USER'}</div>
-        <div>CDSCO_REGISTRY: OFFLINE_SYNC_OK</div>
-      </div>
+      {/* Clinical Status Footer */}
+      <footer className="clinical-footer">
+        <div>VAULT_LOCK_STATUS: {isVaultLocked ? 'LOCKED' : 'UNLOCKED'} // PROFILE: {activeProfile?.name ? activeProfile.name.toUpperCase() : 'GUEST_USER'}</div>
+        <div>CDSCO_REGISTRY: v2006.10 // SYSTEM_STATUS: READY</div>
+      </footer>
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
@@ -1861,156 +1860,156 @@ function HomeView({
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 4px 20px' }}>
 
       {activeTab === 'scan' && (
-        <div className="bento-grid">
-          {/* Left Tile: Scanner Probe Module */}
-          <div className="bento-card bento-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 400 }}>
+        <div className="clinical-grid">
+          {/* Column 1: OCR Capture Module */}
+          <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 380 }}>
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// MODULE: OPTICAL_PROBE_VISION</span>
-                <span style={{ fontSize: 10, background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>LOCAL_WASM_LOADED</span>
+              <div className="panel-header">
+                <span>OCR Scanning Terminal</span>
+                <span style={{ fontSize: 10, background: 'var(--clinical-green-light)', color: 'var(--clinical-green)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(22,163,74,0.15)' }}>WASM_ACTIVE</span>
               </div>
               
-              <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: 'var(--text-main)' }}>
-                Analyze Medicine / Prescription
-              </h2>
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
+                Analyze Medicine Packaging
+              </h3>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Point your device camera probe at any medicine strip or prescription. Agada decodes chemical composition, schedule classification, and Jan Aushadhi generic availability.
+                Trigger the optical camera probe to extract text from a physical medicine strip or a prescription sheet.
               </p>
 
-              <div className="scanner-viewport" style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, position: 'relative' }}>
-                <div className="scanner-laser"></div>
-                <div style={{ position: 'absolute', top: 12, left: 12, width: 14, height: 14, borderLeft: '2px solid var(--emerald)', borderTop: '2px solid var(--emerald)' }}></div>
-                <div style={{ position: 'absolute', top: 12, right: 12, width: 14, height: 14, borderRight: '2px solid var(--emerald)', borderTop: '2px solid var(--emerald)' }}></div>
-                <div style={{ position: 'absolute', bottom: 12, left: 12, width: 14, height: 14, borderLeft: '2px solid var(--emerald)', borderBottom: '2px solid var(--emerald)' }}></div>
-                <div style={{ position: 'absolute', bottom: 12, right: 12, width: 14, height: 14, borderRight: '2px solid var(--emerald)', borderBottom: '2px solid var(--emerald)' }}></div>
+              <div className="probe-viewport" style={{ height: 160, marginBottom: 20 }}>
+                {/* Visual crop markings to look like scanner crosshairs */}
+                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '2px solid var(--border-color)', borderTop: '2px solid var(--border-color)' }}></div>
+                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '2px solid var(--border-color)', borderTop: '2px solid var(--border-color)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '2px solid var(--border-color)', borderBottom: '2px solid var(--border-color)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '2px solid var(--border-color)', borderBottom: '2px solid var(--border-color)' }}></div>
                 
-                <div style={{ textAlign: 'center', zIndex: 5 }}>
-                  <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>CAMERA_PROBE_VIEWPORT_STANDBY</div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 4 }}>📷</div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-light)' }}>OPTICAL_PROBE_STANDBY</div>
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="btn-cyber-primary" onClick={() => onCamera('medicine')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  📷 Scan Medicine Strip
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-clinical-primary" onClick={() => onCamera('medicine')} style={{ flex: 1 }}>
+                  Scan Medicine Strip
                 </button>
-                <button className="btn-cyber-primary" onClick={() => onCamera('prescription')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg, var(--cyan) 0%, #0891b2 100%)', boxShadow: 'var(--cyan-glow)' }}>
-                  📝 Scan Prescription
+                <button className="btn-clinical-primary" onClick={() => onCamera('prescription')} style={{ flex: 1, background: 'var(--clinical-blue)', borderColor: '#0274b3' }}>
+                  Scan Prescription
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-cyber-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1, fontSize: 12 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-clinical-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1 }}>
                   Upload Strip Image
                 </button>
-                <button className="btn-cyber-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1, fontSize: 12 }}>
+                <button className="btn-clinical-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1 }}>
                   Upload Rx Image
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Right Tile: Chemical Salts Terminal */}
-          <div className="bento-card bento-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 400 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// REGISTRY: CDSCO_SALT_DATABASE</span>
-              <span style={{ fontSize: 10, background: 'rgba(6,182,212,0.15)', color: 'var(--cyan)', border: '1px solid rgba(6,182,212,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>OFFLINE_INDEX_OK</span>
+          {/* Column 2: Medicine Search Synapse */}
+          <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}>
+            <div className="panel-header">
+              <span>CDSCO Index Search</span>
+              <span style={{ fontSize: 10, background: 'var(--clinical-blue-light)', color: 'var(--clinical-blue)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(2,132,199,0.15)' }}>OFFLINE_INDEX</span>
             </div>
             
-            <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8, color: 'var(--text-main)' }}>
-              Search Salts & Brands
-            </h2>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
+              Query Salt Database
+            </h3>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Directly query official government generic compositions and commercial pharmaceutical brands offline.
+              Look up active chemical compositions and matches in our offline repository of registered Indian generic drugs.
             </p>
 
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <input 
                 type="text" 
                 value={searchQuery} 
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
-                placeholder="Type brand e.g. Crocin, Paracetamol, Atorvastatin..."
+                placeholder="Search salt or brand, e.g. Crocin, Paracetamol..."
                 style={{ flex: 1 }}
               />
-              <button className="btn-cyber-primary" onClick={() => handleGlobalSearch(searchQuery)}>
-                Search
+              <button className="btn-clinical-primary" onClick={() => handleGlobalSearch(searchQuery)}>
+                Query
               </button>
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               {searchResults && searchResults.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                   {searchResults.map((r, idx) => (
-                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '10px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', transition: 'background-color 0.15s' }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>{r.brandName || r.saltName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.saltComposition || r.therapeuticClass || 'Salt record'}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{r.brandName || r.saltName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{r.saltComposition || r.therapeuticClass || 'Salt composition record'}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>ANALYZE &gt;</div>
+                      <div style={{ fontSize: 11, color: 'var(--clinical-blue)', fontWeight: 700 }}>ANALYZE</div>
                     </div>
                   ))}
                 </div>
               ) : bookmarks && bookmarks.length > 0 ? (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>Saved Compounds & Bookmarks</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: 8, letterSpacing: '0.04em' }}>Saved Compositions</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {bookmarks.map((b, idx) => (
-                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
-                        <span>💊</span>
-                        <span style={{ fontWeight: 600 }}>{b.brandName || b.saltName}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--rose)', fontWeight: 700, padding: 0, marginLeft: 4 }}>×</button>
+                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'var(--clinical-blue-light)', border: '1px solid rgba(2,132,199,0.2)', padding: '5px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>⭐</span>
+                        <span style={{ fontWeight: 600, color: 'var(--clinical-blue)' }}>{b.brandName || b.saltName}</span>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--clinical-red)', fontWeight: 700, padding: 0, marginLeft: 4, height: 'auto', width: 'auto' }}>×</button>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12.5 }}>
-                  Type a medicine name above to search our offline generic index.
+                <div style={{ textAlign: 'center', color: 'var(--text-light)', fontStyle: 'italic', fontSize: 12 }}>
+                  Search for a brand name or active salt to decode composition details.
                 </div>
               )}
             </div>
           </div>
 
-          {/* Bottom Bento: Cryptographic User Vault */}
-          <div className="bento-card bento-col-12">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan)' }}>// CRYPTO_VAULT: AES-256-GCM LOCAL STORAGE</span>
-              <span style={{ fontSize: 10, background: isVaultLocked ? 'rgba(244,63,94,0.15)' : 'rgba(16,185,129,0.15)', color: isVaultLocked ? 'var(--rose)' : 'var(--emerald)', border: isVaultLocked ? '1px solid rgba(244,63,94,0.3)' : '1px solid rgba(16,185,129,0.3)', padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-mono)' }}>
-                {isVaultLocked ? 'VAULT_ENCRYPTED_LOCKED' : 'VAULT_UNLOCKED'}
+          {/* Bottom Row: Local Keystore & Profile Management */}
+          <div className="clinical-panel grid-col-12">
+            <div className="panel-header">
+              <span>Encrypted Keystore Console</span>
+              <span style={{ fontSize: 10, background: isVaultLocked ? 'var(--clinical-red-light)' : 'var(--clinical-green-light)', color: isVaultLocked ? 'var(--clinical-red)' : 'var(--clinical-green)', padding: '2px 6px', borderRadius: 4, border: isVaultLocked ? '1px solid rgba(220,38,38,0.15)' : '1px solid rgba(22,163,74,0.15)' }}>
+                {isVaultLocked ? 'VAULT_LOCKED' : 'VAULT_ACTIVE'}
               </span>
             </div>
 
             {isVaultLocked ? (
-              <div style={{ maxWidth: 420, margin: '0 auto', textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>🔒</div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: 'var(--text-main)' }}>Enter Vault PIN</h3>
-                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
-                  Your medicine cabinet, dosage schedule, and logs are encrypted in browser IndexedDB.
+              <div style={{ maxWidth: 400, margin: '0 auto', textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Enter Vault Passcode</h4>
+                <p style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 16 }}>
+                  Cabinet records are encrypted in IndexedDB using AES keys derived from your PIN.
                 </p>
                 
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
                   <input 
                     type="password" 
                     maxLength={6} 
                     value={pinInput} 
                     onChange={(e) => setPinInput(e.target.value)} 
                     onKeyDown={(e) => { if (e.key === 'Enter') handleUnlockVault() }}
-                    placeholder="6-Digit PIN"
-                    style={{ width: 160, textAlign: 'center', letterSpacing: '0.4em', fontSize: 18, height: 42 }}
+                    placeholder="PIN Code"
+                    style={{ width: 140, textAlign: 'center', fontSize: 15, letterSpacing: '0.2em' }}
                   />
-                  <button className="btn-cyber-primary" onClick={handleUnlockVault} style={{ height: 42 }}>
+                  <button className="btn-clinical-primary" onClick={handleUnlockVault}>
                     Unlock
                   </button>
                 </div>
-                {pinError && <div style={{ color: 'var(--rose)', fontSize: 12, fontWeight: 600 }}>{pinError}</div>}
+                {pinError && <div style={{ color: 'var(--clinical-red)', fontSize: 11.5, fontWeight: 600 }}>{pinError}</div>}
                 
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
-                  <button className="btn-cyber-secondary" onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px' }}>
-                    Setup New PIN
+                  <button className="btn-clinical-secondary" onClick={() => setShowPinSetup(true)} style={{ height: 28, fontSize: 11, padding: '0 8px' }}>
+                    Configure Vault
                   </button>
-                  <button className="btn-cyber-secondary" onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)' }}>
+                  <button className="btn-clinical-secondary" onClick={handleDisableEncryption} style={{ height: 28, fontSize: 11, padding: '0 8px', color: 'var(--clinical-amber)' }}>
                     Use Guest Mode
                   </button>
                 </div>
@@ -2018,42 +2017,42 @@ function HomeView({
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--emerald)' }}>✓ Vault Decrypted & Active</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    Active Profile: <strong style={{ color: 'var(--text-main)' }}>{activeProfile?.name || 'Guest User'}</strong> | Cabinet contains <strong style={{ color: 'var(--text-main)' }}>{activeProfile?.cabinet?.length || 0}</strong> active medicines.
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--clinical-green)', margin: '0 0 2px 0' }}>✓ Vault Access Decrypted</h4>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                    Operator: <strong>{activeProfile?.name || 'Default'}</strong> | Inventory contains <strong>{activeProfile?.cabinet?.length || 0}</strong> active chemical compounds.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <select 
                     value={activeProfileId || ''} 
                     onChange={(e) => setActiveProfileId(Number(e.target.value))}
-                    style={{ height: 36, fontSize: 12, background: 'rgba(3,7,18,0.8)', color: '#fff', borderRadius: 8, padding: '0 8px', border: '1px solid rgba(255,255,255,0.1)' }}
+                    style={{ width: 150, height: 32 }}
                   >
                     {profiles.map(p => (
                       <option key={p.id} value={p.id}>Profile: {p.name}</option>
                     ))}
                   </select>
-                  <button className="btn-cyber-secondary" onClick={() => setShowAddProfile(true)} style={{ fontSize: 12, height: 36, padding: '0 12px' }}>
+                  <button className="btn-clinical-secondary" onClick={() => setShowAddProfile(true)} style={{ height: 32, fontSize: 12 }}>
                     + Add Profile
                   </button>
-                  <button className="btn-cyber-secondary" onClick={() => setIsVaultLocked(true)} style={{ fontSize: 12, height: 36, padding: '0 12px' }}>
-                    🔒 Lock Vault
+                  <button className="btn-clinical-secondary" onClick={() => setIsVaultLocked(true)} style={{ height: 32, fontSize: 12 }}>
+                    Lock Vault
                   </button>
                 </div>
               </div>
             )}
 
             {showAddProfile && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, padding: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid var(--border-color)' }}>
                 <input 
                   type="text" 
                   value={profileInput} 
                   onChange={e => setProfileInput(e.target.value)} 
-                  placeholder="Profile name (e.g. Mom, Dad)..." 
-                  style={{ flex: 1, height: 36 }}
+                  placeholder="Profile/patient name..." 
+                  style={{ flex: 1 }}
                 />
-                <button className="btn-cyber-primary" onClick={() => handleAddProfile(profileInput)} style={{ height: 36, padding: '0 16px' }}>Save Profile</button>
+                <button className="btn-clinical-primary" onClick={() => handleAddProfile(profileInput)}>Save</button>
               </div>
             )}
           </div>
