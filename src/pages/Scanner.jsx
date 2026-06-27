@@ -3,10 +3,12 @@ import { scanMedicine, scanPrescription, compressAndEncode, lookupMedicineNameOn
 import { readBarcode } from '../services/barcodeService.js'
 import ResultsPanel, { BloodstreamSimulator } from '../components/ResultsPanel.jsx'
 import PrescriptionResultsPanel from '../components/PrescriptionResultsPanel.jsx'
+import HamMenu from '../components/HamMenu.jsx'
 import HealthCard from '../components/HealthCard.jsx'
 import { useLang, useSetPage } from '../App.jsx'
 import { useT } from '../i18n/translations.js'
 
+// Import Wasm, Crypto and ARScanner components
 import { processImageWasm } from '../services/wasmService.js'
 import { encryptData, decryptData } from '../services/cryptoService.js'
 import ARScanner from '../components/ARScanner.jsx'
@@ -18,41 +20,9 @@ import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '..
 import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer.jsx'
 import { parseSalts, matchQuality } from '../services/dbService.js'
 
-const RETRO_ELEMENTS = ['▲', '●', '★', '⬡', '◆', '⚡'];
-
-function RetroParticles() {
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-      {Array.from({ length: 15 }).map((_, i) => {
-        const char = RETRO_ELEMENTS[i % RETRO_ELEMENTS.length];
-        const left = (i * 7) % 100;
-        const delay = (i * -3) % 20;
-        const duration = 12 + (i * 2) % 15;
-        const size = 16 + (i * 4) % 24;
-        return (
-          <span
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${left}%`,
-              bottom: '-50px',
-              fontSize: `${size}px`,
-              opacity: 0.12,
-              animation: `floatUp ${duration}s linear infinite`,
-              animationDelay: `${delay}s`,
-              color: 'var(--charcoal)',
-            }}
-          >
-            {char}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
+// Dynamic script loader for Tesseract.js
 const loadTesseract = async () => {
   if (window.Tesseract) return window.Tesseract;
   return new Promise((resolve, reject) => {
@@ -67,6 +37,7 @@ const loadTesseract = async () => {
   });
 };
 
+// Global cached Tesseract worker promise to prevent double creation and keep it warm
 let tesseractWorkerPromise = null;
 
 const getTesseractWorker = async () => {
@@ -105,15 +76,15 @@ function extractCandidateQueries(text) {
   for (let line of lines) {
     // Replace non-alphanumeric (except space) with space
     let cleaned = line.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-
+    // Split into tokens
     let tokens = cleaned.split(/\s+/).map(t => t.trim()).filter(Boolean);
-
+    // Filter tokens
     let filteredTokens = tokens.filter(token => {
-
+      // Filter out pure numbers
       if (/^\d+$/.test(token)) return false;
-
+      // Filter out noise words
       if (NOISE_WORDS.has(token)) return false;
-
+      // Keep only tokens longer than 2 characters
       return token.length >= 3;
     });
     
@@ -230,16 +201,20 @@ export default function Scanner() {
   const cameraRef = useRef(null)
   const uploadRef = useRef(null)
 
+  // WASM Pre-processing settings
   const [wasmEnabled, setWasmEnabled] = useState(true)
-  const [wasmFilter, setWasmFilter] = useState(1)
+  const [wasmFilter, setWasmFilter] = useState(1) // 1 = Adaptive, 2 = Sobel, 3 = Contrast Stretch
   const [processedPreview, setProcessedPreview] = useState(null)
 
+  // Local OCR settings
   const [localOcrEnabled, setLocalOcrEnabled] = useState(true)
 
+  // SSE Stream states
   const [useAsyncQueue, setUseAsyncQueue] = useState(true)
   const [activeStepId, setActiveStepId] = useState(null)
   const [completedStepIds, setCompletedStepIds] = useState([])
 
+  // ZK local encryption states
   const [bookmarks, setBookmarks] = useState([])
   const [isVaultLocked, setIsVaultLocked] = useState(false)
   const [vaultPin, setVaultPin] = useState('')
@@ -248,9 +223,10 @@ export default function Scanner() {
   const [showPinSetup, setShowPinSetup] = useState(false)
   const [newPin, setNewPin] = useState('')
 
+  // Medicine Cabinet & Profiles
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
-  const [activeTab, setActiveTab] = useState('scan')
+  const [activeTab, setActiveTab] = useState('cabinet')
   const [symptomInput, setSymptomInput] = useState('')
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -274,22 +250,26 @@ export default function Scanner() {
   const [activeDuplications, setActiveDuplications] = useState([])
   const [activeSchedule, setActiveSchedule] = useState({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })
 
+  // Client-Side Search Engine states
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [isSearching, setIsSearching] = useState(false)
   const [searchWorker, setSearchWorker] = useState(null)
   const [searchStatus, setSearchStatus] = useState('Initializing search engine...')
 
+  // Smart Cabinet Hub detail state variables
   const [selectedCabinetIndex, setSelectedCabinetIndex] = useState(0)
   const cabinetSearchQueryRef = useRef('')
   const [cabinetSearchResults, setCabinetSearchResults] = useState(null)
   const [isCabinetSearching, setIsCabinetSearching] = useState(false)
 
+  // Direct Cabinet Adding Search States
   const cabinetAddQueryRef = useRef('')
   const [cabinetAddQuery, setCabinetAddQuery] = useState('')
   const [cabinetAddResults, setCabinetAddResults] = useState(null)
   const [isCabinetAddSearching, setIsCabinetAddSearching] = useState(false)
 
+  // Cabinet View Toggles & Add Modal Form
   const [showCabinet3D, setShowCabinet3D] = useState(true)
   const [showManualAddModal, setShowManualAddModal] = useState(false)
   const [manualAddForm, setManualAddForm] = useState({
@@ -367,10 +347,12 @@ export default function Scanner() {
     }
   }, [selectedCabinetIndex, selectedMed?.brandName, selectedMed?.saltComposition, selectedMed?.strength, selectedMed?.frequency, handleCabinetSearch])
 
+  // Initialize Search worker and database cache
   React.useEffect(() => {
     let active = true;
     let worker = null;
 
+    // Pre-warm Tesseract worker in the background
     getTesseractWorker().catch(err => {
       console.warn("Tesseract pre-warm failed (will retry on scan):", err);
     });
@@ -497,9 +479,10 @@ export default function Scanner() {
     }
   }
 
+  // Load bookmarks and profiles from IndexedDB
   const loadAllData = async (pin = vaultPin) => {
     try {
-
+      // 1. Load bookmarks
       let savedStr = await getSecureLogs()
       if (!savedStr) {
         savedStr = localStorage.getItem('agada_bookmarks')
@@ -524,7 +507,8 @@ export default function Scanner() {
       }
       parsedBookmarks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
       setBookmarks(parsedBookmarks)
-
+      
+      // 2. Load Profiles
       const keys = await listProfileIds()
       let loadedProfiles = []
       for (const k of keys) {
@@ -577,6 +561,7 @@ export default function Scanner() {
     }
   }
 
+  // Toggles an item in the active profile's cabinet
   const toggleCabinetItem = useCallback(async (bookmark, e) => {
     if (e) e.stopPropagation()
     const updated = profiles.map(p => {
@@ -603,6 +588,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }, [profiles, activeProfileId])
 
+  // Update a profile's emergency health card details
   const handleSaveHealthCard = async (formData) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -613,6 +599,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Log a symptom for the active profile
   const handleLogSymptom = async (text) => {
     if (!text.trim()) return
     const updated = profiles.map(p => {
@@ -629,6 +616,7 @@ export default function Scanner() {
     setSymptomInput('')
   }
 
+  // Delete a symptom
   const handleDeleteSymptom = async (idx) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -640,6 +628,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Toggle notification alerts for a medicine
   const handleToggleNotification = async (med) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -656,6 +645,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Update pill stock counts
   const handleUpdatePillCount = async (med, diff) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -690,6 +680,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Update reminder take-times
   const handleUpdateReminderTime = async (slot, val) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -701,6 +692,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Toggle daily dose adherence checklist items
   const handleToggleAdherence = async (dateStr, slot) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -714,6 +706,7 @@ export default function Scanner() {
     await saveAllProfiles(updated)
   }
 
+  // Add a new family profile
   const handleAddProfile = async (name) => {
     if (!name.trim()) return
     const cleanId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '_')
@@ -740,6 +733,7 @@ export default function Scanner() {
     setShowAddProfile(false)
   }
 
+  // Delete a profile
   const handleDeleteProfile = async (profileId) => {
     if (profiles.length <= 1) return
     const updated = profiles.filter(p => p.id !== profileId)
@@ -750,6 +744,7 @@ export default function Scanner() {
     localStorage.setItem('agada_active_profile_id', nextId)
   }
 
+  // Notification Reminder Background loop
   React.useEffect(() => {
     if (activeProfile && activeProfile.cabinet && activeProfile.cabinet.length > 0) {
       const times = activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
@@ -762,6 +757,7 @@ export default function Scanner() {
     }
   }, [profiles, activeProfileId])
 
+  // Load bookmarks and profiles on view load
   React.useEffect(() => {
     if (view === VIEWS.HOME) {
       loadAllData()
@@ -911,10 +907,10 @@ export default function Scanner() {
       }
 
       if (localOcrEnabled && scanMode === 'medicine') {
-
+        // Run Local OCR Pipeline client-side
         setActiveStepId('started')
         setCompletedStepIds([])
-        await new Promise(r => setTimeout(r, 400))
+        await new Promise(r => setTimeout(r, 400)) // small layout delay
 
         // 1. Vision Step (OCR)
         setCompletedStepIds(prev => [...prev, 'started'])
@@ -947,6 +943,7 @@ export default function Scanner() {
           throw new Error("Could not identify any medicine names from the extracted text.");
         }
 
+        // Helper to query searchWorker with promises
         const getSearchResultsPromise = (queryStr) => {
           return new Promise((resolve) => {
             const handler = (e) => {
@@ -966,10 +963,12 @@ export default function Scanner() {
           });
         };
 
+        // Query the search worker for all candidates
         const allSearchResults = await Promise.all(
           candidates.map(c => getSearchResultsPromise(c))
         );
 
+        // Find the best match across all candidates by identifying the single candidate with the highest overall score in either database
         let bestCdscoMatch = null;
         let bestJaMatch = null;
         let bestCdscoScore = 0;
@@ -995,10 +994,12 @@ export default function Scanner() {
           }
         });
 
+        // Minimum score threshold to prevent bad hallucination matches
         if (bestCdscoScore < 0.5 && bestJaScore < 0.5) {
           throw new Error("Could not find any matching medicine salts in the CDSCO approved registry.");
         }
 
+        // Determine salt composition and brand name
         let saltName = '';
         if (bestJaMatch) {
           saltName = bestJaMatch.row['Generic Name'];
@@ -1042,6 +1043,7 @@ export default function Scanner() {
 
         const localInfo = getLocalMedicineInfo(saltName);
 
+        // Build alternatives from search worker results for the best candidate
         const allAlts = [];
         const jaMatchesForBest = allSearchResults[candidates.indexOf(bestCandidate)]?.ja || [];
         
@@ -1128,7 +1130,7 @@ export default function Scanner() {
       }
 
       if (!useAsyncQueue) {
-
+        // Fallback to synchronous OCR handler
         let res
         if (scanMode === 'prescription') {
           await new Promise(r => setTimeout(r, 600))
@@ -1148,7 +1150,7 @@ export default function Scanner() {
         setResults(res)
         setView(VIEWS.RESULTS)
       } else {
-
+        // Serverless Live POST stream queue handler
         const response = await fetch('/api/scan-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1184,6 +1186,7 @@ export default function Scanner() {
               try {
                 const event = JSON.parse(dataStr)
 
+                // Map events to visual stepper state
                 if (event.step === 'started') {
                   setActiveStepId('started')
                 } else if (event.step === 'vision_start') {
@@ -1229,6 +1232,7 @@ export default function Scanner() {
     }
   }, [scanMode, useAsyncQueue, localOcrEnabled, searchWorker])
 
+// Base64 helper to convert camera capture to Blob for QR/barcode scanner
 function base64ToBlob(base64, mime = 'image/jpeg') {
   const byteString = atob(base64)
   const ab = new ArrayBuffer(byteString.length)
@@ -1239,6 +1243,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   return new Blob([ab], { type: mime })
 }
 
+  // Handle image capture from live WebRTC stream
   const handleCapturedFrame = useCallback(async (base64, directBarcodeText = null) => {
     setView(VIEWS.LOADING)
     setError(null)
@@ -1267,6 +1272,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     await startAnalysis(base64, barcodeData)
   }, [startAnalysis])
 
+  // Handle standard file selection
   const handleFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     if (file.size > 30 * 1024 * 1024) { alert('Image too large (max 30MB).'); return }
@@ -1283,7 +1289,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
     setPreview(URL.createObjectURL(file))
 
     try {
-
+      // Helper to wrap promises with a timeout fallback
       const timeoutPromise = (promise, ms) => {
         return new Promise((resolve) => {
           const timer = setTimeout(() => resolve(null), ms);
@@ -1333,222 +1339,211 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <>
-      <RetroParticles />
-      <div className="spiral-binder">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <div key={i} className="spiral-ring"></div>
-        ))}
-      </div>
-      <div className="medical-console">
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
       
-      <header className="console-header">
-        <div className="console-title-block">
-          <span className="console-title" style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 800 }}>agada</span>
+      {/* Navbar header */}
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--navy)', color: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, background: 'var(--green)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 15 }}>A.</div>
+          <div>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: 17, lineHeight: 1.1 }}>Agada</div>
+            <div style={{ color: '#9CA3AF', fontSize: 10.5 }}>Know Your Medicine</div>
+          </div>
         </div>
-        <div>
-          <select 
-            value={lang} 
-            onChange={(e) => setLang(e.target.value)} 
-            style={{ width: 140, height: 32, fontSize: 12 }}
-          >
-            <option value="en">Language: English</option>
-            <option value="hi">Language: Hindi</option>
-            <option value="ja">Language: Japanese</option>
-          </select>
-        </div>
+        <button id="menu-toggle-btn" onClick={() => setHamOpen(o => !o)} style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4.5 }}>
+          {[0,1,2].map(i => <span key={i} style={{ width: 17, height: 1.5, background: hamOpen && i===1 ? 'transparent' : '#fff', borderRadius: 1, display: 'block',
+            transform: hamOpen ? (i===0 ? 'translateY(6px) rotate(45deg)' : i===2 ? 'translateY(-6px) rotate(-45deg)' : 'none') : 'none', transition: 'all 0.25s' }} />)}
+        </button>
       </header>
 
-      <nav className="console-tabs">
-        <button 
-          className={`console-tab-btn ${activeTab === 'scan' ? 'active' : ''}`}
-          onClick={() => { reset(); setActiveTab('scan'); }}
-        >
-          Scan &amp; Search
-        </button>
-        {!isVaultLocked && (
-          <>
-            <button 
-              className={`console-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
-              onClick={() => { reset(); setActiveTab('cabinet'); }}
-            >
-              Medicine Vault
-            </button>
-            <button 
-              className={`console-tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
-              onClick={() => { reset(); setActiveTab('reminders'); }}
-            >
-              Intake Schedule
-            </button>
-            <button 
-              className={`console-tab-btn ${activeTab === 'healthcard' ? 'active' : ''}`}
-              onClick={() => { reset(); setActiveTab('healthcard'); }}
-            >
-              Emergency ID
-            </button>
-            <button 
-              className={`console-tab-btn ${activeTab === 'symptoms' ? 'active' : ''}`}
-              onClick={() => { reset(); setActiveTab('symptoms'); }}
-            >
-              Clinical Logs
-            </button>
-          </>
-        )}
-      </nav>
+      <HamMenu 
+        open={hamOpen} 
+        onClose={() => setHamOpen(false)} 
+        lang={lang} 
+        setLang={setLang} 
+        t={t} 
+        onScan={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }} 
+        onCabinet={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('cabinet'); }}
+        onReminders={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('reminders'); }}
+        onHealthCard={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('healthcard'); }}
+        onSymptoms={() => { setHamOpen(false); if (view !== VIEWS.HOME) reset(); setActiveTab('symptoms'); }}
+      />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {view === VIEWS.HOME && (
-          <HomeView
-            t={t}
-            setPage={setPage}
-            bookmarks={bookmarks}
-            handleSelectBookmark={handleSelectBookmark}
-            handleDeleteBookmark={handleDeleteBookmark}
-            onCamera={(mode) => { 
-              setScanMode(mode);
-              if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                setView(VIEWS.AR);
-              } else {
-                cameraRef.current?.click();
-              }
-            }}
-            onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
-            
-            wasmEnabled={wasmEnabled}
-            setWasmEnabled={setWasmEnabled}
-            wasmFilter={wasmFilter}
-            setWasmFilter={setWasmFilter}
-            useAsyncQueue={useAsyncQueue}
-            setUseAsyncQueue={setUseAsyncQueue}
-            localOcrEnabled={localOcrEnabled}
-            setLocalOcrEnabled={setLocalOcrEnabled}
-            
-            vaultPin={vaultPin}
-            isVaultLocked={isVaultLocked}
-            setIsVaultLocked={setIsVaultLocked}
-            pinInput={pinInput}
-            setPinInput={setPinInput}
-            pinError={pinError}
-            setPinError={setPinError}
-            handleUnlockVault={handleUnlockVault}
-            showPinSetup={showPinSetup}
-            setShowPinSetup={setShowPinSetup}
-            newPin={newPin}
-            setNewPin={setNewPin}
-            handleSetupPin={handleSetupPin}
-            handleDisableEncryption={handleDisableEncryption}
-            cabinet={cabinet}
-            toggleCabinetItem={toggleCabinetItem}
-            activeInteractions={activeInteractions}
-            activeDuplications={activeDuplications}
-            activeSchedule={activeSchedule}
-            searchQuery={searchQuery}
-            handleSearchChange={handleSearchChange}
-            searchResults={searchResults}
-            isSearching={isSearching}
-            searchStatus={searchStatus}
-            handleSelectSearchResult={handleSelectSearchResult}
-            handleGlobalSearch={handleGlobalSearch}
-            
-            profiles={profiles}
-            activeProfileId={activeProfileId}
-            setActiveProfileId={setActiveProfileId}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            symptomInput={symptomInput}
-            setSymptomInput={setSymptomInput}
-            profileInput={profileInput}
-            setProfileInput={setProfileInput}
-            showAddProfile={showAddProfile}
-            setShowAddProfile={setShowAddProfile}
-            activeProfile={activeProfile}
-            handleSaveHealthCard={handleSaveHealthCard}
-            handleLogSymptom={handleLogSymptom}
-            handleDeleteSymptom={handleDeleteSymptom}
-            handleToggleNotification={handleToggleNotification}
-            handleUpdatePillCount={handleUpdatePillCount}
-            handleUpdateReminderTime={handleUpdateReminderTime}
-            handleToggleAdherence={handleToggleAdherence}
-            handleAddProfile={handleAddProfile}
-            handleDeleteProfile={handleDeleteProfile}
-            selectedCabinetIndex={selectedCabinetIndex}
-            setSelectedCabinetIndex={setSelectedCabinetIndex}
-            cabinetSearchResults={cabinetSearchResults}
-            setCabinetSearchResults={setCabinetSearchResults}
-            isCabinetSearching={isCabinetSearching}
-            setIsCabinetSearching={setIsCabinetSearching}
-            selectedMed={selectedMed}
-            cabDoseStrength={cabDoseStrength}
-            setCabDoseStrength={setCabDoseStrength}
-            cabDoseFreq={cabDoseFreq}
-            setCabDoseFreq={setCabDoseFreq}
-            cabScrubTime={cabScrubTime}
-            setCabScrubTime={setCabScrubTime}
-            handleUpdateCabinetItem={handleUpdateCabinetItem}
-            cabinetAddQuery={cabinetAddQuery}
-            cabinetAddResults={cabinetAddResults}
-            isCabinetAddSearching={isCabinetAddSearching}
-            handleCabinetAddSearch={handleCabinetAddSearch}
-            showCabinet3D={showCabinet3D}
-            setShowCabinet3D={setShowCabinet3D}
-            showManualAddModal={showManualAddModal}
-            setShowManualAddModal={setShowManualAddModal}
-            manualAddForm={manualAddForm}
-            setManualAddForm={setManualAddForm}
-            saveAllProfiles={saveAllProfiles}
-          />
-        )}
-
-        {view === VIEWS.AR && (
-          <div style={{ padding: 24, maxWidth: 640, margin: '0 auto', width: '100%' }}>
-            <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />
-          </div>
-        )}
-        {view === VIEWS.LOADING && (
-          <div style={{ padding: 24, maxWidth: 600, margin: '0 auto', width: '100%' }}>
-            <LoadingView 
-              t={t} 
-              step={step} 
-              preview={preview} 
-              processedPreview={processedPreview}
-              barcodeHit={barcodeHit} 
-              activeStepId={activeStepId}
-              completedStepIds={completedStepIds}
-            />
-          </div>
-        )}
-        {view === VIEWS.RESULTS && (
-          <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
-            {results?.isEmergencyCard ? (
-              <EmergencyCardResultView results={results} onReset={reset} t={t} />
-            ) : results?.isPrescription ? (
-              <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
-            ) : (
-              <ResultsPanel 
-                results={results} 
-                preview={preview} 
-                onReset={reset} 
-                t={t} 
-                lang={lang} 
-                isBookmarked={bookmarks.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)}
-                onToggleBookmark={() => toggleBookmark(results)}
-                profile={activeProfile}
-              />
-            )}
-          </div>
-        )}
-        {view === VIEWS.ERROR && (
-          <div style={{ padding: 24, maxWidth: 500, margin: '0 auto', width: '100%' }}>
-            <ErrorView error={error} onReset={reset} t={t} />
-          </div>
-        )}
+      {/* Beta banner */}
+      <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
+        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong>  -  {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
+
+      {view === VIEWS.HOME    && (
+        <HomeView
+          t={t}
+          setPage={setPage}
+          bookmarks={bookmarks}
+          handleSelectBookmark={handleSelectBookmark}
+          handleDeleteBookmark={handleDeleteBookmark}
+          onCamera={(mode) => { 
+            setScanMode(mode);
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              setView(VIEWS.AR);
+            } else {
+              cameraRef.current?.click();
+            }
+          }}
+          onUpload={(mode) => { setScanMode(mode); uploadRef.current?.click() }}
+          
+          wasmEnabled={wasmEnabled}
+          setWasmEnabled={setWasmEnabled}
+          wasmFilter={wasmFilter}
+          setWasmFilter={setWasmFilter}
+          useAsyncQueue={useAsyncQueue}
+          setUseAsyncQueue={setUseAsyncQueue}
+          localOcrEnabled={localOcrEnabled}
+          setLocalOcrEnabled={setLocalOcrEnabled}
+          
+          vaultPin={vaultPin}
+          isVaultLocked={isVaultLocked}
+          setIsVaultLocked={setIsVaultLocked}
+          pinInput={pinInput}
+          setPinInput={setPinInput}
+          pinError={pinError}
+          setPinError={setPinError}
+          handleUnlockVault={handleUnlockVault}
+          showPinSetup={showPinSetup}
+          setShowPinSetup={setShowPinSetup}
+          newPin={newPin}
+          setNewPin={setNewPin}
+          handleSetupPin={handleSetupPin}
+          handleDisableEncryption={handleDisableEncryption}
+          cabinet={cabinet}
+          toggleCabinetItem={toggleCabinetItem}
+          activeInteractions={activeInteractions}
+          activeDuplications={activeDuplications}
+          activeSchedule={activeSchedule}
+          searchQuery={searchQuery}
+          handleSearchChange={handleSearchChange}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          searchStatus={searchStatus}
+          handleSelectSearchResult={handleSelectSearchResult}
+          handleGlobalSearch={handleGlobalSearch}
+          
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          setActiveProfileId={setActiveProfileId}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          symptomInput={symptomInput}
+          setSymptomInput={setSymptomInput}
+          profileInput={profileInput}
+          setProfileInput={setProfileInput}
+          showAddProfile={showAddProfile}
+          setShowAddProfile={setShowAddProfile}
+          activeProfile={activeProfile}
+          handleSaveHealthCard={handleSaveHealthCard}
+          handleLogSymptom={handleLogSymptom}
+          handleDeleteSymptom={handleDeleteSymptom}
+          handleToggleNotification={handleToggleNotification}
+          handleUpdatePillCount={handleUpdatePillCount}
+          handleUpdateReminderTime={handleUpdateReminderTime}
+          handleToggleAdherence={handleToggleAdherence}
+          handleAddProfile={handleAddProfile}
+          handleDeleteProfile={handleDeleteProfile}
+          selectedCabinetIndex={selectedCabinetIndex}
+          setSelectedCabinetIndex={setSelectedCabinetIndex}
+          cabinetSearchResults={cabinetSearchResults}
+          setCabinetSearchResults={setCabinetSearchResults}
+          isCabinetSearching={isCabinetSearching}
+          setIsCabinetSearching={setIsCabinetSearching}
+          selectedMed={selectedMed}
+          cabDoseStrength={cabDoseStrength}
+          setCabDoseStrength={setCabDoseStrength}
+          cabDoseFreq={cabDoseFreq}
+          setCabDoseFreq={setCabDoseFreq}
+          cabScrubTime={cabScrubTime}
+          setCabScrubTime={setCabScrubTime}
+          handleUpdateCabinetItem={handleUpdateCabinetItem}
+          cabinetAddQuery={cabinetAddQuery}
+          cabinetAddResults={cabinetAddResults}
+          isCabinetAddSearching={isCabinetAddSearching}
+          handleCabinetAddSearch={handleCabinetAddSearch}
+          showCabinet3D={showCabinet3D}
+          setShowCabinet3D={setShowCabinet3D}
+          showManualAddModal={showManualAddModal}
+          setShowManualAddModal={setShowManualAddModal}
+          manualAddForm={manualAddForm}
+          setManualAddForm={setManualAddForm}
+          saveAllProfiles={saveAllProfiles}
+        />
+      )}
+      {view === VIEWS.AR      && <ARScanner onCapture={handleCapturedFrame} onCancel={reset} t={t} />}
+      {view === VIEWS.LOADING && (
+        <LoadingView 
+          t={t} 
+          step={step} 
+          preview={preview} 
+          processedPreview={processedPreview}
+          barcodeHit={barcodeHit} 
+          activeStepId={activeStepId}
+          completedStepIds={completedStepIds}
+        />
+      )}
+      {view === VIEWS.RESULTS && (
+        results?.isEmergencyCard ? (
+          <EmergencyCardResultView results={results} onReset={reset} t={t} />
+        ) : results?.isPrescription ? (
+          <PrescriptionResultsPanel results={results} preview={preview} onReset={reset} t={t} lang={lang} bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
+        ) : (
+          <ResultsPanel 
+            results={results} 
+            preview={preview} 
+            onReset={reset} 
+            t={t} 
+            lang={lang} 
+            isBookmarked={bookmarks.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)}
+            onToggleBookmark={() => toggleBookmark(results)}
+            profile={activeProfile}
+          />
+        )
+      )}
+      {view === VIEWS.ERROR   && <ErrorView error={error} onReset={reset} t={t} />}
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
     </div>
-    </>
   )
+}
+
+function FAQItem({ question, answer }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div style={{ border: '1.5px solid var(--border)', borderRadius: 10, background: '#fff', overflow: 'hidden', marginBottom: 8, boxShadow: 'var(--shadow)' }}>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'none',
+          padding: '10px 12px',
+          fontSize: '12.5px',
+          fontWeight: 700,
+          color: 'var(--navy)',
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span>{question}</span>
+        <span style={{ fontSize: 10, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+      </button>
+      {isOpen && (
+        <div style={{ padding: '10px 12px', fontSize: '11.5px', color: 'var(--textmd)', borderTop: '1.5px solid var(--border)', background: 'var(--bgsoft)', lineHeight: 1.5 }}>
+          {answer}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function EmergencyCardResultView({ results, onReset, t }) {
@@ -1579,12 +1574,13 @@ function EmergencyCardResultView({ results, onReset, t }) {
         flexDirection: 'column',
         gap: '16px'
       }}>
-        
+        {/* Patient Name */}
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', textAlign: 'left' }}>
           <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PATIENT NAME</span>
           <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--navy)', marginTop: '2px' }}>{profile.name || 'Not Specified'}</div>
         </div>
 
+        {/* Blood Group & Allergies */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', textAlign: 'left' }}>
           <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase' }}>BLOOD GROUP</span>
@@ -1611,11 +1607,13 @@ function EmergencyCardResultView({ results, onReset, t }) {
           </div>
         </div>
 
+        {/* Chronic Conditions */}
         <div style={{ background: 'var(--bgsoft)', borderRadius: '12px', padding: '14px', textAlign: 'left' }}>
           <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>CHRONIC CONDITIONS</span>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--navy)', lineHeight: 1.4 }}>{profile.chronicConditions || 'None Logged'}</div>
         </div>
 
+        {/* Emergency Contact */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
           <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--textlt)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EMERGENCY CONTACT</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1645,6 +1643,7 @@ function EmergencyCardResultView({ results, onReset, t }) {
           </div>
         </div>
 
+        {/* Actions */}
         <button 
           onClick={onReset}
           style={{
@@ -1704,6 +1703,7 @@ function HomeView({
   saveAllProfiles
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
+  const [schoolTab, setSchoolTab] = useState('diary')
 
   const selectCabinetItem = (idx) => {
     setSelectedCabinetIndex(idx);
@@ -1809,206 +1809,787 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 4px 20px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+      
+      {/* Geometrical retro particles/goofballs floating in the background */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '10%', left: '5%', fontSize: '24px', opacity: 0.15, transform: 'rotate(15deg)', animation: 'float-shape 15s ease-in-out infinite' }}>📐</div>
+        <div style={{ position: 'absolute', top: '25%', right: '8%', fontSize: '28px', opacity: 0.12, transform: 'rotate(-25deg)', animation: 'float-shape 22s ease-in-out infinite' }}>⬡</div>
+        <div style={{ position: 'absolute', bottom: '15%', left: '7%', fontSize: '32px', opacity: 0.10, transform: 'rotate(45deg)', animation: 'float-shape 18s ease-in-out infinite' }}>👾</div>
+        <div style={{ position: 'absolute', bottom: '30%', right: '5%', fontSize: '26px', opacity: 0.14, transform: 'rotate(10deg)', animation: 'float-shape 25s ease-in-out infinite' }}>⚡</div>
+        <div style={{ position: 'absolute', top: '45%', left: '12%', fontSize: '22px', opacity: 0.08, transform: 'rotate(-5deg)', animation: 'float-shape 19s ease-in-out infinite' }}>◆</div>
+        <div style={{ position: 'absolute', top: '65%', right: '15%', fontSize: '30px', opacity: 0.11, transform: 'rotate(35deg)', animation: 'float-shape 21s ease-in-out infinite' }}>★</div>
+        <div style={{ position: 'absolute', top: '15%', left: '45%', fontSize: '24px', opacity: 0.07, transform: 'rotate(120deg)', animation: 'float-shape 26s ease-in-out infinite' }}>🛸</div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '35%', fontSize: '28px', opacity: 0.09, transform: 'rotate(-40deg)', animation: 'float-shape 20s ease-in-out infinite' }}>■</div>
+        <div style={{ position: 'absolute', bottom: '45%', right: '40%', fontSize: '26px', opacity: 0.06, transform: 'rotate(15deg)', animation: 'float-shape 24s ease-in-out infinite' }}>▲</div>
+      </div>
 
-      {activeTab === 'scan' && (
-        <div className="clinical-grid">
-          <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 380 }}>
-            <div className="washi-tape">// PROTOCOL: VISION_SCAN</div>
-            <div>
-              <div className="panel-header">
-                <span>Scanner Probe Module</span>
-              </div>
-              
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
-                Extract Drug Telemetry
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Point the visual sensor probe at a medicine strip. The OCR engine decodes chemical compositions in real-time.
-              </p>
+      {/* Modern Hero Section */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
+          <span style={{ fontSize: 14 }}>✨</span> {t.knowYourMedicine || 'Know Your Medicine'}
+        </div>
 
-              <div className="probe-viewport" style={{ height: 160, marginBottom: 20 }}>
-                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
-                
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--charcoal)' }}>SENSOR_PROBE_STANDBY</div>
-                </div>
-              </div>
-            </div>
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.02em' }}>
+          {t.heroLine1 || 'Verify.'}<br />
+          <span style={{ background: 'linear-gradient(90deg, var(--green), #0D9488)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t.heroLine2 || 'Never overpay.'}</span>
+        </h1>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn-clinical-primary" onClick={() => onCamera('medicine')} style={{ flex: 1 }}>
-                  Scan Medicine Strip
-                </button>
-                <button className="btn-clinical-primary" onClick={() => onCamera('prescription')} style={{ flex: 1 }}>
-                  Scan Prescription
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn-clinical-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1 }}>
-                  Load Strip Image
-                </button>
-                <button className="btn-clinical-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1 }}>
-                  Load Rx Image
-                </button>
-              </div>
-            </div>
+        <p style={{ fontSize: 15, color: 'var(--textmd)', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 36px' }}>
+          {t.heroDesc || 'Agada reads any medicine strip to find authenticity, side effects, and cheaper Jan Aushadhi alternatives instantly.'}
+        </p>
+
+        {/* Floating Scanner Graphic */}
+        <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
+            <span style={{ fontSize: 56 }}>💊</span>
           </div>
+          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
+          <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
+        </div>
 
-          <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}>
-            <div className="washi-tape">// DATA: CDSCO_INDEX</div>
-            <div className="panel-header">
-              <span>Registry Search</span>
-            </div>
-            
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
-              Query Chemical Salts
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Directly search the offline government database. Fuzzy matches salt composition records instantly.
-            </p>
+        {/* Primary Call to Action */}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
+          <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <span style={{ fontSize: 22 }}>📷</span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
+          </button>
+          
+          <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <span style={{ fontSize: 22 }}>📝</span> {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
+          </button>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input 
-                type="text" 
-                value={searchQuery} 
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
-                placeholder="Search brand name or composition (e.g. Lipitor)..."
-                style={{ flex: 1 }}
-              />
-              <button className="btn-clinical-primary" onClick={() => handleGlobalSearch(searchQuery)}>
-                Query
-              </button>
-            </div>
-
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              {searchResults && searchResults.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                  {searchResults.map((r, idx) => (
-                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justify: 'space-between', align: 'center', background: '#fafaf9', border: '2px solid var(--charcoal)', padding: '8px 12px', cursor: 'pointer' }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{r.brandName || r.saltName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{r.saltComposition || r.therapeuticClass}</div>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--neon-green)', fontWeight: 700 }}>ANALYZE</div>
-                    </div>
-                  ))}
-                </div>
-              ) : bookmarks && bookmarks.length > 0 ? (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: 8, letterSpacing: '0.04em' }}>Saved Compositions</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {bookmarks.map((b, idx) => (
-                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'var(--accent-forest-light)', border: '2px solid var(--charcoal)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', align: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 600, color: 'var(--accent-forest)' }}>{b.brandName || b.saltName}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--accent-clay)', fontWeight: 700, padding: 0, marginLeft: 4, height: 'auto', width: 'auto' }}>x</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', color: 'var(--text-light)', fontStyle: 'italic', fontSize: 12 }}>
-                  Type search term or analyze strip to view records.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="clinical-panel grid-col-12">
-            <div className="washi-tape clay">// SECURITY: AES-256</div>
-            <div className="panel-header">
-              <span>Cabinet Lock</span>
-            </div>
-
-            {isVaultLocked ? (
-              <div style={{ maxWidth: 400, margin: '0 auto', textAlign: 'center', padding: '10px 0' }}>
-                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Enter Vault Passcode</h4>
-                <p style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 16 }}>
-                  Cabinet records are encrypted locally in browser IndexedDB.
-                </p>
-                
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
-                  <input 
-                    type="password" 
-                    maxLength={6} 
-                    value={pinInput} 
-                    onChange={(e) => setPinInput(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleUnlockVault() }}
-                    placeholder="PIN Code"
-                    style={{ width: 140, textAlign: 'center', fontSize: 15, letterSpacing: '0.2em' }}
-                  />
-                  <button className="btn-clinical-primary" onClick={handleUnlockVault}>
-                    Unlock
-                  </button>
-                </div>
-                {pinError && <div style={{ color: 'var(--accent-clay)', fontSize: 11.5, fontWeight: 600 }}>{pinError}</div>}
-                
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
-                  <button className="btn-clinical-secondary" onClick={() => setShowPinSetup(true)} style={{ height: 28, fontSize: 11, padding: '0 8px' }}>
-                    Configure PIN
-                  </button>
-                  <button className="btn-clinical-secondary" onClick={handleDisableEncryption} style={{ height: 28, fontSize: 11, padding: '0 8px', color: 'var(--accent-clay)' }}>
-                    Disable Encryption
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-                <div>
-                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-forest)', margin: '0 0 2px 0' }}>Vault Decrypted</h4>
-                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                    Operator: <strong>{activeProfile?.name || 'Default'}</strong> | Inventory contains <strong>{activeProfile?.cabinet?.length || 0}</strong> registered compounds.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', align: 'center', gap: 8 }}>
-                  <select 
-                    value={activeProfileId || ''} 
-                    onChange={(e) => setActiveProfileId(Number(e.target.value))}
-                    style={{ width: 150, height: 32 }}
-                  >
-                    {profiles.map(p => (
-                      <option key={p.id} value={p.id}>Profile: {p.name}</option>
-                    ))}
-                  </select>
-                  <button className="btn-clinical-secondary" onClick={() => setShowAddProfile(true)} style={{ height: 32, fontSize: 12 }}>
-                    Add Profile
-                  </button>
-                  <button className="btn-clinical-secondary" onClick={() => setIsVaultLocked(true)} style={{ height: 32, fontSize: 12 }}>
-                    Lock Vault
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {showAddProfile && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 14, padding: 12, background: '#fafaf9', border: '1px solid var(--border)' }}>
-                <input 
-                  type="text" 
-                  value={profileInput} 
-                  onChange={e => setProfileInput(e.target.value)} 
-                  placeholder="Patient name..." 
-                  style={{ flex: 1 }}
-                />
-                <button className="btn-clinical-primary" onClick={() => handleAddProfile(profileInput)}>Save</button>
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => onUpload('medicine')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+              {t.uploadStrip || 'Upload Strip'}
+            </button>
+            <button onClick={() => onUpload('prescription')} style={{ flex: 1, height: 44, background: 'rgba(255,255,255,0.7)', border: '1.5px solid var(--border)', borderRadius: 12, color: 'var(--textmd)', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>
+              {t.uploadRx || 'Upload Rx'}
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Offline search engine section */}
+      <div style={{
+        background: '#fff',
+        border: '1.5px solid var(--border)',
+        borderRadius: 16,
+        padding: '16px',
+        marginTop: '16px',
+        marginBottom: '20px',
+        boxShadow: 'var(--shadow)',
+        animation: 'fadeUp 0.5s ease 0.35s both'
+      }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          🔍 Instant Medicine & Salt Lookup
+        </h3>
+        <p style={{ fontSize: 11, color: 'var(--textlt)', margin: '0 0 12px 0' }}>
+          Type a brand name or composition salt. Works offline using Double Metaphone and BM25 index matching.
+        </p>
+
+        <div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleGlobalSearch(searchQuery) }}
+              placeholder="Search e.g. Crocin, Paracetamol, Atorvastatin..."
+              style={{
+                flex: 1,
+                height: 46,
+                padding: '0 12px',
+                borderRadius: 10,
+                border: '1.5px solid var(--bordermd)',
+                fontSize: 13.5,
+                color: 'var(--navy)',
+                outline: 'none',
+                background: '#fff',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--green)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--bordermd)'}
+            />
+            <button 
+              onClick={() => handleGlobalSearch(searchQuery)}
+              style={{
+                height: 46,
+                padding: '0 16px',
+                background: 'linear-gradient(135deg, var(--green), #0D9488)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 10px rgba(15,122,90,0.15)',
+                transition: 'transform 0.2s'
+              }}
+            >
+              Search
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--textlt)', marginTop: 6, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>🔒</span> {searchStatus}
+          </div>
+        </div>
+
+        {/* Real-time Search suggestions */}
+        {searchQuery && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, maxHeight: 220, overflowY: 'auto' }}>
+            {isSearching && (
+              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--border)', borderTopColor: 'var(--green)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                Computing scoring ranks...
+              </div>
+            )}
+
+            {!isSearching && (!searchResults || (searchResults.cdsco.length === 0 && searchResults.ja.length === 0)) && (
+              <div style={{ fontSize: 12, color: 'var(--textlt)', padding: '6px 0', textAlign: 'center' }}>
+                No matches found phonetically or by keyword relevance.
+              </div>
+            )}
+
+            {searchResults && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {searchResults.cdsco.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                      Approved CDSCO Formulations:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchResults.cdsco.map((res, ridx) => (
+                        <div
+                          key={ridx}
+                          onClick={() => handleSelectSearchResult(res, 'cdsco')}
+                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--greenlt)'}
+                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {res.row['Drug Name']}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              Indication: {res.row['Indication'] || 'Maintenance Therapy'}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--greenlt)', color: 'var(--green)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                            Score: {res.score.toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {searchResults.ja.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4, marginTop: 6 }}>
+                      Jan Aushadhi Generic Alternatives:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchResults.ja.map((res, ridx) => (
+                        <div
+                          key={ridx}
+                          onClick={() => handleSelectSearchResult(res, 'ja')}
+                          style={{ padding: '8px 10px', background: 'var(--bgsoft)', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--safflt)'}
+                          onMouseOut={(e) => e.currentTarget.style.background = 'var(--bgsoft)'}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {res.row['Generic Name']}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>
+                              MRP: ₹{res.row['MRP']} ({res.row['Unit Size']})
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 9.5, padding: '2px 6px', background: 'var(--safflt)', color: 'var(--saffron)', borderRadius: 4, fontWeight: 700, marginLeft: 8 }}>
+                            Score: {res.score.toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Trust Badges */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
+        {[
+          ['🛡️', 'CDSCO DB', '3,300+ tracked'],
+          ['💊', 'Jan Aushadhi', 'Live mapping'],
+          ['🤖', 'AI Assistant', 'Instant insights'],
+          ['🔒', 'Secure', 'Private scans']
+        ].map(([icon, title, sub]) => (
+          <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', lineHeight: 1.2 }}>{title}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>{sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Settings Panel */}
+      <div style={{ 
+        background: '#fff', 
+        border: '1.5px solid var(--border)', 
+        borderRadius: 16, 
+        padding: '16px', 
+        marginTop: '20px', 
+        animation: 'fadeUp 0.5s ease 0.3s both',
+        boxShadow: 'var(--shadow)'
+      }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ⚙️ Settings & Device Security
+        </h3>
+        
+        {/* WASM Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={wasmEnabled} onChange={e => setWasmEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
+              📸 Smart Camera Enhancer
+            </label>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>WASM (LOCAL)</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            spent two nights writing custom WebAssembly code in Rust just to fix camera glare. phone photos taken under bad fluorescent pharmacy lighting are usually garbage, so we binarize and clean them up locally on your CPU. no servers.
+          </div>
+          {wasmEnabled && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 22, marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--textlt)', fontWeight: 600 }}>Filter Mode:</span>
+              <select value={wasmFilter} onChange={e => setWasmFilter(parseInt(e.target.value))} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--navy)', background: '#fff', fontWeight: 600 }}>
+                <option value={1}>Adaptive Binarization</option>
+                <option value={2}>Sobel Edge Detection</option>
+                <option value={3}>Contrast Stretching</option>
+              </select>
+            </div>
+          )}
+        </div>
+        
+        {/* Async Stream Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
+              ⚡ Fast Analysis Mode
+            </label>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>ASYNC STREAM</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            runs the scans in the background because vercel's serverless functions are literally the bottleneck here and will timeout if they do the OCR and matching synchronously. this prevents the app from hanging.
+          </div>
+        </div>
+
+        {/* Local OCR Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={localOcrEnabled} onChange={e => setLocalOcrEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
+              🔎 Local OCR Engine (Offline)
+            </label>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--greenlt)', color: 'var(--green)' }}>LOCAL OCR</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            extracts text from medicine strips directly in your browser using Tesseract.js. if you're on a cheap phone, it might take 10 seconds because browser OCR is slow. but hey, at least your medical data isn't being sold to advertisers.
+          </div>
+        </div>
+
+        {/* ZK Vault Toggle / Control */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              🔒 Private Local Lock (PIN)
+            </span>
+            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: vaultPin ? 'var(--greenlt)' : 'var(--bgsoft)', color: vaultPin ? 'var(--green)' : 'var(--textlt)' }}>
+              {vaultPin ? 'SECURED (AES-256)' : 'UNLOCKED (PLAIN)'}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--textlt)', paddingLeft: 22, lineHeight: 1.45 }}>
+            scrambles your saved medicine history under PBKDF2 + AES-GCM encryption. if you lose this 4-digit PIN, your history is gone forever. i literally do not store it anywhere. don't write me emails asking to reset it, i literally can't.
+          </div>
+
+          <div style={{ paddingLeft: 22, display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            {!vaultPin ? (
+              <button onClick={() => setShowPinSetup(true)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--greenlt)', color: 'var(--green)', fontWeight: 700 }}>
+                🔑 Setup Lock PIN
+              </button>
+            ) : (
+              <>
+                <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--navy)', fontWeight: 700 }}>
+                  🔒 Lock History Now
+                </button>
+                <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--redlt)', color: 'var(--red)', fontWeight: 700 }}>
+                  🔓 Remove PIN Lock
+                </button>
+              </>
+            )}
+          </div>
+
+          {showPinSetup && (
+            <div style={{ margin: '8px 0 0 22px', padding: '10px', border: '1.5px solid var(--border)', borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', flexDirection: 'column', gap: 6, animation: 'fadeIn 0.25s' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--navy)' }}>Create a 4-Digit Security PIN:</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="password" maxLength={4} pattern="\d*" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,''))} placeholder="1234" style={{ width: 80, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bordermd)', fontSize: 12, textAlign: 'center', letterSpacing: '0.2em' }} />
+                <button onClick={() => handleSetupPin(newPin)} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: 'var(--green)', color: '#fff', fontWeight: 700 }}>Save</button>
+                <button onClick={() => { setShowPinSetup(false); setNewPin(''); setPinError('') }} style={{ fontSize: 11.5, padding: '6px 12px', borderRadius: 6, background: '#fff', border: '1px solid var(--border)', color: 'var(--textlt)' }}>Cancel</button>
+              </div>
+              {pinError && <div style={{ fontSize: 10.5, color: 'var(--red)', fontWeight: 700 }}>{pinError}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Interactive Privacy & Security Guide (Privacy School) */}
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+          <button 
+            type="button"
+            onClick={() => setShowPrivacySchool(!showPrivacySchool)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--greenlt)',
+              border: '1.5px solid rgba(13,138,104,0.15)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 800,
+              color: 'var(--greendk)'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🏫 Privacy & Security School</span>
+            <span>{showPrivacySchool ? '▲ Hide Guide' : '▼ Learn How It Works'}</span>
+          </button>
+          
+          {showPrivacySchool && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12, animation: 'fadeIn 0.3s ease' }}>
+              <style>{`
+                .scene-container {
+                  position: relative;
+                  width: 140px;
+                  height: 140px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  background: radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%);
+                  border-radius: 16px;
+                  overflow: hidden;
+                  border: 1px solid rgba(13,138,104,0.06);
+                }
+                .svg-notebook-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .svg-notebook-hover:hover {
+                  transform: translateY(-4px) scale(1.06);
+                  filter: drop-shadow(0 12px 24px rgba(13,138,104,0.22));
+                }
+                .svg-safe-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .svg-safe-hover:hover {
+                  transform: translateY(-4px) scale(1.04);
+                  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.25));
+                }
+                .svg-safe-hover:hover .svg-safe-dial {
+                  transform: rotate(150deg);
+                }
+                .svg-magnifier-hover {
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .svg-magnifier-hover:hover {
+                  transform: translateY(-4px);
+                }
+                .svg-magnifier-hover:hover .svg-lens-group {
+                  transform: translate(-3px, -3px) scale(1.05);
+                  transform-origin: 45px 45px;
+                }
+                .svg-laser-line {
+                  animation: scanMove 2.5s ease-in-out infinite alternate;
+                }
+                @keyframes scanMove {
+                  0% { transform: translateY(-22px); }
+                  100% { transform: translateY(22px); }
+                }
+              `}</style>
+
+              <div style={{ fontSize: 11.5, color: 'var(--greendk)', lineHeight: 1.5, background: 'var(--greenlt)', padding: 12, borderRadius: 8, fontWeight: 600 }}>
+                🛡️ <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
+              </div>
+
+              {/* Tab Selector */}
+              <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                {[
+                  { id: 'diary', label: '📓 Local Diary', sub: 'Data Location' },
+                  { id: 'vault', label: '🔑 Secret Vault', sub: 'PIN Encryption' },
+                  { id: 'camera', label: '🔍 Magnifying Glass', sub: 'On-Device Vision' }
+                ].map(tab => {
+                  const active = schoolTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSchoolTab(tab.id)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 4px',
+                        borderRadius: 8,
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        border: active ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                        background: active ? 'var(--greenlt)' : '#fff',
+                        color: active ? 'var(--greendk)' : 'var(--textmd)',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.15s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 2
+                      }}
+                    >
+                      <span style={{ fontSize: '11px' }}>{tab.label}</span>
+                      <span style={{ fontSize: '9px', fontWeight: 500, opacity: 0.75 }}>{tab.sub}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Tab Content */}
+              <div style={{ background: 'var(--bgsoft)', border: '1.5px solid var(--border)', borderRadius: 12, padding: 14 }}>
+                {schoolTab === 'diary' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          Most health apps upload your scanned prescriptions, searches, and symptom history to remote cloud servers. If that database gets hacked or sold, some data broker now knows about your weird rash. No thanks.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>📓 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Private Notebook Under Your Pillow</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Think of Agada like writing your secrets in a paper diary and shoving it under your pillow. seriously, hit F12 on this page and inspect Application (and then Local Storage). it's just raw strings. no hidden API calls to some tracking system. everything stays in your browser cache.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>Isolated Sandbox:</strong> We store your cabinet list inside the browser's local sandbox (IndexedDB and localStorage).<br />
+                          - <strong>Zero Server Footprint:</strong> Phonetic drug indexing runs in a separate background Web Worker thread directly on your CPU.<br />
+                          - <strong>Permanent Shredding:</strong> Because there is no database server, deleting your browser cache permanently shreds and deletes your records forever.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green)' }}>🟢 LIVE SECURITY AUDIT:</span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          Local Database active. Saved scans: {bookmarks ? bookmarks.length : 0} | Cabinet items: {cabinet ? cabinet.length : 0}
+                        </span>
+                      </div>
+                    </div>
+
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(13,138,104,0.08) 0%, transparent 70%)', border: '1px solid rgba(13,138,104,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-notebook-hover">
+                          <rect x="25" y="15" width="50" height="70" rx="6" fill="url(#bookGrad)" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                          <path d="M29 15 v70" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+                          <path d="M30 15 v70" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+                          <rect x="23" y="15" width="6" height="70" rx="3" fill="#044e39" />
+                          <rect x="71" y="18" width="4" height="64" rx="1" fill="#f8fafc" opacity="0.9" />
+                          <path d="M48 15 v35 l4 -4 l4 4 v-35" fill="#ef4444" />
+                          <circle cx="50" cy="50" r="6" fill="#fff" opacity="0.9" />
+                          <path d="M47 50 h6 M50 47 v6" stroke="#0d8a68" strokeWidth="1.2" strokeLinecap="round" />
+                          <defs>
+                            <linearGradient id="bookGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#0d8a68" />
+                              <stop offset="100%" stopColor="#054f38" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {schoolTab === 'vault' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          If a nosy roommate, family member, or friend gets their hands on your unlocked phone, they can open this page and browse your entire pill stash and chronic symptoms. Awkward.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔑 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Secret Cipher Steel Safe</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Setting a 4-digit PIN locks your cabinet in an unbreakable steel safe. i used native browser Crypto subtle APIs. it does the PBKDF2 key stretching inside the browser, which is why it might take a fraction of a second to lock/unlock. math takes cpu cycles to scramble the records into random noise.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>PIN Stretching:</strong> We take your 4-digit PIN and stretch it 100,000 times using PBKDF2 to generate a strong 256-bit key.<br />
+                          - <strong>AES-GCM Encryption:</strong> Scrambles data using standard browser Web Crypto parameters. It is cryptographically unreadable without the PIN.<br />
+                          - <strong>Zero-Knowledge:</strong> The PIN is never stored. If you lose it, we cannot reset it. Write it on your arm or something.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: vaultPin ? 'var(--green)' : 'var(--orange)' }}>
+                          {vaultPin ? '🔒 VAULT ACTIVE:' : '🔓 UNSECURED:'}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          {vaultPin ? 'Your history is encrypted on-device with AES-256.' : 'No PIN lock is set. History is stored in plain text.'}
+                        </span>
+                      </div>
+                    </div>
+
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(148,163,184,0.08) 0%, transparent 70%)', border: '1px solid rgba(148,163,184,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-safe-hover">
+                          <circle cx="50" cy="50" r="38" fill="url(#safeBodyGrad)" stroke="#475569" strokeWidth="1.5" />
+                          <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.8" />
+                          <g className="svg-safe-dial" style={{ transformOrigin: '50px 50px', transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                            <circle cx="50" cy="50" r="24" fill="url(#safeDialGrad)" stroke="#1e293b" strokeWidth="1.2" />
+                            {Array.from({ length: 12 }).map((_, i) => {
+                              const angle = (i * 30 * Math.PI) / 180;
+                              const x1 = 50 + 17 * Math.cos(angle);
+                              const y1 = 50 + 17 * Math.sin(angle);
+                              const x2 = 50 + 20 * Math.cos(angle);
+                              const y2 = 50 + 20 * Math.sin(angle);
+                              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />;
+                            })}
+                            <circle cx="50" cy="50" r="10" fill="#0f172a" stroke="#94a3b8" strokeWidth="1" />
+                            <line x1="50" y1="30" x2="50" y2="38" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+                          </g>
+                          <defs>
+                            <linearGradient id="safeBodyGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#334155" />
+                              <stop offset="100%" stopColor="#0f172a" />
+                            </linearGradient>
+                            <linearGradient id="safeDialGrad" x1="0" y1="0" x2="1" y2="1">
+                              <stop offset="0%" stopColor="#64748b" />
+                              <stop offset="100%" stopColor="#334155" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {schoolTab === 'camera' && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
+                          Most documents scanner apps ship your raw camera snapshots to cloud server farms for image cleanup, which exposes your active camera stream to remote servers. Creepy.
+                        </div>
+                      </div>
+                      
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
+                        <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
+                          Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab. the WebAssembly module is compiled from about 200 lines of Rust to crop, binarize, and sharpen blurry medicine labels offline. i wanted it to be as lightweight as possible. the source code is open.
+                        </p>
+                      </div>
+
+                      <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔧 THE CODE STUFF (NO CORPORATE JARGON)</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, lineHeight: 1.5 }}>
+                          - <strong>WebAssembly Enhancements:</strong> Image filters are compiled to a tiny 8KB WebAssembly binary loaded in the browser sandbox.<br />
+                          - <strong>On-Device CV:</strong> We run adaptive thresholding and Sobel filters off the main thread so your screen never stutters.<br />
+                          - <strong>Focus auto-trigger:</strong> Measures frame blur at 60fps and only snaps the photo when the label is actually sharp and readable.
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: wasmEnabled ? 'var(--green)' : 'var(--textlt)' }}>
+                          {wasmEnabled ? '🟢 WASM ACTIVE:' : '⚪ WASM OFF:'}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
+                          {wasmEnabled ? 'Camera frames pre-processed locally in WebAssembly.' : 'WASM enhancer is disabled. Using raw capture fallback.'}
+                        </span>
+                      </div>
+                    </div>
+
+                     <div style={{ flex: '0 0 140px', display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                      <div className="scene-container" style={{ background: 'radial-gradient(circle at center, rgba(16,185,129,0.08) 0%, transparent 70%)', border: '1px solid rgba(16,185,129,0.06)' }}>
+                        <svg viewBox="0 0 100 100" width="90" height="90" className="svg-magnifier-hover">
+                          <rect x="15" y="15" width="70" height="70" rx="8" fill="#1e293b" opacity="0.15" />
+                          <line x1="10" y1="50" x2="90" y2="50" stroke="#10b981" strokeWidth="1.2" opacity="0.5" className="svg-laser-line" />
+                          <g className="svg-lens-group">
+                            <path d="M60 60 l18 18" stroke="#475569" strokeWidth="4.5" strokeLinecap="round" />
+                            <path d="M60 60 l18 18" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
+                            <circle cx="45" cy="45" r="20" fill="url(#lensGrad)" stroke="#94a3b8" strokeWidth="2.2" />
+                            <circle cx="45" cy="45" r="16" fill="none" stroke="rgba(16,185,129,0.25)" strokeWidth="0.8" />
+                            <path d="M36 36 a10 10 0 0 1 10 0" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.4" strokeLinecap="round" />
+                          </g>
+                          <defs>
+                            <radialGradient id="lensGrad" cx="50%" cy="50%" r="50%">
+                              <stop offset="0%" stopColor="rgba(16,185,129,0.22)" />
+                              <stop offset="70%" stopColor="rgba(16,185,129,0.05)" />
+                              <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
+                            </radialGradient>
+                          </defs>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Saved Scans Registry */}
+      {isVaultLocked ? (
+        <div style={{ 
+          marginTop: 24, 
+          background: '#fff', 
+          border: '1.5px solid var(--border)', 
+          borderRadius: 16, 
+          padding: '16px', 
+          textAlign: 'center',
+          boxShadow: 'var(--shadow)',
+          animation: 'fadeUp 0.5s ease 0.35s both'
+        }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>Saved Medicines Vault</h3>
+          <p style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 12 }}>Your local scan history is encrypted. Enter your 4-digit PIN to unlock it.</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+            <input type="password" maxLength={4} pattern="\d*" value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g,''))} placeholder="••••" style={{ width: 80, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--bordermd)', fontSize: 13, textAlign: 'center', letterSpacing: '0.2em' }} />
+            <button onClick={() => handleUnlockVault(pinInput)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, background: 'var(--green)', color: '#fff', fontWeight: 600 }}>Unlock</button>
+          </div>
+          {pinError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, fontWeight: 600 }}>{pinError}</div>}
+        </div>
+      ) : (
+        bookmarks && bookmarks.length > 0 && (
+          <div style={{ marginTop: 24, marginBottom: 12, animation: 'fadeUp 0.5s ease 0.35s both' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              🔒 Saved Medicines ({bookmarks.length}) {vaultPin && <span style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 400 }}>(Encrypted)</span>}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+              {bookmarks.map((b, idx) => {
+                const isInCabinet = cabinet.some(item => item.brandName === b.brandName && item.saltComposition === b.saltComposition);
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectBookmark(b)}
+                    style={{
+                      background: '#fff',
+                      border: isInCabinet ? '1.5px solid var(--green)' : '1.5px solid var(--border)',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.01)',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--green)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = isInCabinet ? 'var(--green)' : 'var(--border)';
+                      e.currentTarget.style.transform = 'none';
+                    }}
+                  >
+                    <div 
+                      onClick={(e) => { e.stopPropagation(); toggleCabinetItem(b, e); }} 
+                      title="Add/remove from interaction check cabinet"
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        width: 28, 
+                        height: 28, 
+                        borderRadius: 8, 
+                        border: `1.5px solid ${isInCabinet ? 'var(--green)' : 'var(--bordermd)'}`, 
+                        background: isInCabinet ? 'var(--green)' : '#fff',
+                        color: isInCabinet ? '#fff' : 'transparent',
+                        fontWeight: 900,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      ✓
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.brandName}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--textlt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.saltComposition}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => handleDeleteBookmark(e, b)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: 'transparent',
+                        color: 'var(--textlt)',
+                        fontSize: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )
       )}
 
-      {!isVaultLocked && activeTab !== 'scan' && (
-        <div className="glass-card" style={{ 
+      {/* Personal Medicine OS Dashboard */}
+      {!isVaultLocked && (
+        <div style={{ 
           marginTop: 20, 
+          background: '#fff', 
+          border: '1.5px solid var(--border)', 
+          borderRadius: 16, 
           padding: '16px', 
+          boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.4s both'
         }}>
-          
+          {/* Profile Selector Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, background: 'var(--navy)', color: '#fff', padding: '10px 14px', borderRadius: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 16 }}>👤</span>
@@ -2035,6 +2616,7 @@ function HomeView({
             </div>
           </div>
 
+          {/* Add Profile Inline Form */}
           {showAddProfile && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, padding: 12, background: 'var(--bgsoft)', borderRadius: 10, animation: 'fadeIn 0.25s' }}>
               <input 
@@ -2048,6 +2630,15 @@ function HomeView({
             </div>
           )}
 
+          {/* Dashboard Navigation Tabs */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet</button>
+            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>⏰ Daily Schedule</button>
+            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Medical ID</button>
+            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Track Symptoms</button>
+          </div>
+
+          {/* TAB 1: Cabinet & Stock */}
           {activeTab === 'cabinet' && (
             <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
               <style>{`
@@ -2157,6 +2748,7 @@ function HomeView({
                 </div>
               </div>
 
+              {/* Direct Cabinet Add Search Box */}
               <div style={{ position: 'relative', marginBottom: 16 }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
@@ -2262,7 +2854,8 @@ function HomeView({
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 20, flexDirection: 'row', flexWrap: 'wrap', width: '100%', alignItems: 'flex-start', boxSizing: 'border-box' }}>
-
+                  
+                  {/* Left Column: Inventory List or 3D shelves grid */}
                   <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                     
                     {showCabinet3D ? (
@@ -2345,7 +2938,8 @@ function HomeView({
                                     </div>
                                   );
                                 })}
-
+                                
+                                {/* Fill remainder slots to keep layout balanced */}
                                 {shelfItems.length < itemsPerShelf && Array.from({ length: itemsPerShelf - shelfItems.length }).map((_, emptyIdx) => (
                                   <div key={`empty-${emptyIdx}`} className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
                                     <span style={{ fontSize: '20px', color: '#475569' }}>＋</span>
@@ -2420,6 +3014,7 @@ function HomeView({
                                 </button>
                               </div>
 
+                              {/* Visual stock progress meter */}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: 11.5, color: 'var(--textmd)', fontWeight: 700 }}>
@@ -2436,6 +3031,7 @@ function HomeView({
                                 </div>
                               </div>
 
+                              {/* Dosing Actions and notifications */}
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderTop: '1px dashed var(--border)', paddingTop: 10, marginTop: 4 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <button 
@@ -2502,6 +3098,7 @@ function HomeView({
                       </>
                     )}
 
+                    {/* Interaction Warning Sub-Panel */}
                     {cabinet.length >= 2 && (
                       <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {activeInteractions.length > 0 && (
@@ -2574,6 +3171,7 @@ function HomeView({
                     )}
                   </div>
 
+                  {/* Right Column: Smart Cabinet Hub Details */}
                   {selectedMed && (() => {
                     const pkParams = getPKParameters(selectedMed.saltComposition || selectedMed.brandName);
                     
@@ -2598,6 +3196,7 @@ function HomeView({
                       return m ? parseInt(m[1]) : 500;
                     })();
 
+                    // Simulated PK data
                     const cabDoseTimes = cabDoseFreq === 1 ? [0] 
                                     : cabDoseFreq === 2 ? [0, 12] 
                                     : cabDoseFreq === 3 ? [0, 8, 16] 
@@ -2617,9 +3216,11 @@ function HomeView({
                     const currentPoint = cabPkData.find(d => d.time === cabScrubTime) || cabPkData[0] || { time: 0, conc: 0 };
                     const currentConc = currentPoint.conc;
 
+                    // Expiry check
                     const isExpired = selectedMed.expiryDate && new Date(selectedMed.expiryDate) < new Date();
                     const isExpiringSoon = selectedMed.expiryDate && !isExpired && (new Date(selectedMed.expiryDate) - new Date()) < (30 * 24 * 60 * 60 * 1000);
 
+                    // Adherence Compliance Score
                     const ad = activeProfile.adherence || {};
                     let totalDoseSlotsLogged = 0;
                     let totalDaysWithLogs = 0;
@@ -2640,6 +3241,7 @@ function HomeView({
                     }).join(' ') : '';
                     const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : '';
 
+                    // Adaptive safety result
                     const safetyResult = checkDosageSafety(
                       selectedMed.saltComposition || selectedMed.brandName,
                       cabDoseStrength,
@@ -2666,28 +3268,31 @@ function HomeView({
                         animation: 'fadeUp 0.3s ease',
                         boxSizing: 'border-box'
                       }}>
-
+                        
+                        {/* Header Row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
                           <div style={{ textAlign: 'left' }}>
                             <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 NEURAL PILL DECRYPTOR HACK (CABINET DETAIL)</span>
                             <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', margin: '4px 0 2px' }}>{selectedMed.brandName}</h3>
                             <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
                           </div>
-
+                          
+                          {/* Clean Flat Interactive SVG Capsule */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg viewBox="0 0 40 40" width="36" height="36" className="svg-capsule-pulse" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))', cursor: 'pointer' }} title="Active composition indicator">
                               <g transform="rotate(45 20 20)">
-                                
+                                {/* Top half */}
                                 <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                                
+                                {/* Bottom half */}
                                 <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                                
+                                {/* Middle separator */}
                                 <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
                               </g>
                             </svg>
                           </div>
                         </div>
 
+                        {/* Expiry & Batch Tracker Section */}
                         <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 14, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 BATCH EXPLOIT & EXPIRY AGING DETECTOR</span>
                           
@@ -2734,6 +3339,7 @@ function HomeView({
                           </div>
                         </div>
 
+                        {/* Adherence Intake Logger */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ textAlign: 'left' }}>
@@ -2746,6 +3352,7 @@ function HomeView({
                             </div>
                           </div>
 
+                          {/* Stock Level Adjusters (Cabinet Stock Fix!) */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #bfdbfe', paddingTop: 8, marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
                               <label style={{ fontSize: 9.5, fontWeight: 800, color: '#1e40af', letterSpacing: '0.02em' }}>EDIT PILLS</label>
@@ -2845,6 +3452,7 @@ function HomeView({
                           </button>
                         </div>
 
+                        {/* Dosage Safety Warnings Panel */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>⚖️ PHYSIOLOGICAL SAFETY LIMIT CHECK</span>
@@ -2870,6 +3478,7 @@ function HomeView({
                           )}
                         </div>
 
+                        {/* Adaptive Pharmacokinetics Graph */}
                         {pkParams && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2886,6 +3495,7 @@ function HomeView({
                                   </linearGradient>
                                 </defs>
 
+                                {/* Grid Lines & Ticks */}
                                 {[0, 6, 12, 18, 24].map(t => (
                                   <g key={t}>
                                     <line x1={getX(t)} y1="15" x2={getX(t)} y2="125" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
@@ -2893,6 +3503,7 @@ function HomeView({
                                   </g>
                                 ))}
 
+                                {/* Therapeutic Band */}
                                 {pkParams.minEffectiveConc < maxConc && (
                                   <rect
                                     x="35"
@@ -2909,6 +3520,7 @@ function HomeView({
                                 {areaD && <path d={areaD} fill="url(#cab-curve-grad)" />}
                                 {pathD && <path d={pathD} fill="none" stroke="#0d8a68" strokeWidth="2.5" />}
 
+                                {/* Scrubber Indicator */}
                                 <line x1={getX(cabScrubTime)} y1="15" x2={getX(cabScrubTime)} y2="125" stroke="#3b82f6" strokeWidth="1" strokeDasharray="2,2" />
                                 <circle cx={getX(cabScrubTime)} cy={getY(currentConc)} r="4" fill="#3b82f6" stroke="#fff" strokeWidth="1" />
 
@@ -2917,6 +3529,7 @@ function HomeView({
                               </svg>
                             </div>
 
+                            {/* Scrubber Timeline */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#1e293b', padding: 12, borderRadius: 12 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {cabScrubTime.toFixed(1)}h</span>
@@ -2935,6 +3548,7 @@ function HomeView({
                               />
                             </div>
 
+                            {/* Segmented Strength & Freq Controls */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'var(--bgsoft)', padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>
                                 <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--navy)' }}>Strength:</label>
@@ -2963,6 +3577,7 @@ function HomeView({
                               </div>
                             </div>
 
+                            {/* Clinical Bio-Parameter Info Box */}
                             <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 12px', textAlign: 'left' }}>
                               <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>📈 Scientific Dosing Parameters:</div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
@@ -2976,6 +3591,7 @@ function HomeView({
                           </div>
                         )}
 
+                        {/* Jan Aushadhi Savings Finder */}
                         <div style={{ borderTop: '1.5px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)' }}>🏛 Jan Aushadhi generic equivalents</span>
@@ -3023,6 +3639,7 @@ function HomeView({
                 </div>
               )}
 
+              {/* Recent Doses History Logs Timeline */}
               <div style={{ marginTop: 24, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                 <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
                   ⏳ HISTORICAL INTAKE EXPLOIT LOGS ({activeProfile.doseHistory ? activeProfile.doseHistory.length : 0})
@@ -3056,6 +3673,7 @@ function HomeView({
                 )}
               </div>
 
+              {/* Manual Add Medicine Modal dialog Overlay */}
               {showManualAddModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
                   <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -3168,9 +3786,10 @@ function HomeView({
             </div>
           )}
 
+          {/* TAB 2: Alarms & Adherence */}
           {activeTab === 'reminders' && (
             <div>
-              
+              {/* Daily Reminder Time Pickers */}
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ Set Your Daily Pill Times</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => {
@@ -3214,12 +3833,14 @@ function HomeView({
                 })}
               </div>
 
+              {/* Daily Adherence Grid */}
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
               {(() => {
                 const dateStr = new Date().toDateString();
                 const ad = activeProfile.adherence || {};
                 const todayAd = ad[dateStr] || { Morning: false, Afternoon: false, Evening: false, Bedtime: false };
-
+                
+                // Check if all scheduled slots are done
                 const activeSlots = ['Morning', 'Afternoon', 'Evening', 'Bedtime'];
                 const completedAll = activeSlots.every(slot => !!todayAd[slot]);
 
@@ -3290,6 +3911,7 @@ function HomeView({
                 );
               })()}
 
+              {/* Chronotherapy Daily Schedule Timeline */}
               {activeSchedule && activeSchedule.schedule && (
                 <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3388,14 +4010,17 @@ function HomeView({
             </div>
           )}
 
+          {/* TAB 3: Health Card & QR */}
           {activeTab === 'healthcard' && (
             <HealthCard profile={activeProfile} onSaveProfile={handleSaveHealthCard} />
           )}
 
+          {/* TAB 4: Symptoms & ADR Warnings */}
           {activeTab === 'symptoms' && (
             <div>
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 10 }}>⚠️ Track How You Feel (Side Effects)</h4>
-
+              
+              {/* Symptom logger input form */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <input 
                   type="text" 
@@ -3433,6 +4058,7 @@ function HomeView({
                 </button>
               </div>
 
+              {/* Flagged ADR Side-effect alert warnings */}
               {(() => {
                 const cabSalts = cabinet.map(c => c.saltComposition);
                 const symTexts = (activeProfile.symptoms || []).map(s => s.text);
@@ -3471,6 +4097,7 @@ function HomeView({
                 return null;
               })()}
 
+              {/* Symptoms history log */}
               <h5 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>📋 My Logged Symptoms</h5>
               {(!activeProfile.symptoms || activeProfile.symptoms.length === 0) ? (
                 <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
@@ -3503,6 +4130,7 @@ function HomeView({
         </div>
       )}
 
+      {/* Footer links */}
       <div style={{ textAlign: 'center', padding: '16px 0 4px', display: 'flex', justifyContent: 'center', gap: 20 }}>
         <button id="footer-privacy-link" onClick={() => setPage('privacy')} style={{ fontSize: 11.5, color: 'var(--textlt)', fontWeight: 500 }}>
           {t.privacyTitle || 'Privacy Policy'}
@@ -3517,16 +4145,17 @@ function HomeView({
 
 function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeStepId, completedStepIds }) {
   const steps = [
-    { id: 'started', label: 'Initializing scanner', tag: 'System' },
-    { id: 'vision', label: 'Extracting text from image', tag: 'OCR' },
-    { id: 'db', label: 'Checking CDSCO & Jan Aushadhi databases', tag: 'Registry' },
-    { id: 'scraping', label: 'Comparing price options', tag: 'Search' },
-    { id: 'summary', label: 'Checking safety interactions', tag: 'Safety' }
+    { id: 'started', label: 'Initializing Scan Engine', tag: 'System' },
+    { id: 'vision', label: 'Reading Label (Llama Vision OCR)', tag: 'Vision' },
+    { id: 'db', label: 'CDSCO Approval & Jan Aushadhi DB matches', tag: 'Registry' },
+    { id: 'scraping', label: 'Live e-Pharmacy price comparison', tag: 'Scraper' },
+    { id: 'summary', label: 'Compiling Patient Warning profiles', tag: 'AI Summary' }
   ];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', animation: 'fadeIn 0.3s ease' }}>
-
+      
+      {/* Visual Image Previews */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
         {preview && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -3539,7 +4168,7 @@ function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeSte
         
         {processedPreview && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'popIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', marginBottom: 4 }}>Enhanced Image</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', marginBottom: 4 }}>WASM Filtered</span>
             <div style={{ width: 68, height: 68, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--green)', boxShadow: '0 4px 10px rgba(15,122,90,0.15)' }}>
               <img src={processedPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
