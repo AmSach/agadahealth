@@ -18,39 +18,6 @@ import { getPKParameters, simulatePharmacokinetics, checkDosageSafety } from '..
 import InteractionGraphVisualizer from '../components/InteractionGraphVisualizer.jsx'
 import { parseSalts, matchQuality } from '../services/dbService.js'
 
-const RETRO_ELEMENTS = ['▲', '●', '★', '⬡', '◆', '⚡'];
-
-function RetroParticles() {
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-      {Array.from({ length: 15 }).map((_, i) => {
-        const char = RETRO_ELEMENTS[i % RETRO_ELEMENTS.length];
-        const left = (i * 7) % 100;
-        const delay = (i * -3) % 20;
-        const duration = 12 + (i * 2) % 15;
-        const size = 16 + (i * 4) % 24;
-        return (
-          <span
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${left}%`,
-              bottom: '-50px',
-              fontSize: `${size}px`,
-              opacity: 0.12,
-              animation: `floatUp ${duration}s linear infinite`,
-              animationDelay: `${delay}s`,
-              color: 'var(--charcoal)',
-            }}
-          >
-            {char}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 const VIEWS = { HOME: 'home', LOADING: 'loading', RESULTS: 'results', ERROR: 'error', AR: 'ar' }
 
 const loadTesseract = async () => {
@@ -1333,14 +1300,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <>
-      <RetroParticles />
-      <div className="spiral-binder">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <div key={i} className="spiral-ring"></div>
-        ))}
-      </div>
-      <div className="medical-console">
+    <div className="medical-console">
       
       <header className="console-header">
         <div className="console-title-block">
@@ -1547,7 +1507,6 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
     </div>
-    </>
   )
 }
 
@@ -1814,27 +1773,26 @@ function HomeView({
       {activeTab === 'scan' && (
         <div className="clinical-grid">
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 380 }}>
-            <div className="washi-tape">// PROTOCOL: VISION_SCAN</div>
             <div>
               <div className="panel-header">
-                <span>Scanner Probe Module</span>
+                <span>Medicine Scanner</span>
               </div>
               
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
-                Extract Drug Telemetry
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--primary-navy)' }}>
+                Scan Medicine Strip
               </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Point the visual sensor probe at a medicine strip. The OCR engine decodes chemical compositions in real-time.
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                Point your device camera at a medicine strip or prescription to view generic alternatives, composition details, and official database status.
               </p>
 
               <div className="probe-viewport" style={{ height: 160, marginBottom: 20 }}>
-                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderTop: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--charcoal)', borderBottom: '1px solid var(--charcoal)' }}></div>
+                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border-medium)', borderTop: '1px solid var(--border-medium)' }}></div>
+                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border-medium)', borderTop: '1px solid var(--border-medium)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border-medium)', borderBottom: '1px solid var(--border-medium)' }}></div>
+                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border-medium)', borderBottom: '1px solid var(--border-medium)' }}></div>
                 
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--charcoal)' }}>SENSOR_PROBE_STANDBY</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Camera Standby</div>
                 </div>
               </div>
             </div>
@@ -1850,26 +1808,25 @@ function HomeView({
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn-clinical-secondary" onClick={() => onUpload('medicine')} style={{ flex: 1 }}>
-                  Load Strip Image
+                  Upload Strip Image
                 </button>
                 <button className="btn-clinical-secondary" onClick={() => onUpload('prescription')} style={{ flex: 1 }}>
-                  Load Rx Image
+                  Upload Rx Image
                 </button>
               </div>
             </div>
           </div>
 
           <div className="clinical-panel grid-col-6" style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}>
-            <div className="washi-tape">// DATA: CDSCO_INDEX</div>
             <div className="panel-header">
               <span>Registry Search</span>
             </div>
             
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--navy)' }}>
-              Query Chemical Salts
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--primary-navy)' }}>
+              Search Registered Salts
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Directly search the offline government database. Fuzzy matches salt composition records instantly.
+            <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 16 }}>
+              Directly query the offline drug database to find active chemical salts, drug descriptions, and generics.
             </p>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -1882,7 +1839,7 @@ function HomeView({
                 style={{ flex: 1 }}
               />
               <button className="btn-clinical-primary" onClick={() => handleGlobalSearch(searchQuery)}>
-                Query
+                Search
               </button>
             </div>
 
@@ -1890,12 +1847,12 @@ function HomeView({
               {searchResults && searchResults.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                   {searchResults.map((r, idx) => (
-                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justify: 'space-between', align: 'center', background: '#fafaf9', border: '2px solid var(--charcoal)', padding: '8px 12px', cursor: 'pointer' }}>
+                    <div key={idx} onClick={() => handleSelectSearchResult(r, r.saltComposition ? 'brand' : 'salt')} style={{ display: 'flex', justify: 'space-between', align: 'center', background: '#fafaf9', border: '1px solid var(--border-light)', padding: '8px 12px', cursor: 'pointer', borderRadius: 6 }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>{r.brandName || r.saltName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{r.saltComposition || r.therapeuticClass}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.saltComposition || r.therapeuticClass}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--neon-green)', fontWeight: 700 }}>ANALYZE</div>
+                      <div style={{ fontSize: 11, color: 'var(--clinical-teal)', fontWeight: 700 }}>VIEW</div>
                     </div>
                   ))}
                 </div>
@@ -1904,32 +1861,31 @@ function HomeView({
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: 8, letterSpacing: '0.04em' }}>Saved Compositions</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {bookmarks.map((b, idx) => (
-                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: 'var(--accent-forest-light)', border: '2px solid var(--charcoal)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', align: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 600, color: 'var(--accent-forest)' }}>{b.brandName || b.saltName}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--accent-clay)', fontWeight: 700, padding: 0, marginLeft: 4, height: 'auto', width: 'auto' }}>x</button>
+                      <div key={idx} onClick={() => handleSelectBookmark(b)} style={{ background: '#f8fafc', border: '1px solid var(--border-light)', padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', align: 'center', gap: 6, borderRadius: 6 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--clinical-teal)' }}>{b.brandName || b.saltName}</span>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteBookmark(idx); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontWeight: 700, padding: 0, marginLeft: 4, height: 'auto', width: 'auto' }}>x</button>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', color: 'var(--text-light)', fontStyle: 'italic', fontSize: 12 }}>
-                  Type search term or analyze strip to view records.
+                  Type a search query or scan a strip to begin.
                 </div>
               )}
             </div>
           </div>
 
           <div className="clinical-panel grid-col-12">
-            <div className="washi-tape clay">// SECURITY: AES-256</div>
             <div className="panel-header">
-              <span>Cabinet Lock</span>
+              <span>Encrypted Cabinet</span>
             </div>
 
             {isVaultLocked ? (
               <div style={{ maxWidth: 400, margin: '0 auto', textAlign: 'center', padding: '10px 0' }}>
                 <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Enter Vault Passcode</h4>
-                <p style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 16 }}>
-                  Cabinet records are encrypted locally in browser IndexedDB.
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 16 }}>
+                  Your medicine cabinet records are encrypted locally in your browser database.
                 </p>
                 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
@@ -1946,13 +1902,13 @@ function HomeView({
                     Unlock
                   </button>
                 </div>
-                {pinError && <div style={{ color: 'var(--accent-clay)', fontSize: 11.5, fontWeight: 600 }}>{pinError}</div>}
+                {pinError && <div style={{ color: '#ef4444', fontSize: 12, fontWeight: 600 }}>{pinError}</div>}
                 
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 12 }}>
                   <button className="btn-clinical-secondary" onClick={() => setShowPinSetup(true)} style={{ height: 28, fontSize: 11, padding: '0 8px' }}>
                     Configure PIN
                   </button>
-                  <button className="btn-clinical-secondary" onClick={handleDisableEncryption} style={{ height: 28, fontSize: 11, padding: '0 8px', color: 'var(--accent-clay)' }}>
+                  <button className="btn-clinical-secondary" onClick={handleDisableEncryption} style={{ height: 28, fontSize: 11, padding: '0 8px', color: '#ef4444' }}>
                     Disable Encryption
                   </button>
                 </div>
@@ -1960,9 +1916,9 @@ function HomeView({
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <div>
-                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-forest)', margin: '0 0 2px 0' }}>Vault Decrypted</h4>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--clinical-teal)', margin: '0 0 2px 0' }}>Vault Decrypted</h4>
                   <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-                    Operator: <strong>{activeProfile?.name || 'Default'}</strong> | Inventory contains <strong>{activeProfile?.cabinet?.length || 0}</strong> registered compounds.
+                    Operator: <strong>{activeProfile?.name || 'Default'}</strong> | Inventory contains <strong>{activeProfile?.cabinet?.length || 0}</strong> medicines.
                   </p>
                 </div>
 
@@ -1987,7 +1943,7 @@ function HomeView({
             )}
 
             {showAddProfile && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 14, padding: 12, background: '#fafaf9', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, padding: 12, background: '#fafaf9', border: '1px solid var(--border-light)', borderRadius: 8 }}>
                 <input 
                   type="text" 
                   value={profileInput} 

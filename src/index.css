@@ -1,77 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
 
 :root {
-  --neon-green: #10b981;
-  --neon-blue: #00e5ff;
-  --saffron: #f59e0b;
-  --charcoal: #1e293b;
-  --bgcard: #ffffff;
-  --bgsoft: #faf9f6;
-  --border: #cbd5e1;
-  --bordermd: #94a3b8;
-  --navy: #0f172a;
-  --shadow: 4px 4px 0px var(--charcoal);
-  --shadowmd: 7px 7px 0px var(--charcoal);
-  --font-sans: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-}
-
-@keyframes floatUp {
-  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-  10% { opacity: 0.2; }
-  90% { opacity: 0.2; }
-  100% { transform: translateY(-110vh) rotate(360deg); opacity: 0; }
+  --primary-navy: #0f1e36;
+  --clinical-teal: #086570;
+  --clinical-green: #15803d;
+  --bg-slate: #f8fafc;
+  --bg-card: #ffffff;
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-serif: 'Playfair Display', serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background-color: #f1f5f9;
-  background-image: 
-    linear-gradient(rgba(148, 163, 184, 0.08) 2px, transparent 2px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 2px, transparent 2px),
-    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
-  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  background-color: var(--bg-slate);
   font-family: var(--font-sans);
-  color: var(--navy);
+  color: var(--text-main);
   min-height: 100vh;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  top: 0; bottom: 0; left: 45px;
-  width: 2px;
-  background: rgba(239, 68, 68, 0.35);
-  z-index: 1;
-  pointer-events: none;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-container {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 32px 16px 32px 64px;
-  position: relative;
-  z-index: 5;
+  padding: 40px 20px;
 }
 
 .medical-console {
-  background: var(--bgcard);
-  border: 3px solid var(--charcoal);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
   border-radius: 16px;
-  box-shadow: var(--shadowmd);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
   display: flex;
   flex-direction: column;
-  min-height: 700px;
-  position: relative;
+  min-height: 680px;
+  overflow: hidden;
 }
 
 .console-header {
-  background: var(--charcoal);
-  border-bottom: 3px solid var(--charcoal);
-  padding: 14px 20px;
+  background: var(--primary-navy);
+  padding: 20px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -81,57 +57,52 @@ body::before {
 .console-title-block {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
 .console-title {
-  font-size: 16px;
-  font-family: var(--font-mono);
-  font-weight: 900;
-  text-transform: uppercase;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
 }
 
 .console-tabs {
   display: flex;
-  background: #e2e8f0;
-  border-bottom: 3px solid var(--charcoal);
-  padding: 8px 16px 0;
-  gap: 6px;
+  background: #f1f5f9;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border-light);
+  gap: 24px;
+  overflow-x: auto;
 }
 
 .console-tab-btn {
-  padding: 10px 18px;
-  font-size: 12.5px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: #475569;
-  background: #cbd5e1;
-  border: 3px solid var(--charcoal);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  padding: 16px 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
-  margin-bottom: -3px;
-  transition: transform 0.1s;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .console-tab-btn:hover {
-  transform: translateY(-2px);
-  background: #f1f5f9;
+  color: var(--primary-navy);
 }
 
 .console-tab-btn.active {
-  color: var(--navy);
-  background: var(--bgcard);
-  border-bottom: 3px solid var(--bgcard);
-  z-index: 10;
-  transform: translateY(-1px);
+  color: var(--clinical-teal);
+  border-bottom: 2px solid var(--clinical-teal);
 }
 
 .clinical-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 20px;
-  padding: 24px;
+  gap: 24px;
+  padding: 28px;
 }
 
 .grid-col-12 { grid-column: span 12; }
@@ -140,151 +111,100 @@ body::before {
 .grid-col-4  { grid-column: span 4; }
 
 .clinical-panel {
-  background: #ffffff;
-  border: 3px solid var(--charcoal);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: var(--shadow);
-  position: relative;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-
-.clinical-panel:hover {
-  transform: translate(-3px, -3px);
-  box-shadow: var(--shadowmd);
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-header {
-  border-bottom: 2px dashed var(--charcoal);
-  padding-bottom: 8px;
-  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 12px;
+  margin-bottom: 18px;
   font-size: 11px;
-  font-family: var(--font-mono);
-  font-weight: 900;
-  text-transform: uppercase;
-  color: var(--charcoal);
-}
-
-.washi-tape {
-  position: absolute;
-  top: -10px;
-  left: 24px;
-  background: rgba(245, 158, 11, 0.85);
-  color: var(--charcoal);
-  font-family: var(--font-mono);
-  font-size: 10px;
   font-weight: 700;
-  padding: 2px 10px;
-  transform: rotate(-2deg);
-  border-left: 2px dashed rgba(30, 41, 59, 0.4);
-  border-right: 2px dashed rgba(30, 41, 59, 0.4);
-  box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
-  z-index: 5;
-}
-
-.washi-tape.clay {
-  background: rgba(239, 68, 68, 0.8);
-  transform: rotate(1.5deg);
-  left: auto;
-  right: 24px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 input, select {
-  height: 40px !important;
-  padding: 0 10px !important;
+  height: 42px !important;
+  padding: 0 14px !important;
   border-radius: 8px !important;
-  border: 3px solid var(--charcoal) !important;
+  border: 1px solid var(--border-medium) !important;
   background: #ffffff !important;
-  color: var(--navy) !important;
-  font-family: var(--font-mono) !important;
-  font-size: 13px !important;
+  color: var(--text-main) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 14px !important;
   width: 100%;
-  box-shadow: 2px 2px 0px rgba(30, 41, 59, 0.15) !important;
+  transition: all 0.2s ease !important;
 }
 
 input:focus, select:focus {
   outline: none !important;
-  border-color: var(--neon-green) !important;
-  box-shadow: 2px 2px 0px var(--charcoal) !important;
+  border-color: var(--clinical-teal) !important;
+  box-shadow: 0 0 0 3px rgba(8, 101, 112, 0.1) !important;
 }
 
 button {
-  height: 40px;
+  height: 42px;
   padding: 0 20px;
   border-radius: 8px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 900;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
-  border: 3px solid var(--charcoal);
-  box-shadow: var(--shadow);
-  transition: transform 0.05s, box-shadow 0.05s;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .btn-clinical-primary {
-  background: var(--neon-green);
-  color: var(--charcoal);
+  background: var(--clinical-teal);
+  color: #ffffff;
 }
 
 .btn-clinical-primary:hover {
-  filter: brightness(1.05);
-}
-
-.btn-clinical-primary:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px var(--charcoal);
+  background: #064e57;
 }
 
 .btn-clinical-secondary {
-  background: var(--saffron);
-  color: var(--charcoal);
+  background: #f1f5f9;
+  color: var(--text-main);
+  border-color: var(--border-light);
 }
 
 .btn-clinical-secondary:hover {
-  filter: brightness(1.05);
-}
-
-.btn-clinical-secondary:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px var(--charcoal);
+  background: #e2e8f0;
 }
 
 .clinical-table-wrapper {
   overflow-x: auto;
-  border: 3px solid var(--charcoal);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
 }
 
 .clinical-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 13.5px;
   text-align: left;
 }
 
 .clinical-table th {
-  background: #cbd5e1;
-  font-weight: 800;
-  color: var(--charcoal);
-  padding: 10px 14px;
-  border-bottom: 3px solid var(--charcoal);
-  border-right: 2px solid var(--charcoal);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .clinical-table td {
-  padding: 12px 14px;
-  border-bottom: 2px solid var(--charcoal);
-  border-right: 2px solid var(--charcoal);
-  color: var(--navy);
-  background: #ffffff;
-  font-weight: 700;
-}
-
-.clinical-table tr:nth-child(even) td {
-  background: #f1f5f9;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-main);
 }
 
 .clinical-table tr:last-child td {
@@ -292,31 +212,11 @@ button {
 }
 
 .probe-viewport {
-  border: 3px dashed var(--charcoal);
+  border: 1px dashed var(--border-medium);
   border-radius: 8px;
-  background: #e2e8f0;
+  background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-}
-
-.spiral-binder {
-  position: absolute;
-  top: 40px;
-  left: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.spiral-ring {
-  width: 24px;
-  height: 12px;
-  background: linear-gradient(to right, #94a3b8, #cbd5e1, #475569);
-  border-radius: 6px;
-  border: 2px solid var(--charcoal);
-  box-shadow: 2px 2px 0px rgba(0,0,0,0.15);
 }
