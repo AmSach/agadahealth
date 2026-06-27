@@ -218,7 +218,6 @@ export default function Scanner() {
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
   const [activeTab, setActiveTab] = useState('scan')
-  const [pillShape, setPillShape] = useState('capsule')
   const [symptomInput, setSymptomInput] = useState('')
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -1664,6 +1663,7 @@ function HomeView({
   saveAllProfiles
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
+  const [pillShape, setPillShape] = useState('capsule')
 
   const selectCabinetItem = (idx) => {
     setSelectedCabinetIndex(idx);
