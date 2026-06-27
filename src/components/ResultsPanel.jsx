@@ -5,6 +5,8 @@ import { getPKParameters, simulatePharmacokinetics, calculatePhysiologicalIndice
 const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
 const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSce6duzii7D1SlYOYI3DG45mVEJUyl3wSzByoYSvyHNStqFGA/viewform'
 
+// ─── Translation helper for AI-generated text ────────────────────────────────
+// Sends AI-generated strings through /api/groq proxy (keys stay server-side)
 async function translateTexts(texts, targetLang) {
   if (targetLang === 'en' || !texts || texts.length === 0) return texts
   const langNames = { hi: 'Hindi', bn: 'Bengali', te: 'Telugu', mr: 'Marathi', ta: 'Tamil', gu: 'Gujarati' }
@@ -93,6 +95,8 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     }
   }
 
+
+  // Auto-translate AI-generated fields when lang != en
   React.useEffect(() => {
     if (lang === 'en') { setTranslated(null); return }
     const info = results?.medicineInfo
@@ -135,6 +139,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
   const jaAlts    = (alts.topAlternatives || []).filter(a => a.isJanAushadhi)
   const otherAlts = (alts.topAlternatives || []).filter(a => !a.isJanAushadhi)
 
+  // Real savings %  -  computed from actual DB data, not hardcoded
   const brandedMrp    = results?.mrp ? parseFloat(results.mrp) : null
   const brandedUnitSz = results?.unitSize || null
   const brandedPerUnit = brandedMrp
@@ -156,21 +161,24 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     : null
   const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
+  // Helper for consistent layout wrapping
   const LayoutWrapper = ({ children }) => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', height: '100%', overflow: 'hidden' }}>
-      
+      {/* Sticky Header */}
       <div style={{ padding: '14px 16px', background: '#fff', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, boxShadow: 'var(--shadow)' }}>
         <button onClick={onReset} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--textlt)', padding: '6px 0', border: 'none', background: 'transparent', cursor: 'pointer' }}>
           <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Back
         </button>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--navy)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Scan Results</h2>
-        <div style={{ width: 60 }} /> 
+        <div style={{ width: 60 }} /> {/* Spacer to balance absolute center */}
       </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      
+      {/* Scrollable Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {children}
       </div>
 
+      {/* Sticky Footer */}
       <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
           📷 Scan Another Medicine
@@ -179,19 +187,21 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     </div>
   )
 
+  // Hard block  -  not a medicine at all
+  // ── Hard block: HAZARDOUS substance  -  show danger warning ─────────────────
   if (results?.productType === 'HAZARDOUS') {
     return (
       <LayoutWrapper>
         <div style={{ background: '#fff3f3', border: '2.5px solid #e53935', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: '0 4px 18px rgba(229,57,53,0.15)' }}>
           <span style={{ fontSize: 56 }}>☠️</span>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS - DO NOT CONSUME</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS  -  DO NOT CONSUME</div>
           <div style={{ fontSize: 13.5, color: '#c62828', lineHeight: 1.7, maxWidth: 300, fontWeight: 500 }}>
             This appears to be a <strong>dangerous chemical</strong>, not a medicine.
             Do <strong>not</strong> ingest, inhale, or allow contact with skin or eyes.
           </div>
           {results.brandName && (
             <div style={{ fontSize: 12, color: '#b71c1c', background: '#ffebee', padding: '6px 14px', borderRadius: 8, fontWeight: 600 }}>
-              Detected: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{results.brandName}</span>
+              Detected: {results.brandName}
             </div>
           )}
           <div style={{ background: '#ffebee', border: '1.5px solid #ef9a9a', borderRadius: 10, padding: '12px 16px', width: '100%', maxWidth: 300 }}>
@@ -207,6 +217,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     )
   }
 
+  // ── Hard block: not a medicine at all ──────────────────────────────────────
   if (results?.productType === 'NOT_MEDICINE') {
     return (
       <LayoutWrapper>
@@ -218,7 +229,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           </div>
           {results.brandName && (
             <div style={{ fontSize: 12, color: 'var(--textlt)', background: 'var(--bgsoft)', padding: '6px 12px', borderRadius: 8 }}>
-              Detected: <strong style={{ fontFamily: 'var(--font-mono)' }}>{results.brandName}</strong>
+              Detected: <strong>{results.brandName}</strong>
             </div>
           )}
         </div>
@@ -226,9 +237,12 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     )
   }
 
+
+
   return (
     <LayoutWrapper>
 
+      {/* Top banner */}
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow)', animation: 'fadeUp 0.3s ease' }}>
         {results?.preview || preview
           ? <img src={results?.preview || preview} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }} />
@@ -246,7 +260,8 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
             {translating && <span style={badge('amber')}>Translating...</span>}
           </div>
         </div>
-
+        
+        {/* Bookmark Button */}
         <button
           onClick={toggleBookmark}
           title={isBookmarked ? "Remove Bookmark" : "Bookmark Medicine"}
@@ -274,22 +289,26 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         </div>
       </div>
 
+      {/* Low confidence warning */}
       {(results.confidence || 70) < 50 && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.55 }}>
-          ⚠ Low confidence scan - the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
+          ⚠ Low confidence scan  -  the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
         </div>
       )}
 
+      {/* Dose unconfirmed warning  -  salt readable but dose not on front of pack */}
       {results.doseUnconfirmed && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
           <div>
-            <strong>Dose not confirmed</strong> - the dose (<span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{results.saltComposition}</span>) was not visible on this side of the pack. It may be printed on the back or side label.<br />
-            <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only - verify the strength with your pharmacist.
+            <strong>Dose not confirmed</strong>  -  the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
+            <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only  -  verify the strength with your pharmacist.
           </div>
         </div>
       )}
 
+
+      {/* Modern Segmented Control */}
       <div style={{ display: 'flex', background: 'var(--border)', padding: 4, borderRadius: 12, marginBottom: 4, animation: 'fadeUp 0.3s ease 0.1s both' }}>
         {[['🛡️', 'Authentic'], ['💡', 'Usage'], ['💸', 'Alternatives']].map(([icon, label], i) => (
           <button key={i} onClick={() => setCard(i)} style={{ flex: 1, padding: '10px 4px', borderRadius: 9, background: card === i ? '#fff' : 'transparent', color: card === i ? 'var(--navy)' : 'var(--textlt)', fontSize: 13, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.2s', boxShadow: card === i ? '0 2px 8px rgba(0,0,0,0.08)' : 'none', border: 'none' }}>
@@ -298,6 +317,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         ))}
       </div>
 
+      {/* Cards Display */}
       <div style={{ animation: 'fadeIn 0.2s ease', flex: 1 }}>
         {card === 0 && (
           <AuthCard 
@@ -315,12 +335,13 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           />
         )}
         {card === 1 && <InfoCard info={info} results={results} translating={translating} profile={profile} />}
-        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} results={results} />}
+        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} />}
       </div>
     </LayoutWrapper>
   )
 }
 
+// ─── CARD 1: AUTHENTICITY ────────────────────────────────────────────────────
 function AuthCard({ 
   auth, results, t, reported, setReported,
   recallStatus, isCheckingRecall,
@@ -346,6 +367,7 @@ function AuthCard({
   return (
     <div style={{ background: statusConfig.bg, border: `1.5px solid ${statusConfig.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
 
+      {/* Status row */}
       <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 13 }}>
         <div style={{ width: 46, height: 46, borderRadius: '50%', background: statusConfig.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: statusConfig.iconColor, fontWeight: 700, flexShrink: 0, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.1s both' }}>{statusConfig.icon}</div>
         <div>
@@ -356,6 +378,7 @@ function AuthCard({
 
       <div style={{ background: 'rgba(255,255,255,0.6)', padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
+        {/* Genuine signals */}
         {auth.genuineSignalsFound?.length > 0 && (
           <div>
             <div style={sectionLabel('green')}>Genuine signals found</div>
@@ -367,6 +390,7 @@ function AuthCard({
           </div>
         )}
 
+        {/* Fake signals */}
         {auth.fakeSignalsFound?.length > 0 && (
           <div>
             <div style={sectionLabel('red')}>Suspicious signals</div>
@@ -378,12 +402,13 @@ function AuthCard({
           </div>
         )}
 
+        {/* Fields table */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
             ['Brand', results.brandName],
             ['Manufacturer', results.manufacturer],
             ['Type', results.productType],
-            ['Schedule', results.medicineInfo?.prescriptionRequired ? 'Prescription (Rx)' : 'OTC - no prescription'],
+            ['Schedule', results.medicineInfo?.prescriptionRequired ? 'Prescription (Rx)' : 'OTC  -  no prescription'],
             ['Expiry', results.expiryDate],
             ['Licence No.', results.licenceNumber],
           ].filter(([,v]) => v).map(([k, v]) => (
@@ -394,6 +419,7 @@ function AuthCard({
           ))}
         </div>
 
+        {/* CDSCO fact  -  clean, no conflicting drug name */}
         {auth.cdscoBadge && (
           <div style={{ padding: '10px 13px', background: auth.cdscoFound ? '#F0FDF4' : 'var(--bgsoft)', border: `1px solid ${auth.cdscoFound ? '#86EFAC' : 'var(--border)'}`, borderRadius: 9 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: auth.cdscoFound ? '#15803D' : 'var(--textlt)', marginBottom: auth.cdscoIndication ? 4 : 0 }}>
@@ -410,18 +436,21 @@ function AuthCard({
           </div>
         )}
 
+        {/* Expired */}
         {results.isExpired && (
           <div style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1px solid #FECACA', borderRadius: 9, fontSize: 12.5, color: '#991B1B', lineHeight: 1.55 }}>
             ⚠ This medicine appears to be <strong>expired</strong>. Do not consume. Return to your chemist.
           </div>
         )}
 
+        {/* Fake action */}
         {isFake && (
           <div style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1px solid #FECACA', borderRadius: 9, fontSize: 12.5, color: '#991B1B', lineHeight: 1.55 }}>
             Do not consume. Return to chemist and ask for CDSCO licence proof.<br />Report to CDSCO: <strong>1800-180-3024</strong> (free)
           </div>
         )}
 
+        {/* Cryptographic Ledger Audit Section */}
         {results.batchNumber && (
           <div style={{
             background: '#fff',
@@ -436,9 +465,10 @@ function AuthCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>
               🛡️ Batch recall & manufacturer verification
             </div>
-
+            
+            {/* User-friendly Summary */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              
+              {/* Recall Status */}
               {isCheckingRecall ? (
                 <div style={{ fontSize: 13, color: 'var(--textlt)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   ⏳ Checking government recall records...
@@ -458,6 +488,7 @@ function AuthCard({
                 <div style={{ fontSize: 13, color: 'var(--textlt)' }}>Batch verification not available.</div>
               )}
 
+              {/* Manufacturer Signature */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -470,6 +501,7 @@ function AuthCard({
               </div>
             </div>
 
+            {/* Collapsible Details */}
             {results.batchNumber && (
               <div style={{ marginTop: 4 }}>
                 <button 
@@ -534,6 +566,7 @@ function AuthCard({
         )}
       </div>
 
+      {/* Cryptographic Report/Ledger section */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!reported ? (
           <button 
@@ -594,6 +627,7 @@ function AuthCard({
               This strip has been reported as suspicious. If you suspect the medicine is counterfeit, please do not consume it. You can return it to your chemist.
             </div>
 
+            {/* Collapsible Receipt Details */}
             {signedReportSignature && (
               <div style={{ marginTop: 4 }}>
                 <button 
@@ -662,6 +696,7 @@ function AuthCard({
   )
 }
 
+// ─── BLOODSTREAM SIMULATOR (Real-Time 2.5D visualizer) ───────────────────────
 export function BloodstreamSimulator({ concentration, minEffective, minToxic, maxConc }) {
   const canvasRef = useRef(null)
   
@@ -670,7 +705,8 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-
+    
+    // Red blood cells parameters
     const rbcs = []
     for (let i = 0; i < 6; i++) {
       rbcs.push({
@@ -688,7 +724,8 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       frame++
       const width = canvas.width = 180
       const height = canvas.height = 50
-
+      
+      // Deep medical dark backdrop
       ctx.fillStyle = '#0f172a'
       ctx.fillRect(0, 0, width, height)
       
@@ -698,16 +735,17 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       let statusColor = '#3b82f6'
       let glow = 4
       if (concentration > minToxic) {
-        statusColor = '#ef4444'
+        statusColor = '#ef4444' // toxic red
         glow = 12 + Math.sin(frame * 0.15) * 4
       } else if (concentration > minEffective) {
-        statusColor = '#10b981'
+        statusColor = '#10b981' // therapeutic green
         glow = 6 + Math.sin(frame * 0.1) * 2
       } else {
-        statusColor = '#f59e0b'
+        statusColor = '#f59e0b' // sub-therapeutic amber
         glow = 3
       }
-
+      
+      // Draw cylinder walls with glow
       ctx.shadowBlur = glow
       ctx.shadowColor = statusColor
       ctx.strokeStyle = statusColor
@@ -718,15 +756,17 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       ctx.moveTo(0, tubeY + tubeH)
       ctx.lineTo(width, tubeY + tubeH)
       ctx.stroke()
-      ctx.shadowBlur = 0
-
+      ctx.shadowBlur = 0 // reset glow for cells
+      
+      // Glass body glare
       const grad = ctx.createLinearGradient(0, tubeY, 0, tubeY + tubeH)
       grad.addColorStop(0, 'rgba(255,255,255,0.06)')
       grad.addColorStop(0.5, 'rgba(255,255,255,0.0)')
       grad.addColorStop(1, 'rgba(255,255,255,0.06)')
       ctx.fillStyle = grad
       ctx.fillRect(0, tubeY, width, tubeH)
-
+      
+      // Move and draw Red Blood Cells (3D-shaded biconcave spheres)
       for (const rbc of rbcs) {
         rbc.x += rbc.speed
         if (rbc.x - rbc.r > width) {
@@ -747,7 +787,8 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
         ctx.arc(rbc.x, rbc.y, rbc.r, 0, Math.PI * 2)
         ctx.fill()
       }
-
+      
+      // Draw floating drug particles
       const maxParticles = 35
       const targetParticles = Math.min(maxParticles, Math.round((concentration / maxConc) * maxParticles))
       
@@ -796,12 +837,14 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
   )
 }
 
+// ─── CARD 2: MEDICINE INFO ────────────────────────────────────────────────────
 function InfoCard({ info, results, translating, profile }) {
   const [showSide, setShowSide] = useState(false)
   const [scrubTime, setScrubTime] = useState(0.0)
   const isAyurvedic   = results.productType === 'AYURVEDIC'
   const isSupplement  = results.productType === 'SUPPLEMENT'
 
+  // Pharmacokinetics State & Calculations
   const pkParams = getPKParameters(results.saltComposition || results.brandName)
   const parsedDose = results.saltComposition ? (() => {
     const m = results.saltComposition.match(/(\d+)\s*(mg|mcg|g)/i)
@@ -813,7 +856,7 @@ function InfoCard({ info, results, translating, profile }) {
   const [doseAge, setDoseAge] = useState(profile?.age || 30)
   const [doseGender, setDoseGender] = useState(profile?.gender || 'male')
   const [doseStrength, setDoseStrength] = useState(parsedDose)
-  const [doseFreq, setDoseFreq] = useState(3)
+  const [doseFreq, setDoseFreq] = useState(3) // 3x daily
 
   useEffect(() => {
     if (profile) {
@@ -874,22 +917,24 @@ function InfoCard({ info, results, translating, profile }) {
     }
   }
 
+  // 3D Capsule color config based on drug properties
   const saltLower = (results.saltComposition || '').toLowerCase()
   const isAntibiotic = saltLower.includes('amoxicillin') || saltLower.includes('penicillin') || saltLower.includes('cef') || saltLower.includes('cipro')
   const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen')
   
-  let capTopColor = '#f59e0b'
-  let capBottomColor = '#f8fafc'
+  let capTopColor = '#f59e0b' // default orange
+  let capBottomColor = '#f8fafc' // white
   
   if (isAyurvedic || isSupplement) {
-    capTopColor = '#10b981'
+    capTopColor = '#10b981' // green
   } else if (isAntibiotic) {
-    capTopColor = '#ef4444'
-    capBottomColor = '#3b82f6'
+    capTopColor = '#ef4444' // red
+    capBottomColor = '#3b82f6' // blue
   } else if (isPainKiller) {
-    capTopColor = '#ef4444'
+    capTopColor = '#ef4444' // red
   }
 
+  // Chronotherapy optimization tips
   let chronoTip = ""
   if (saltLower.includes('atorvastatin') || saltLower.includes('statin')) {
     chronoTip = "🌙 Evening Dosing (Chronotherapy): Cholesterol synthesis peaks at night. Taking statins at bedtime optimizes therapeutic efficacy."
@@ -903,6 +948,7 @@ function InfoCard({ info, results, translating, profile }) {
     chronoTip = "🛡️ Daily Intake Cap: Keep at least 4-6 hours between doses. Absolute maximum safe daily limit is 4000mg to prevent liver toxicity."
   }
 
+  // Scale functions for SVG
   const getX = (t) => 35 + (t / 24) * 290
   const getY = (c) => 15 + (1 - (c / maxConc)) * 140
 
@@ -913,33 +959,12 @@ function InfoCard({ info, results, translating, profile }) {
   const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : ''
 
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary-navy)' }}>Usage &amp; Safety Profile</div>
+    <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>💡 Usage & Safety</div>
         {translating && <span style={badge('amber')}>Translating...</span>}
       </div>
-      <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {(info.importantWarnings?.length > 0 || info.overdoseRisk || info.doNotTakeWith) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#fef2f2', border: '1px solid #fca5a5', borderLeft: '4px solid #ef4444', padding: '16px 20px', borderRadius: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#b91c1c', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>[ IMMEDIATE WARNINGS ]</div>
-            {info.importantWarnings?.map((w, i) => (
-              <div key={i} style={{ fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
-                • {w}
-              </div>
-            ))}
-            {info.overdoseRisk && (
-              <div style={{ fontSize: 12.5, color: '#991b1b', borderTop: '1px solid rgba(239, 68, 68, 0.15)', paddingTop: 8, marginTop: 4 }}>
-                <strong>Overdose Risk:</strong> {info.overdoseRisk}
-              </div>
-            )}
-            {info.doNotTakeWith && (
-              <div style={{ fontSize: 12.5, color: '#991b1b', borderTop: '1px solid rgba(239, 68, 68, 0.15)', paddingTop: 8, marginTop: 4 }}>
-                <strong>Do not consume with:</strong> <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{info.doNotTakeWith}</span>
-              </div>
-            )}
-          </div>
-        )}
+      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         <p style={{ fontSize: 13.5, color: 'var(--textmd)', lineHeight: 1.7, margin: 0 }}>{info.whatItDoes}</p>
 
@@ -961,9 +986,20 @@ function InfoCard({ info, results, translating, profile }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bgsoft)', borderRadius: 9, border: '1px solid var(--border)' }}>
           <span style={{ fontSize: 13, color: 'var(--textmd)' }}>Prescription required?</span>
           <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: info.prescriptionRequired ? 'var(--redlt)' : 'var(--greenlt)', color: info.prescriptionRequired ? 'var(--red)' : 'var(--greendk)', letterSpacing: '0.04em' }}>
-            {info.prescriptionRequired ? 'YES - Rx' : 'NO - OTC'}
+            {info.prescriptionRequired ? 'YES  -  Rx' : 'NO  -  OTC'}
           </span>
         </div>
+
+        {info.importantWarnings?.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {info.importantWarnings.map((w, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', background: '#FEF3C7', borderRadius: 10, borderLeft: '3px solid var(--amber)', alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0 }}>⚠️</span>
+                <span style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.5 }}>{w}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {info.sideEffects?.length > 0 && (
           <>
@@ -982,6 +1018,13 @@ function InfoCard({ info, results, translating, profile }) {
           </>
         )}
 
+        {info.overdoseRisk && (
+          <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, border: '1px solid #FECACA' }}>
+            <div style={sectionLabel('red')}>⚠ Overdose risk</div>
+            <p style={{ fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.55, margin: 0 }}>{info.overdoseRisk}</p>
+          </div>
+        )}
+
         {isAyurvedic && info.ayurvedicWarning && (
           <div style={{ padding: '10px 12px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 10, fontSize: 12.5, color: '#166534', lineHeight: 1.6 }}>
             🌿 {info.ayurvedicWarning}
@@ -994,6 +1037,13 @@ function InfoCard({ info, results, translating, profile }) {
           </div>
         )}
 
+        {info.doNotTakeWith && (
+          <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.5 }}>
+            <strong>🚫 Do not take with: </strong>{info.doNotTakeWith}
+          </div>
+        )}
+
+        {/* 🔬 Medicine Level Tracker Widget */}
         {pkParams && (
           <div style={{
             background: '#fff',
@@ -1021,11 +1071,11 @@ function InfoCard({ info, results, translating, profile }) {
                 `}</style>
                 <svg viewBox="0 0 40 40" width="32" height="32" className="svg-tracker-capsule" title="Dose concentration level indicator">
                   <g transform="rotate(45 20 20)">
-                    
+                    {/* Top half */}
                     <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                    
+                    {/* Bottom half */}
                     <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                    
+                    {/* Center band */}
                     <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
                   </g>
                 </svg>
@@ -1033,20 +1083,23 @@ function InfoCard({ info, results, translating, profile }) {
             </div>
 
             <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.55 }}>
-              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>24 hours</span>. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
+              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
             </p>
 
+            {/* Simulated graph & 3D Bloodstream Simulation row */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-              <div className="glass-card" style={{ padding: 8, display: 'flex', justifyContent: 'center', marginBottom: 0 }}>
+              
+              {/* SVG concentration chart */}
+              <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
                 <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
                   <defs>
                     <linearGradient id="curve-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="#0284c7" stopOpacity="0.0" />
+                      <stop offset="0%" stopColor="#0D8A68" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#0D8A68" stopOpacity="0.0" />
                     </linearGradient>
                   </defs>
 
+                  {/* Grid Lines & Ticks */}
                   {[0, 6, 12, 18, 24].map(t => (
                     <g key={t}>
                       <line x1={getX(t)} y1="15" x2={getX(t)} y2="155" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
@@ -1054,6 +1107,7 @@ function InfoCard({ info, results, translating, profile }) {
                     </g>
                   ))}
 
+                  {/* Range Band 1: TOO STRONG (Toxic Zone above minToxicConc) */}
                   {pkParams.minToxicConc < maxConc && (
                     <rect
                       x="35"
@@ -1065,6 +1119,7 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
+                  {/* Range Band 2: Safe & Works (Therapeutic Zone) */}
                   {pkParams.minEffectiveConc < maxConc && (
                     <rect
                       x="35"
@@ -1076,6 +1131,7 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
+                  {/* Range Band 3: Too Weak (Sub-therapeutic Zone below minEffectiveConc) */}
                   {pkParams.minEffectiveConc > 0 && (
                     <rect
                       x="35"
@@ -1087,12 +1143,15 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
+                  {/* Threshold line 1: Too Weak Limit */}
                   <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="var(--amber)" strokeWidth="1.2" strokeDasharray="3,3" />
                   <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8.5" fill="var(--amber)" fontWeight="800">Too Weak</text>
 
+                  {/* Threshold line 2: Safe & Works Limit */}
                   <line x1="35" y1={getY(pkParams.minEffectiveConc) - 0.5} x2="325" y2={getY(pkParams.minEffectiveConc) - 0.5} stroke="var(--green)" strokeWidth="1.2" strokeDasharray="3,3" />
                   <text x="328" y={getY(pkParams.minEffectiveConc) - 4} fontSize="8.5" fill="var(--green)" fontWeight="800">Safe & Active</text>
 
+                  {/* Threshold line 3: Too Strong Limit */}
                   {pkParams.minToxicConc < maxConc && (
                     <>
                       <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="var(--red)" strokeWidth="1.2" strokeDasharray="3,3" />
@@ -1100,12 +1159,16 @@ function InfoCard({ info, results, translating, profile }) {
                     </>
                   )}
 
+                  {/* Area under curve */}
                   {areaD && <path d={areaD} fill="url(#curve-grad)" />}
 
-                  {pathD && <path d={pathD} fill="none" stroke="#38bdf8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" />}
+                  {/* Curve path backing glow */}
+                  {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.15" />}
 
-                  {pathD && <path d={pathD} fill="none" stroke="#0284c7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+                  {/* Curve path */}
+                  {pathD && <path d={pathD} fill="none" stroke="#0D8A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
 
+                  {/* Vertical scanning bar for time scrubber */}
                   <line 
                     x1={getX(scrubTime)} 
                     y1="15" 
@@ -1124,6 +1187,7 @@ function InfoCard({ info, results, translating, profile }) {
                     strokeWidth="1.5" 
                   />
 
+                  {/* Interactive Peak concentration dot */}
                   {pkData.length > 0 && (() => {
                     const peakPoint = pkData.reduce((max, p) => p.conc > max.conc ? p : max, pkData[0]);
                     return (
@@ -1134,20 +1198,25 @@ function InfoCard({ info, results, translating, profile }) {
                     );
                   })()}
 
+                  {/* Axes */}
                   <line x1="35" y1="15" x2="35" y2="155" stroke="var(--border)" strokeWidth="1.5" />
                   <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
 
+                  {/* Y Axis Ticks */}
                   <text x="30" y={getY(0)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Low</text>
                   <text x="30" y={getY(maxConc / 2)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Medium</text>
                   <text x="30" y={getY(maxConc)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">High</text>
-
+                  
+                  {/* Y Axis Label */}
                   <text x="12" y="85" fontSize="10" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle" fontWeight="700">Medicine Level</text>
                 </svg>
               </div>
 
+              {/* Time Scrubber Slider and Bloodstream Simulator Visualizer Row */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#1e293b', padding: 12, borderRadius: 14, border: '1px solid #334155' }}>
                 <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-
+                  
+                  {/* Time Slider */}
                   <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {scrubTime.toFixed(1)}h</span>
@@ -1170,6 +1239,7 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   </div>
 
+                  {/* 3D Bloodstream Visualizer */}
                   <div style={{ flex: '0 0 180px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
                     <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.04em' }}>🔴 BLOODSTREAM DENSITY</span>
                     <BloodstreamSimulator 
@@ -1185,8 +1255,10 @@ function InfoCard({ info, results, translating, profile }) {
 
             </div>
 
+            {/* Controls (Segmented Control Bars) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bgsoft)', padding: 12, borderRadius: 14, border: '1px solid var(--border)' }}>
-
+              
+              {/* Strength selector */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>💊 Pill Strength:</span>
                 <div className="segmented-control">
@@ -1203,6 +1275,7 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
               </div>
 
+              {/* Frequency selector */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⏰ Dosing Frequency:</span>
                 <div className="segmented-control">
@@ -1219,6 +1292,7 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
               </div>
 
+              {/* Glassmorphic Patient HUD Card */}
               <div style={{
                 background: 'rgba(255, 255, 255, 0.75)',
                 backdropFilter: 'blur(12px)',
@@ -1249,6 +1323,7 @@ function InfoCard({ info, results, translating, profile }) {
                   </div>
                 </div>
 
+                {/* Adjusters Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, borderTop: '1px dashed var(--border)', paddingTop: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between' }}>
@@ -1319,6 +1394,7 @@ function InfoCard({ info, results, translating, profile }) {
                   </div>
                 </div>
 
+                {/* Dynamic physiology scaling explanation */}
                 <div style={{ fontSize: '11px', color: 'var(--textmd)', lineHeight: 1.4, padding: '8px 10px', background: 'rgba(13,138,104,0.05)', borderRadius: 8, borderLeft: '3px solid var(--green)' }}>
                   ℹ️ <strong>Physiological Scaling:</strong> {pkParams.partition === 'hydrophilic' ? (
                     `Because ${pkParams.name} is hydrophilic, its Volume of Distribution (Vd) is scaled to your Lean Body Mass (LBM = ${indices.lbm}kg) rather than total weight.`
@@ -1330,6 +1406,7 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             </div>
 
+            {/* Daily Intake Limit Alert */}
             {pkParams.maxDailyDoseMg && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1354,6 +1431,7 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             )}
 
+            {/* Chronotherapy optimization tip */}
             {chronoTip && (
               <div style={{
                 padding: '8px 10px',
@@ -1369,6 +1447,7 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             )}
 
+            {/* Dosing safety report status message */}
             <div style={{
               padding: '12px 14px',
               background: warningBg,
@@ -1390,208 +1469,285 @@ function InfoCard({ info, results, translating, profile }) {
   )
 }
 
-function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt, results }) {
+// ─── CARD 3: ALTERNATIVES ─────────────────────────────────────────────────────
+function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt }) {
   const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
-
+  
+  // Savings Calculator state (QoL 1)
   const [calcDays, setCalcDays] = useState(30)
   const [calcQty, setCalcQty] = useState(1)
 
   const showCalc = !isCheapest && cheapestAlt && brandedPerUnit && cheapestAlt.perUnit < brandedPerUnit
 
   const totalQty = calcDays * calcQty
-  const brandedTotal = Math.round(totalQty * (brandedPerUnit || 0))
-  const genericTotal = Math.round(totalQty * (cheapestAlt?.perUnit || 0))
+  const brandedTotal = Math.round(totalQty * brandedPerUnit)
+  const genericTotal = Math.round(totalQty * cheapestAlt?.perUnit)
   const savedAmount = brandedTotal - genericTotal
 
   return (
-    <div style={{ background: '#ffffff', border: '1px dashed var(--border-medium)', padding: '24px', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp 0.3s ease', color: 'var(--text-main)' }}>
-
-      <div style={{ textAlign: 'center', borderBottom: '1.5px dashed var(--border-medium)', paddingBottom: 16, marginBottom: 4 }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>PHARMACY DISPENSARY BILL COMPARISON</div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-light)', marginTop: 4 }}>REGISTRY_ID: {results?.licenceNumber || 'UNSPECIFIED'}</div>
+    <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>💸 Cheaper alternatives (chemists in india upcharge the fuck out of you)</div>
+        <span style={badge('green')}>BPPI + AI</span>
       </div>
 
-      {isCheapest ? (
-        <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 24 }}>✓</span>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--clinical-green)', marginBottom: 2 }}>CHEAPEST BRAND IN REGISTRY</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic alternative was found in this category.</div>
-          </div>
-        </div>
-      ) : savingsPct && savingsPct > 0 ? (
-        <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, display: 'flex', gap: 14, alignItems: 'center' }}>
-          <div style={{ fontWeight: 800, fontSize: 32, color: 'var(--clinical-green)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>-{savingsPct}%</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--clinical-green)', marginBottom: 3 }}>SAVINGS OPPORTUNITY IDENTIFIED</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{alts.savingsSummary}</div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ padding: '12px 14px', background: 'var(--bg-slate)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.45 }}>
-          {alts.savingsSummary || "Branded medicines are priced significantly higher than equivalent generics with identical chemical formulations."}
-        </div>
-      )}
+      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {showCalc && (
-        <div style={{
-          background: 'var(--bg-slate)',
-          border: '1px dashed var(--border-medium)',
-          borderRadius: 8,
-          padding: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed var(--border-medium)', paddingBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-navy)' }}>Savings Estimator</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--clinical-teal)', fontFamily: 'var(--font-mono)' }}>[ SYSTEM_ONLINE ]</span>
+        {/* Cheapest message OR savings hero */}
+        {isCheapest ? (
+          <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 30 }}>🏆</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--greendk)', marginBottom: 2 }}>This is already the cheapest available</div>
+              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found. looks like the chemist isn't ripping you off this time.</div>
+            </div>
           </div>
+        ) : savingsPct && savingsPct > 0 ? (
+          <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{ fontWeight: 800, fontSize: 38, color: 'var(--green)', lineHeight: 1, flexShrink: 0 }}>{savingsPct}%</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)', marginBottom: 3 }}>Savings available</div>
+              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>{alts.savingsSummary}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '12px 14px', background: 'var(--bgsoft)', borderRadius: 10, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.45 }}>
+            {alts.savingsSummary || "some brands cost 10x what the actual generic drug costs, even though the chemical composition is identical. i built this search so you don't get ripped off."}
+          </div>
+        )}
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 5, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Tablets / day</label>
-              <div style={{ display: 'flex', background: '#fff', borderRadius: 6, border: '1px solid var(--border-medium)', padding: 2 }}>
-                {[1, 2, 3].map(q => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => setCalcQty(q)}
-                    style={{
-                      flex: 1,
-                      padding: '4px 0',
-                      borderRadius: 4,
-                      background: calcQty === q ? 'var(--primary-navy)' : 'transparent',
-                      color: calcQty === q ? '#fff' : 'var(--text-muted)',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      border: 'none',
-                      boxShadow: 'none',
-                      height: 28,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {q}
-                  </button>
-                ))}
+        {/* Savings Calculator Widget (QoL 1) */}
+        {showCalc && (
+          <div style={{
+            background: 'var(--bgsoft)',
+            border: '1.5px solid var(--border)',
+            borderRadius: 12,
+            padding: '14px',
+            marginTop: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>🧮 Savings Calculator</span>
+              <span style={{ fontSize: 11, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
+                Interactive
+              </span>
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+              {/* Daily Dosage */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Tablets / day</label>
+                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
+                  {[1, 2, 3].map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => setCalcQty(q)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: 6,
+                        background: calcQty === q ? 'var(--navy)' : 'transparent',
+                        color: calcQty === q ? '#fff' : 'var(--textmd)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prescription Days */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Duration (Days)</label>
+                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
+                  {[10, 30, 90].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setCalcDays(d)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: 6,
+                        background: calcDays === d ? 'var(--navy)' : 'transparent',
+                        color: calcDays === d ? '#fff' : 'var(--textmd)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 5, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Duration (Days)</label>
-              <div style={{ display: 'flex', background: '#fff', borderRadius: 6, border: '1px solid var(--border-medium)', padding: 2 }}>
-                {[10, 30, 90].map(d => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setCalcDays(d)}
-                    style={{
-                      flex: 1,
-                      padding: '4px 0',
-                      borderRadius: 4,
-                      background: calcDays === d ? 'var(--primary-navy)' : 'transparent',
-                      color: calcDays === d ? '#fff' : 'var(--text-muted)',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      border: 'none',
-                      boxShadow: 'none',
-                      height: 28,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {d}d
-                  </button>
-                ))}
+            {/* Custom inputs / sliders for more precision */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textlt)' }}>
+                <span>Custom Duration: {calcDays} Days</span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="180"
+                step="5"
+                value={calcDays}
+                onChange={(e) => setCalcDays(parseInt(e.target.value))}
+                style={{
+                  width: '100%',
+                  height: 4,
+                  accentColor: 'var(--green)',
+                  background: 'var(--border)',
+                  outline: 'none',
+                  borderRadius: 2,
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
+
+            {/* Visual Bar Comparison Chart */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {/* Branded Bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
+                  <span>Branded Cost</span>
+                  <span style={{ fontWeight: 700 }}>₹{brandedTotal}</span>
+                </div>
+                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ width: '100%', height: '100%', background: 'var(--navy)', borderRadius: 4 }} />
+                </div>
+              </div>
+
+              {/* Generic Bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
+                  <span>Generic/Alternative Cost</span>
+                  <span style={{ fontWeight: 700 }}>₹{genericTotal}</span>
+                </div>
+                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <div style={{ width: `${Math.max(5, Math.min(100, (genericTotal / brandedTotal) * 100))}%`, height: '100%', background: 'var(--green)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              <span>Scrub range: {calcDays} Days</span>
-            </div>
-            <input
-              type="range"
-              min="5"
-              max="180"
-              step="5"
-              value={calcDays}
-              onChange={(e) => setCalcDays(parseInt(e.target.value))}
-              style={{
-                width: '100%',
-                height: 4,
-                accentColor: 'var(--clinical-teal)',
-                background: 'var(--border-medium)',
-                outline: 'none',
-                borderRadius: 2,
-                cursor: 'pointer'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px dashed var(--border-medium)', paddingTop: 12, fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>BRANDED ORIGINAL EST:</span>
-              <span style={{ fontWeight: 700 }}>INR {brandedTotal.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--clinical-teal)' }}>
-              <span>GENERIC JAN AUSHADHI:</span>
-              <span style={{ fontWeight: 700 }}>INR {genericTotal.toFixed(2)}</span>
-            </div>
-            <div style={{ borderTop: '1.5px dashed var(--border-medium)', margin: '4px 0' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontSize: 13.5, fontWeight: 800 }}>
-              <span>NET FINANCIAL SAVED:</span>
-              <span>INR {savedAmount.toFixed(2)}</span>
+            {/* Savings Result */}
+            <div style={{
+              background: '#DCFCE7',
+              border: '1px solid #86EFAC',
+              borderRadius: 8,
+              padding: '10px 12px',
+              textAlign: 'center',
+              color: '#15803D',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              marginTop: 4
+            }}>
+              <span>💰 Save ₹{savedAmount}!</span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#166534' }}>
+                ({savingsPct}% cheaper over {calcDays} days of treatment)
+              </span>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {alts.topAlternatives?.length > 0 && (
-        <div style={{ padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12.5, color: '#1e40af', lineHeight: 1.5 }}>
-          <strong>Consumer Instruction:</strong> Ask your chemist for a generic alternative of <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this molecule'}</span>. It is chemically identical and legally equivalent.
-        </div>
-      )}
 
-      {jaAlts.length > 0 && (
-        <div>
-          <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
-            Jan Aushadhi equivalents <span style={badge('green')}>VERIFIED</span>
+        {/* Ask your chemist callout */}
+        {alts.topAlternatives?.length > 0 && (
+          <div style={{ padding: '10px 13px', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 12.5, color: '#1E40AF', lineHeight: 1.6 }}>
+            💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?"  -  any brand with the same salt is legally equivalent.
           </div>
-          {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
-        </div>
-      )}
+        )}
 
-      {otherAlts.length > 0 && (
-        <div>
-          <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
-            Registry Alternatives <span style={badgeHighConf()}>LIVE PRICE</span>
+        {/* Jan Aushadhi */}
+        {jaAlts.length > 0 && (
+          <div>
+            <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
+              🏛 Tier 1  -  Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt stores · Cheapest option · ~14,000 locations</div>
+            {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
           </div>
-          {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
-        </div>
-      )}
+        )}
 
-      {alts.doseMismatchAlt && (
-        <div>
-          <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 8, marginBottom: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>Strength mismatch - verify with pharmacist</div>
-            <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same molecule but at a different strength.</div>
+        {/* Branded generics at any chemist */}
+        {otherAlts.length > 0 && (
+          <div>
+            <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
+              🏪 Tier 2  -  Any chemist
+              <span style={badgeHighConf()}>✓ DAVAINDIA</span>
+              <span style={badge('blue')}>AI EST.</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
+              Same molecule · 1mg prices where available · Others AI-estimated
+            </div>
+            {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
           </div>
-          <AltRow med={alts.doseMismatchAlt} dimmed />
-        </div>
-      )}
+        )}
 
-      <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, textDecoration: 'none' }}>
-        <span style={{ fontSize: 16 }}>📍</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--clinical-green)' }}>Find Jan Aushadhi Kendra near me</div>
-          <div style={{ fontSize: 11, color: '#166534' }}>janaushadhi.gov.in · Official Registry Locator</div>
-        </div>
-        <span style={{ marginLeft: 'auto', color: 'var(--clinical-green)', fontSize: 16 }}>›</span>
-      </a>
+        {/* Dose-mismatch alternatives  -  shown separately with explicit warning */}
+        {alts.doseMismatchAlt && (
+          <div>
+            <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose  -  ask your doctor first</div>
+              <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
+            </div>
+            <AltRow med={alts.doseMismatchAlt} dimmed />
+          </div>
+        )}
 
-      <div style={{ padding: '9px 12px', background: 'var(--bg-slate)', borderRadius: 8, fontSize: 11, color: 'var(--text-light)', lineHeight: 1.6, border: '1px solid var(--border-light)', fontFamily: 'var(--font-mono)' }}>
-        CDSCO_VERIFICATION
+        {!alts.hasGenerics && !isCheapest && (
+          <div style={{ padding: '10px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.5 }}>
+            No cheaper alternatives found. Ask your doctor if a generic is available for this medicine.
+          </div>
+        )}
+
+        {/* Find Jan Aushadhi store */}
+        <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, textDecoration: 'none' }}>
+          <span style={{ fontSize: 20 }}>📍</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)' }}>Find Jan Aushadhi near me</div>
+            <div style={{ fontSize: 11, color: '#166534' }}>janaushadhi.gov.in · 1800-180-8080 (free)</div>
+          </div>
+          <span style={{ marginLeft: 'auto', color: 'var(--green)', fontSize: 16 }}>›</span>
+        </a>
+
+        {/* Live prices on pharmacy sites */}
+        {alts.pharmacyLinks?.length > 0 && (
+          <div>
+            <div style={sectionLabel('gray')}>🔍 Check live prices</div>
+            <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Opens pharmacy site with real-time prices for this salt</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {alts.pharmacyLinks.map(link => (
+                <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 10, textDecoration: 'none', color: 'var(--navy)' }}>
+                  <span style={{ fontSize: 16 }}>{link.logo}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{link.name}</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--textlt)', fontSize: 12 }}>›</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
+          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate  -  always verify at the chemist counter. Only buy from licensed pharmacies.
+        </div>
       </div>
     </div>
   )
@@ -1601,7 +1757,7 @@ function AltRow({ med, highlight, dimmed }) {
   const displayMrp   = med.mrp || med.estimatedMrp
   const isDavaIndia  = med.priceSource === "DavaIndia" || med.priceSource === "1mg" || med.highConfidence === true
   const isJA         = med.isJanAushadhi
-
+  // per-unit label: use perUnitLabel if set, else infer from packSize/unitSize, else 'tablet'
   const unitLabel    = med.perUnitLabel || inferUnitLabel(med.unitSize || med.packSize)
 
   const bgColor     = (highlight || isJA) ? 'var(--greenlt)'
@@ -1626,7 +1782,7 @@ function AltRow({ med, highlight, dimmed }) {
         </div>
         <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
           {med.brand && med.brand !== 'BPPI' && <span>{med.brand} · </span>}
-          <span style={{ fontFamily: 'var(--font-mono)' }}>{med.unitSize || med.packSize || ''}</span>
+          {med.unitSize || med.packSize || ''}
         </div>
         {isDavaIndia && !isJA && (
           <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>
@@ -1634,16 +1790,16 @@ function AltRow({ med, highlight, dimmed }) {
           </div>
         )}
         {!isDavaIndia && med.aiEstimated && (
-          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated - may vary</div>
+          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated  -  may vary</div>
         )}
         {med.availableAt && !isDavaIndia && (
           <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-navy)', fontFamily: 'var(--font-mono)' }}>₹{displayMrp}</div>}
+        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
         {med.perUnit != null && (
-          <div style={{ fontSize: 10.5, color: 'var(--text-light)', fontFamily: 'var(--font-mono)' }}>₹{med.perUnit}/{unitLabel}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
         )}
         {med.savings && med.savings !== 'Jan Aushadhi price' && (
           <div style={{ fontSize: 11, color: med.savings.includes('pricier') ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>{med.savings}</div>
@@ -1654,6 +1810,9 @@ function AltRow({ med, highlight, dimmed }) {
   )
 }
 
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+// Infer a readable unit label from pack description (e.g. "10 capsules" → "capsule")
 function inferUnitLabel(packStr) {
   if (!packStr) return 'tablet'
   const s = packStr.toLowerCase()
