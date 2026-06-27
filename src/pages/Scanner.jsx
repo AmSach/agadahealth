@@ -218,6 +218,7 @@ export default function Scanner() {
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
   const [activeTab, setActiveTab] = useState('scan')
+  const [pillShape, setPillShape] = useState('capsule')
   const [symptomInput, setSymptomInput] = useState('')
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -1785,15 +1786,55 @@ function HomeView({
                 Point your device camera at a medicine strip or prescription to view generic alternatives, composition details, and official database status.
               </p>
 
-              <div className="probe-viewport" style={{ height: 160, marginBottom: 20 }}>
-                <div style={{ position: 'absolute', top: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border-medium)', borderTop: '1px solid var(--border-medium)' }}></div>
-                <div style={{ position: 'absolute', top: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border-medium)', borderTop: '1px solid var(--border-medium)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, left: 16, width: 12, height: 12, borderLeft: '1px solid var(--border-medium)', borderBottom: '1px solid var(--border-medium)' }}></div>
-                <div style={{ position: 'absolute', bottom: 16, right: 16, width: 12, height: 12, borderRight: '1px solid var(--border-medium)', borderBottom: '1px solid var(--border-medium)' }}></div>
+<div className="probe-viewport" style={{ height: 200, marginBottom: 14, position: 'relative', overflow: 'hidden', background: '#0b132b', border: '1px solid var(--border-medium)', borderRadius: 8 }}>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, borderLeft: '1px dashed rgba(16, 185, 129, 0.25)', pointerEvents: 'none' }}></div>
+                <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 1, borderTop: '1px dashed rgba(16, 185, 129, 0.25)', pointerEvents: 'none' }}></div>
                 
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Camera Standby</div>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 36, height: 36, borderRadius: '50%', border: '1px dashed rgba(16, 185, 129, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#10b981' }}></div>
                 </div>
+
+                <div style={{ position: 'absolute', top: '25%', left: '20%', width: '60%', height: '50%', border: '2px solid #10b981', boxShadow: '0 0 0 9999px rgba(11, 19, 43, 0.55)', borderRadius: 4, pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ width: 10, height: 10, borderLeft: '3px solid #10b981', borderTop: '3px solid #10b981', margin: -10 }}></div>
+                    <div style={{ width: 10, height: 10, borderRight: '3px solid #10b981', borderTop: '3px solid #10b981', margin: -10 }}></div>
+                  </div>
+                  <div style={{ color: '#10b981', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textAlign: 'center', letterSpacing: '0.1em', background: '#0b132b', alignSelf: 'center', padding: '1px 6px', borderRadius: 4, border: '1px solid #10b981' }}>
+                    IMPRINT READER ACTIVE
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ width: 10, height: 10, borderLeft: '3px solid #10b981', borderBottom: '3px solid #10b981', margin: -10 }}></div>
+                    <div style={{ width: 10, height: 10, borderRight: '3px solid #10b981', borderBottom: '3px solid #10b981', margin: -10 }}></div>
+                  </div>
+                </div>
+
+                <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10, background: 'rgba(15,30,54,0.8)', border: '1px solid var(--border-light)', borderRadius: 6, padding: '4px 8px', fontSize: 10, color: '#fff', fontFamily: 'var(--font-mono)' }}>
+                  RESOLVING: 1080P
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: '#f1f5f9', padding: 4, borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                {['capsule', 'round', 'oval'].map((shape) => (
+                  <button 
+                    key={shape} 
+                    onClick={() => setPillShape(shape)}
+                    style={{ 
+                      flex: 1, 
+                      height: 32, 
+                      padding: 0, 
+                      fontSize: 12, 
+                      fontWeight: 600, 
+                      background: pillShape === shape ? '#0f1e36' : 'transparent', 
+                      color: pillShape === shape ? '#ffffff' : 'var(--text-muted)', 
+                      borderRadius: 6,
+                      border: 'none',
+                      boxShadow: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {shape.toUpperCase()}
+                  </button>
+                ))}
               </div>
             </div>
 

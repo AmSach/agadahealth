@@ -167,7 +167,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         <div style={{ width: 60 }} /> 
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {children}
       </div>
 
@@ -191,7 +191,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           </div>
           {results.brandName && (
             <div style={{ fontSize: 12, color: '#b71c1c', background: '#ffebee', padding: '6px 14px', borderRadius: 8, fontWeight: 600 }}>
-              Detected: {results.brandName}
+              Detected: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{results.brandName}</span>
             </div>
           )}
           <div style={{ background: '#ffebee', border: '1.5px solid #ef9a9a', borderRadius: 10, padding: '12px 16px', width: '100%', maxWidth: 300 }}>
@@ -218,7 +218,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           </div>
           {results.brandName && (
             <div style={{ fontSize: 12, color: 'var(--textlt)', background: 'var(--bgsoft)', padding: '6px 12px', borderRadius: 8 }}>
-              Detected: <strong>{results.brandName}</strong>
+              Detected: <strong style={{ fontFamily: 'var(--font-mono)' }}>{results.brandName}</strong>
             </div>
           )}
         </div>
@@ -284,7 +284,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
           <div>
-            <strong>Dose not confirmed</strong> - the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
+            <strong>Dose not confirmed</strong> - the dose (<span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{results.saltComposition}</span>) was not visible on this side of the pack. It may be printed on the back or side label.<br />
             <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only - verify the strength with your pharmacist.
           </div>
         </div>
@@ -913,12 +913,33 @@ function InfoCard({ info, results, translating, profile }) {
   const areaD = pathD ? `${pathD} L ${getX(24)} ${getY(0)} L ${getX(0)} ${getY(0)} Z` : ''
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>💡 Usage & Safety</div>
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
+      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary-navy)' }}>Usage &amp; Safety Profile</div>
         {translating && <span style={badge('amber')}>Translating...</span>}
       </div>
-      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {(info.importantWarnings?.length > 0 || info.overdoseRisk || info.doNotTakeWith) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#fef2f2', border: '1px solid #fca5a5', borderLeft: '4px solid #ef4444', padding: '16px 20px', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#b91c1c', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>[ IMMEDIATE WARNINGS ]</div>
+            {info.importantWarnings?.map((w, i) => (
+              <div key={i} style={{ fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
+                • {w}
+              </div>
+            ))}
+            {info.overdoseRisk && (
+              <div style={{ fontSize: 12.5, color: '#991b1b', borderTop: '1px solid rgba(239, 68, 68, 0.15)', paddingTop: 8, marginTop: 4 }}>
+                <strong>Overdose Risk:</strong> {info.overdoseRisk}
+              </div>
+            )}
+            {info.doNotTakeWith && (
+              <div style={{ fontSize: 12.5, color: '#991b1b', borderTop: '1px solid rgba(239, 68, 68, 0.15)', paddingTop: 8, marginTop: 4 }}>
+                <strong>Do not consume with:</strong> <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{info.doNotTakeWith}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <p style={{ fontSize: 13.5, color: 'var(--textmd)', lineHeight: 1.7, margin: 0 }}>{info.whatItDoes}</p>
 
@@ -944,17 +965,6 @@ function InfoCard({ info, results, translating, profile }) {
           </span>
         </div>
 
-        {info.importantWarnings?.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {info.importantWarnings.map((w, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', background: '#FEF3C7', borderRadius: 10, borderLeft: '3px solid var(--amber)', alignItems: 'flex-start' }}>
-                <span style={{ flexShrink: 0 }}>⚠️</span>
-                <span style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.5 }}>{w}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {info.sideEffects?.length > 0 && (
           <>
             <button onClick={() => setShowSide(s => !s)} style={{ fontSize: 12.5, color: 'var(--green)', fontWeight: 600, textAlign: 'left', display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -972,13 +982,6 @@ function InfoCard({ info, results, translating, profile }) {
           </>
         )}
 
-        {info.overdoseRisk && (
-          <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, border: '1px solid #FECACA' }}>
-            <div style={sectionLabel('red')}>⚠ Overdose risk</div>
-            <p style={{ fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.55, margin: 0 }}>{info.overdoseRisk}</p>
-          </div>
-        )}
-
         {isAyurvedic && info.ayurvedicWarning && (
           <div style={{ padding: '10px 12px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 10, fontSize: 12.5, color: '#166534', lineHeight: 1.6 }}>
             🌿 {info.ayurvedicWarning}
@@ -988,12 +991,6 @@ function InfoCard({ info, results, translating, profile }) {
         {isSupplement && info.supplementWarning && (
           <div style={{ padding: '10px 12px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, fontSize: 12.5, color: '#78350F', lineHeight: 1.6 }}>
             💊 {info.supplementWarning}
-          </div>
-        )}
-
-        {info.doNotTakeWith && (
-          <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.5 }}>
-            <strong>🚫 Do not take with: </strong>{info.doNotTakeWith}
           </div>
         )}
 
@@ -1036,7 +1033,7 @@ function InfoCard({ info, results, translating, profile }) {
             </div>
 
             <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, lineHeight: 1.55 }}>
-              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
+              This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>24 hours</span>. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
