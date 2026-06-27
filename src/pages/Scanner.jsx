@@ -227,6 +227,7 @@ export default function Scanner() {
   const [profiles, setProfiles] = useState([])
   const [activeProfileId, setActiveProfileId] = useState('aman')
   const [activeTab, setActiveTab] = useState('scan')
+  const [showHero, setShowHero] = useState(true)
   const [symptomInput, setSymptomInput] = useState('')
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
@@ -1339,7 +1340,60 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div className="medical-console">
+    <>
+      {showHero && (
+        <div className="hero-wrapper">
+          {/* Animated Background Image */}
+          <div className="hero-bg-animator"></div>
+          {/* Subtle vignette radial overlay */}
+          <div className="hero-overlay-grid"></div>
+
+          {/* Floating cells/particles */}
+          <div className="hero-particle" style={{ width: 120, height: 120, top: '10%', left: '15%', animationDelay: '0s' }}></div>
+          <div className="hero-particle" style={{ width: 80, height: 80, bottom: '15%', right: '20%', animationDelay: '3s', animationDuration: '18s' }}></div>
+          <div className="hero-particle" style={{ width: 150, height: 150, bottom: '40%', left: '8%', animationDelay: '6s', animationDuration: '22s' }}></div>
+
+          {/* Frosted Glass Content Card */}
+          <div className="hero-glass-card">
+            <div className="hero-logo-icon">A</div>
+            
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: 12 }}>
+              agada
+            </h1>
+            
+            <p style={{ fontSize: 15, color: 'rgba(255, 255, 255, 0.75)', lineHeight: 1.6, maxWidth: 440, margin: '0 auto 28px' }}>
+              built something that should've existed already. verify chemical compositions, find cheaper generic equivalents, and simulate dosage half-life offline in your browser.
+            </p>
+
+            <div style={{ marginBottom: 32 }}>
+              <button className="hero-button" onClick={() => setShowHero(false)}>
+                Launch Medicine Suite ➔
+              </button>
+            </div>
+
+            {/* Structured Features Grid */}
+            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div className="hero-feature-dot">
+                <span>📷</span>
+                <span>Optical Scan</span>
+              </div>
+              <div className="hero-feature-dot">
+                <span>🧬</span>
+                <span>CDSCO Compositions</span>
+              </div>
+              <div className="hero-feature-dot">
+                <span>📊</span>
+                <span>Kinetics Simulator</span>
+              </div>
+              <div className="hero-feature-dot">
+                <span>🔒</span>
+                <span>Encrypted Vault</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="medical-console">
       {/* Console Title Bar */}
       <header className="console-header">
         <div className="console-title-block">
@@ -1559,6 +1613,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleChange} style={{ display: 'none' }} />
       <input ref={uploadRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
     </div>
+    </>
   )
 }
 

@@ -35,6 +35,17 @@
   --bgsoft: #f8fafc;
 }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes floatUp {
+  0% { transform: translateY(0px) rotate(0deg); opacity: 0.15; }
+  50% { transform: translateY(-10px) rotate(180deg); opacity: 0.3; }
+  100% { transform: translateY(-20px) rotate(360deg); opacity: 0.15; }
+}
+@keyframes pulseScale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -48,7 +59,7 @@ body {
   min-height: 100vh;
 }
 
-/* Main Container Layout */
+/* App Container Layout */
 .app-container {
   width: 100%;
   max-width: 1100px;
@@ -56,7 +67,134 @@ body {
   padding: 24px 16px;
 }
 
-/* Medical Console Window */
+/* ─────────────────────────────────────────────────────────────────────────────
+   NEW HERO PAGE STYLING
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@keyframes panBackground {
+  0% { background-position: 50% 50%; transform: scale(1.0); }
+  50% { background-position: 48% 52%; transform: scale(1.03); }
+  100% { background-position: 52% 48%; transform: scale(1.01); }
+}
+
+.hero-wrapper {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow: hidden;
+  background-color: #030712;
+}
+
+.hero-bg-animator {
+  position: absolute;
+  top: -5%; left: -5%; width: 110%; height: 110%;
+  background-image: url('/hero_backdrop.png');
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.2) brightness(0.65) contrast(1.1);
+  animation: panBackground 30s infinite alternate ease-in-out;
+  z-index: 1;
+}
+
+.hero-overlay-grid {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 20%, rgba(3, 7, 18, 0.75) 100%);
+  z-index: 2;
+}
+
+/* Frosted glass capsule for the hero landing page */
+.hero-glass-card {
+  position: relative;
+  width: 90%;
+  max-width: 580px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  padding: 40px 32px;
+  box-shadow: 
+    0 30px 100px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  z-index: 10;
+  text-align: center;
+  animation: pulseScale 8s infinite alternate ease-in-out;
+}
+
+.hero-logo-icon {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 24px;
+  color: #ffffff;
+  margin: 0 auto 20px;
+  box-shadow: 0 0 30px rgba(2, 132, 199, 0.5), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+
+.hero-button {
+  background: linear-gradient(to bottom, #38bdf8 0%, #0284c7 100%);
+  color: #ffffff !important;
+  font-weight: 700;
+  padding: 14px 32px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 15px;
+  box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(2, 132, 199, 0.6), inset 0 1px 0 rgba(255,255,255,0.3);
+  filter: brightness(1.08);
+}
+
+.hero-button:active {
+  transform: translateY(1px);
+}
+
+.hero-feature-dot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Floating micro-particles behind the card */
+.hero-particle {
+  position: absolute;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(2px);
+  animation: floatUp 15s infinite alternate ease-in-out;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MEDICAL CONSOLE
+   ───────────────────────────────────────────────────────────────────────────── */
+
 .medical-console {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
@@ -68,7 +206,6 @@ body {
   min-height: 700px;
 }
 
-/* Console Header */
 .console-header {
   background: #f8fafc;
   border-bottom: 1px solid var(--border-color);
@@ -89,7 +226,6 @@ body {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
 }
 
 .console-status-pill {
@@ -103,7 +239,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Tab Bar Navigation */
 .console-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -137,7 +272,6 @@ body {
   border-bottom-color: var(--clinical-blue);
 }
 
-/* Scientific Grid / Dashboard Layout */
 .clinical-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
@@ -155,7 +289,6 @@ body {
   .clinical-grid { padding: 12px; gap: 12px; }
 }
 
-/* Clinical Panel / Card */
 .clinical-panel {
   background: #ffffff;
   border: 1px solid var(--border-color);
@@ -177,7 +310,6 @@ body {
   align-items: center;
 }
 
-/* Clinical Forms & Buttons */
 input, select {
   height: 38px !important;
   padding: 0 10px !important;
@@ -229,7 +361,6 @@ button {
   border-color: #94a3b8;
 }
 
-/* Structured Clinical Data Tables */
 .clinical-table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border-color);
@@ -264,7 +395,6 @@ button {
   border-bottom: none;
 }
 
-/* Scanner Viewport */
 .probe-viewport {
   border: 1.5px dashed var(--border-color);
   border-radius: 8px;
@@ -275,7 +405,6 @@ button {
   position: relative;
 }
 
-/* Clinical Status Footer */
 .clinical-footer {
   background: #f8fafc;
   border-top: 1px solid var(--border-color);
