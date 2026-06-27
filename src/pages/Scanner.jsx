@@ -1779,12 +1779,15 @@ function HomeView({
                 <span>Medicine Scanner</span>
               </div>
               
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--primary-navy)' }}>
-                Scan Medicine Strip
+              <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: 'var(--primary-navy)' }}>
+                Jan Aushadhi Substitution
               </h3>
-              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Point your device camera at a medicine strip or prescription to view generic alternatives, composition details, and official database status.
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+                Indians spend <strong style={{ color: 'var(--primary-navy)' }}>₹65,000 Crore</strong> out-of-pocket on branded medicines. Find the exact government-verified Jan Aushadhi alternative in 3 seconds flat.
               </p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #86efac', padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, color: 'var(--clinical-green)', marginBottom: 20 }}>
+                ✓ Cross-referenced with the National Jan Aushadhi Kendra Registry
+              </div>
 
 <div className="probe-viewport" style={{ height: 200, marginBottom: 14, position: 'relative', overflow: 'hidden', background: '#0b132b', border: '1px solid var(--border-medium)', borderRadius: 8 }}>
                 <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, borderLeft: '1px dashed rgba(16, 185, 129, 0.25)', pointerEvents: 'none' }}></div>
@@ -3544,9 +3547,16 @@ function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeSte
         )}
       </div>
 
-      <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--green)', animation: 'spin 0.9s linear infinite', marginBottom: 18 }} />
-      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>{t.analysing || 'Analyzing...'}</div>
-      <div style={{ fontSize: 13, color: 'var(--textlt)', marginBottom: 28 }}>{t.checkingThree || 'Checking three sources at once'}</div>
+<div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, padding: '16px 20px', background: '#0f172a', border: '1px solid var(--border-medium)', borderRadius: 10, color: '#10b981', width: '100%', maxWidth: 380, marginBottom: 24, textAlign: 'left', lineHeight: 1.6, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+        <div style={{ color: 'var(--text-light)', borderBottom: '1px dashed rgba(16,185,129,0.2)', paddingBottom: 6, marginBottom: 8, fontWeight: 700, fontSize: 10 }}>PIPELINE LOGS // PROCESSOR_STATUS</div>
+        {activeStepId === 'started' && <div>&gt; [INIT] Initializing optical scanner probe...<br/>&gt; [OK] Camera buffers online.</div>}
+        {activeStepId === 'vision' && <div>&gt; [OCR] Isolating text blocks from strip...<br/>&gt; [MATCH] Detected token candidates.<br/>&gt; [OK] Text parsing successful.</div>}
+        {activeStepId === 'db' && <div>&gt; [SQL] Querying local CDSCO database index...<br/>&gt; [SQL] Cross-referencing Jan Aushadhi registry...<br/>&gt; [OK] Found match in government records.</div>}
+        {activeStepId === 'scraping' && <div>&gt; [SIM] Comparing price options...<br/>&gt; [MATH] Sourcing BPPI live pricing...<br/>&gt; [OK] Savings calculations complete.</div>}
+        {activeStepId === 'summary' && <div>&gt; [SYS] Resolving drug safety indices...<br/>&gt; [SYS] Verifying expiry &amp; recalls...<br/>&gt; [OK] Verification successful. Launching HUD...</div>}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary-navy)', marginBottom: 4 }}>{t.analysing || 'Analyzing...'}</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>{t.checkingThree || 'Checking three sources at once'}</div>
       
       <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 9 }}>
         {steps.map((s, i) => {

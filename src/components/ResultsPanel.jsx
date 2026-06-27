@@ -315,7 +315,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           />
         )}
         {card === 1 && <InfoCard info={info} results={results} translating={translating} profile={profile} />}
-        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} />}
+        {card === 2 && <AltCard alts={alts} jaAlts={jaAlts} otherAlts={otherAlts} savingsPct={savingsPct} isCheapest={isCheapest} brandedPerUnit={brandedPerUnit} cheapestAlt={cheapestAlt} results={results} />}
       </div>
     </LayoutWrapper>
   )
@@ -1390,7 +1390,7 @@ function InfoCard({ info, results, translating, profile }) {
   )
 }
 
-function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt }) {
+function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt, results }) {
   const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
 
   const [calcDays, setCalcDays] = useState(30)
@@ -1399,258 +1399,199 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
   const showCalc = !isCheapest && cheapestAlt && brandedPerUnit && cheapestAlt.perUnit < brandedPerUnit
 
   const totalQty = calcDays * calcQty
-  const brandedTotal = Math.round(totalQty * brandedPerUnit)
-  const genericTotal = Math.round(totalQty * cheapestAlt?.perUnit)
+  const brandedTotal = Math.round(totalQty * (brandedPerUnit || 0))
+  const genericTotal = Math.round(totalQty * (cheapestAlt?.perUnit || 0))
   const savedAmount = brandedTotal - genericTotal
 
   return (
-    <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>💸 Cheaper alternatives (chemists in india upcharge the fuck out of you)</div>
-        <span style={badge('green')}>BPPI + AI</span>
+    <div style={{ background: '#ffffff', border: '1px dashed var(--border-medium)', padding: '24px', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp 0.3s ease', color: 'var(--text-main)' }}>
+
+      <div style={{ textAlign: 'center', borderBottom: '1.5px dashed var(--border-medium)', paddingBottom: 16, marginBottom: 4 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>PHARMACY DISPENSARY BILL COMPARISON</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-light)', marginTop: 4 }}>REGISTRY_ID: {results?.licenceNumber || 'UNSPECIFIED'}</div>
       </div>
 
-      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-        {isCheapest ? (
-          <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: 30 }}>🏆</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--greendk)', marginBottom: 2 }}>This is already the cheapest available</div>
-              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic found. looks like the chemist isn't ripping you off this time.</div>
-            </div>
-          </div>
-        ) : savingsPct && savingsPct > 0 ? (
-          <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 14, alignItems: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: 38, color: 'var(--green)', lineHeight: 1, flexShrink: 0 }}>{savingsPct}%</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)', marginBottom: 3 }}>Savings available</div>
-              <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.5 }}>{alts.savingsSummary}</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '12px 14px', background: 'var(--bgsoft)', borderRadius: 10, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.45 }}>
-            {alts.savingsSummary || "some brands cost 10x what the actual generic drug costs, even though the chemical composition is identical. i built this search so you don't get ripped off."}
-          </div>
-        )}
-
-        {showCalc && (
-          <div style={{
-            background: 'var(--bgsoft)',
-            border: '1.5px solid var(--border)',
-            borderRadius: 12,
-            padding: '14px',
-            marginTop: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>🧮 Savings Calculator</span>
-              <span style={{ fontSize: 11, fontWeight: 600, background: 'var(--greenlt)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20 }}>
-                Interactive
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-              
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Tablets / day</label>
-                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
-                  {[1, 2, 3].map(q => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setCalcQty(q)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 0',
-                        borderRadius: 6,
-                        background: calcQty === q ? 'var(--navy)' : 'transparent',
-                        color: calcQty === q ? '#fff' : 'var(--textmd)',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        border: 'none',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Duration (Days)</label>
-                <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
-                  {[10, 30, 90].map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setCalcDays(d)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 0',
-                        borderRadius: 6,
-                        background: calcDays === d ? 'var(--navy)' : 'transparent',
-                        color: calcDays === d ? '#fff' : 'var(--textmd)',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        border: 'none',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {d}d
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textlt)' }}>
-                <span>Custom Duration: {calcDays} Days</span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="180"
-                step="5"
-                value={calcDays}
-                onChange={(e) => setCalcDays(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  height: 4,
-                  accentColor: 'var(--green)',
-                  background: 'var(--border)',
-                  outline: 'none',
-                  borderRadius: 2,
-                  cursor: 'pointer'
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-              
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
-                  <span>Branded Cost</span>
-                  <span style={{ fontWeight: 700 }}>₹{brandedTotal}</span>
-                </div>
-                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <div style={{ width: '100%', height: '100%', background: 'var(--navy)', borderRadius: 4 }} />
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
-                  <span>Generic/Alternative Cost</span>
-                  <span style={{ fontWeight: 700 }}>₹{genericTotal}</span>
-                </div>
-                <div style={{ width: '100%', height: 8, background: '#fff', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <div style={{ width: `${Math.max(5, Math.min(100, (genericTotal / brandedTotal) * 100))}%`, height: '100%', background: 'var(--green)', borderRadius: 4, transition: 'width 0.3s ease' }} />
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              background: '#DCFCE7',
-              border: '1px solid #86EFAC',
-              borderRadius: 8,
-              padding: '10px 12px',
-              textAlign: 'center',
-              color: '#15803D',
-              fontSize: 13,
-              fontWeight: 700,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              marginTop: 4
-            }}>
-              <span>💰 Save ₹{savedAmount}!</span>
-              <span style={{ fontSize: 11, fontWeight: 500, color: '#166534' }}>
-                ({savingsPct}% cheaper over {calcDays} days of treatment)
-              </span>
-            </div>
-          </div>
-        )}
-
-        {alts.topAlternatives?.length > 0 && (
-          <div style={{ padding: '10px 13px', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 12.5, color: '#1E40AF', lineHeight: 1.6 }}>
-            💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?" - any brand with the same salt is legally equivalent.
-          </div>
-        )}
-
-        {jaAlts.length > 0 && (
+      {isCheapest ? (
+        <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ fontSize: 24 }}>✓</span>
           <div>
-            <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏛 Tier 1 - Jan Aushadhi <span style={badge('green')}>VERIFIED PRICE</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Govt stores · Cheapest option · ~14,000 locations</div>
-            {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--clinical-green)', marginBottom: 2 }}>CHEAPEST BRAND IN REGISTRY</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>No cheaper Jan Aushadhi generic alternative was found in this category.</div>
           </div>
-        )}
-
-        {otherAlts.length > 0 && (
-          <div>
-            <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
-              🏪 Tier 2 - Any chemist
-              <span style={badgeHighConf()}>✓ DAVAINDIA</span>
-              <span style={badge('blue')}>AI EST.</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
-              Same molecule · 1mg prices where available · Others AI-estimated
-            </div>
-            {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
-          </div>
-        )}
-
-        {alts.doseMismatchAlt && (
-          <div>
-            <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose - ask your doctor first</div>
-              <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
-            </div>
-            <AltRow med={alts.doseMismatchAlt} dimmed />
-          </div>
-        )}
-
-        {!alts.hasGenerics && !isCheapest && (
-          <div style={{ padding: '10px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 13, color: 'var(--textlt)', lineHeight: 1.5 }}>
-            No cheaper alternatives found. Ask your doctor if a generic is available for this medicine.
-          </div>
-        )}
-
-        <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, textDecoration: 'none' }}>
-          <span style={{ fontSize: 20 }}>📍</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)' }}>Find Jan Aushadhi near me</div>
-            <div style={{ fontSize: 11, color: '#166534' }}>janaushadhi.gov.in · 1800-180-8080 (free)</div>
-          </div>
-          <span style={{ marginLeft: 'auto', color: 'var(--green)', fontSize: 16 }}>›</span>
-        </a>
-
-        {alts.pharmacyLinks?.length > 0 && (
-          <div>
-            <div style={sectionLabel('gray')}>🔍 Check live prices</div>
-            <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Opens pharmacy site with real-time prices for this salt</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {alts.pharmacyLinks.map(link => (
-                <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: '#fff', border: '1.5px solid var(--border)', borderRadius: 10, textDecoration: 'none', color: 'var(--navy)' }}>
-                  <span style={{ fontSize: 16 }}>{link.logo}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{link.name}</span>
-                  <span style={{ marginLeft: 'auto', color: 'var(--textlt)', fontSize: 12 }}>›</span>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate - always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
+      ) : savingsPct && savingsPct > 0 ? (
+        <div style={{ padding: '16px 20px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: 32, color: 'var(--clinical-green)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>-{savingsPct}%</div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--clinical-green)', marginBottom: 3 }}>SAVINGS OPPORTUNITY IDENTIFIED</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{alts.savingsSummary}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '12px 14px', background: 'var(--bg-slate)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+          {alts.savingsSummary || "Branded medicines are priced significantly higher than equivalent generics with identical chemical formulations."}
+        </div>
+      )}
+
+      {showCalc && (
+        <div style={{
+          background: 'var(--bg-slate)',
+          border: '1px dashed var(--border-medium)',
+          borderRadius: 8,
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed var(--border-medium)', paddingBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-navy)' }}>Savings Estimator</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--clinical-teal)', fontFamily: 'var(--font-mono)' }}>[ SYSTEM_ONLINE ]</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 5, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Tablets / day</label>
+              <div style={{ display: 'flex', background: '#fff', borderRadius: 6, border: '1px solid var(--border-medium)', padding: 2 }}>
+                {[1, 2, 3].map(q => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setCalcQty(q)}
+                    style={{
+                      flex: 1,
+                      padding: '4px 0',
+                      borderRadius: 4,
+                      background: calcQty === q ? 'var(--primary-navy)' : 'transparent',
+                      color: calcQty === q ? '#fff' : 'var(--text-muted)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      border: 'none',
+                      boxShadow: 'none',
+                      height: 28,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 5, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Duration (Days)</label>
+              <div style={{ display: 'flex', background: '#fff', borderRadius: 6, border: '1px solid var(--border-medium)', padding: 2 }}>
+                {[10, 30, 90].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setCalcDays(d)}
+                    style={{
+                      flex: 1,
+                      padding: '4px 0',
+                      borderRadius: 4,
+                      background: calcDays === d ? 'var(--primary-navy)' : 'transparent',
+                      color: calcDays === d ? '#fff' : 'var(--text-muted)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      border: 'none',
+                      boxShadow: 'none',
+                      height: 28,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              <span>Scrub range: {calcDays} Days</span>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="180"
+              step="5"
+              value={calcDays}
+              onChange={(e) => setCalcDays(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                height: 4,
+                accentColor: 'var(--clinical-teal)',
+                background: 'var(--border-medium)',
+                outline: 'none',
+                borderRadius: 2,
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px dashed var(--border-medium)', paddingTop: 12, fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>BRANDED ORIGINAL EST:</span>
+              <span style={{ fontWeight: 700 }}>INR {brandedTotal.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--clinical-teal)' }}>
+              <span>GENERIC JAN AUSHADHI:</span>
+              <span style={{ fontWeight: 700 }}>INR {genericTotal.toFixed(2)}</span>
+            </div>
+            <div style={{ borderTop: '1.5px dashed var(--border-medium)', margin: '4px 0' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontSize: 13.5, fontWeight: 800 }}>
+              <span>NET FINANCIAL SAVED:</span>
+              <span>INR {savedAmount.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {alts.topAlternatives?.length > 0 && (
+        <div style={{ padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12.5, color: '#1e40af', lineHeight: 1.5 }}>
+          <strong>Consumer Instruction:</strong> Ask your chemist for a generic alternative of <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this molecule'}</span>. It is chemically identical and legally equivalent.
+        </div>
+      )}
+
+      {jaAlts.length > 0 && (
+        <div>
+          <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
+            Jan Aushadhi equivalents <span style={badge('green')}>VERIFIED</span>
+          </div>
+          {jaAlts.map((med, i) => <AltRow key={i} med={med} highlight />)}
+        </div>
+      )}
+
+      {otherAlts.length > 0 && (
+        <div>
+          <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
+            Registry Alternatives <span style={badgeHighConf()}>LIVE PRICE</span>
+          </div>
+          {otherAlts.map((med, i) => <AltRow key={i} med={med} />)}
+        </div>
+      )}
+
+      {alts.doseMismatchAlt && (
+        <div>
+          <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>Strength mismatch - verify with pharmacist</div>
+            <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same molecule but at a different strength.</div>
+          </div>
+          <AltRow med={alts.doseMismatchAlt} dimmed />
+        </div>
+      )}
+
+      <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, textDecoration: 'none' }}>
+        <span style={{ fontSize: 16 }}>📍</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--clinical-green)' }}>Find Jan Aushadhi Kendra near me</div>
+          <div style={{ fontSize: 11, color: '#166534' }}>janaushadhi.gov.in · Official Registry Locator</div>
+        </div>
+        <span style={{ marginLeft: 'auto', color: 'var(--clinical-green)', fontSize: 16 }}>›</span>
+      </a>
+
+      <div style={{ padding: '9px 12px', background: 'var(--bg-slate)', borderRadius: 8, fontSize: 11, color: 'var(--text-light)', lineHeight: 1.6, border: '1px solid var(--border-light)', fontFamily: 'var(--font-mono)' }}>
+        CDSCO_VERIFICATION
       </div>
     </div>
   )
@@ -1685,7 +1626,7 @@ function AltRow({ med, highlight, dimmed }) {
         </div>
         <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
           {med.brand && med.brand !== 'BPPI' && <span>{med.brand} · </span>}
-          {med.unitSize || med.packSize || ''}
+          <span style={{ fontFamily: 'var(--font-mono)' }}>{med.unitSize || med.packSize || ''}</span>
         </div>
         {isDavaIndia && !isJA && (
           <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>
@@ -1700,9 +1641,9 @@ function AltRow({ med, highlight, dimmed }) {
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>
-        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>₹{displayMrp}</div>}
+        {displayMrp && <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-navy)', fontFamily: 'var(--font-mono)' }}>₹{displayMrp}</div>}
         {med.perUnit != null && (
-          <div style={{ fontSize: 10.5, color: 'var(--textlt)' }}>₹{med.perUnit}/{unitLabel}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-light)', fontFamily: 'var(--font-mono)' }}>₹{med.perUnit}/{unitLabel}</div>
         )}
         {med.savings && med.savings !== 'Jan Aushadhi price' && (
           <div style={{ fontSize: 11, color: med.savings.includes('pricier') ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>{med.savings}</div>
