@@ -4,8 +4,6 @@ a tool that scans your medicine strip and finds you cheaper generic alternatives
 
 **try it → [agadahealth.vercel.app](https://agadahealth.vercel.app)**
 
-![screenshot](screenshot.png)
-
 ## why this exists
 
 i got ripped off at a pharmacy. paid ₹380 for a strip of tablets when the exact same salt composition was available as a generic for ₹32. literally the same drug, same dosage, same everything - just without the fancy brand name printed on the box. that pissed me off enough to build something about it.
@@ -45,7 +43,9 @@ npm run dev
 
 that's it. opens on `localhost:5173`.
 
-## credits
+or you could just use my version here at agadahealth.vercel.app
+
+## credits (well yes obv me and me)
 
 - drug data from [CDSCO](https://cdsco.gov.in) (central drugs standard control organisation)
 - generic pricing from [BPPI Jan Aushadhi](http://janaushadhi.gov.in)
