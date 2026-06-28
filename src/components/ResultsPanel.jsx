@@ -248,8 +248,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           </div>
         </div>
 
-      <PillSynth saltName={results.saltComposition || results.brandName || 'Paracetamol 500mg'} />
-
         <button
           onClick={toggleBookmark}
           title={isBookmarked ? "Remove Bookmark" : "Bookmark Medicine"}
@@ -275,6 +273,8 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)', background: 'var(--greenlt)', padding: '3px 9px', borderRadius: 8, flexShrink: 0 }}>
           {results.confidence || 70}%
         </div>
+
+      <PillSynth saltName={results?.saltComposition || results?.brandName || 'Paracetamol 500mg'} />
       </div>
 
       {(results.confidence || 70) < 50 && (

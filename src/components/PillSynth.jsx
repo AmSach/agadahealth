@@ -3,6 +3,9 @@ import React, { useState } from 'react';
 export default function PillSynth({ saltName = 'Paracetamol 500mg' }) {
   const [isPlaying, setIsPlaying] = useState(false);
 
+  const safeName = (saltName && typeof saltName === 'string' && saltName.trim()) ? saltName.trim() : 'Paracetamol 500mg';
+  const displayWord = safeName.split(' ')[0] || 'Drug';
+
   const playChemicalSound = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -10,10 +13,12 @@ export default function PillSynth({ saltName = 'Paracetamol 500mg' }) {
       const ctx = new AudioCtx();
       setIsPlaying(true);
 
-      const baseFreq = 220 + (saltName.charCodeAt(0) % 200);
+      const charCode = safeName.charCodeAt(0) || 65;
+      const baseFreq = 220 + (charCode % 200);
       const notes = [baseFreq, baseFreq * 1.25, baseFreq * 1.5, baseFreq * 2];
 
       notes.forEach((freq, idx) => {
+        if (!isFinite(freq)) return;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
@@ -72,7 +77,7 @@ export default function PillSynth({ saltName = 'Paracetamol 500mg' }) {
             MOLECULAR AUDIO SYNTHESIZER
           </div>
           <div style={{ fontSize: 10.5, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-            Synthesize 8-bit harmonic frequency for {saltName.split(' ')[0]}
+            Synthesize 8-bit harmonic frequency for {displayWord}
           </div>
         </div>
       </div>
