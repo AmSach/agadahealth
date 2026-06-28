@@ -1188,3 +1188,15 @@ div[style*="background: '#fff'"]:hover, div[style*='background: "#fff"']:hover {
   background: linear-gradient(-90deg, transparent, rgba(254, 240, 138, 0.7));
   clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
 }
+
+button:not(#menu-toggle-btn), 
+input[type="text"], 
+select {
+  border-radius: 195px 15px 225px 15px/15px 225px 15px 195px !important;
+  border: 2.5px solid var(--charcoal) !important;
+}
+
+.btn-tab {
+  border-radius: 120px 10px 95px 10px/10px 95px 10px 120px !important;
+  border: 2px solid var(--charcoal) !important;
+}

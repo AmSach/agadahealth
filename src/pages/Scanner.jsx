@@ -496,19 +496,23 @@ export default function Scanner() {
       const keys = await listProfileIds()
       let loadedProfiles = []
       for (const k of keys) {
-        const cipher = await getEncryptedProfile(k)
-        if (cipher) {
-          let plain
-          if (cipher.includes(':') && cipher.split(':').length === 3) {
-            if (!pin) {
-              setIsVaultLocked(true)
-              return
+        try {
+          const cipher = await getEncryptedProfile(k)
+          if (cipher) {
+            let plain
+            if (cipher.includes(':') && cipher.split(':').length === 3) {
+              if (!pin) {
+                setIsVaultLocked(true)
+                return
+              }
+              plain = await decryptData(cipher, pin)
+            } else {
+              plain = cipher
             }
-            plain = await decryptData(cipher, pin)
-          } else {
-            plain = cipher
+            loadedProfiles.push(JSON.parse(plain))
           }
-          loadedProfiles.push(JSON.parse(plain))
+        } catch (errKey) {
+          console.error("Skipping corrupted key:", k, errKey)
         }
       }
       
@@ -788,11 +792,7 @@ export default function Scanner() {
 
   const handleUnlockVault = async (pin) => {
     try {
-      const savedStr = await getSecureLogs() || '[]'
-      const decrypted = await decryptData(savedStr, pin)
-      const parsed = JSON.parse(decrypted)
-      parsed.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      setBookmarks(parsed)
+      await loadAllData(pin)
       setVaultPin(pin)
       setIsVaultLocked(false)
       setPinError('')
@@ -810,22 +810,42 @@ export default function Scanner() {
     try {
       const cipher = await encryptData(JSON.stringify(bookmarks), pin)
       await saveSecureLogs(cipher)
+      await saveAllProfiles(profiles, pin)
       setVaultPin(pin)
       setShowPinSetup(false)
       setNewPin('')
       setPinError('')
     } catch (err) {
-      setPinError('Failed to encrypt bookmarks.')
+      setPinError('Failed to encrypt vault.')
     }
   }
 
   const handleDisableEncryption = async () => {
     try {
       await saveSecureLogs(JSON.stringify(bookmarks))
+      await saveAllProfiles(profiles, '')
       setVaultPin('')
       setPinError('')
     } catch (err) {
       setPinError('Failed to disable encryption.')
+    }
+  }
+
+  const handleResetVault = async () => {
+    if (!window.confirm('Are you sure you want to reset your vault? This will clear corrupted keys and restore default settings.')) return;
+    try {
+      const keys = await listProfileIds();
+      for (const k of keys) {
+        await dbDeleteProfile(k);
+      }
+      await saveSecureLogs('[]');
+      localStorage.removeItem('agada_bookmarks');
+      setVaultPin('');
+      setIsVaultLocked(false);
+      setPinError('');
+      await loadAllData('');
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -2405,6 +2425,9 @@ function HomeView({
             <button onClick={() => handleUnlockVault(pinInput)} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, background: 'var(--green)', color: '#fff', fontWeight: 600 }}>Unlock</button>
           </div>
           {pinError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, fontWeight: 600 }}>{pinError}</div>}
+          <div style={{ marginTop: 12 }}>
+            <button onClick={handleResetVault} style={{ background: 'transparent', border: 'none', color: 'var(--textlt)', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' }}>⚠️ Reset Corrupted Vault</button>
+          </div>
         </div>
       ) : (
         bookmarks && bookmarks.length > 0 && (
