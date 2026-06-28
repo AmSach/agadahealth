@@ -541,7 +541,7 @@ export default function Scanner() {
       }
       
       setProfiles(loadedProfiles)
-      const activeId = localStorage.getItem('agada_active_profile_id') || loadedProfiles[0].id
+      const activeId = localStorage.getItem('agada_active_profile_id') || loadedProfiles[0]?.id || 'aman'
       setActiveProfileId(activeId)
       setIsVaultLocked(false)
     } catch (e) {

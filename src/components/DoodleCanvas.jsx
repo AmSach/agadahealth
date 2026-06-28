@@ -9,27 +9,28 @@ export default function DoodleCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
 
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
       
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 2.5;
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      context.lineWidth = 2.5;
 
       const saved = localStorage.getItem('agada_doodles');
       if (saved) {
         try {
           const strokes = JSON.parse(saved);
-          drawStrokes(ctx, strokes);
+          drawStrokes(context, strokes);
         } catch (e) {
-          drawDefaults(ctx);
+          drawDefaults(context);
         }
       } else {
-        drawDefaults(ctx);
+        drawDefaults(context);
       }
     };
 
@@ -51,7 +52,6 @@ export default function DoodleCanvas() {
     });
   };
 
-  // Draw cute default teen-notebook doodles (arrow pointing to CTA, little test tube, funny quote)
   const drawDefaults = (ctx) => {
     ctx.strokeStyle = '#2563eb';
 
@@ -115,6 +115,8 @@ export default function DoodleCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
     const { x, y } = getCoordinates(e);
 
     ctx.beginPath();
@@ -133,6 +135,8 @@ export default function DoodleCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
     const { x, y } = getCoordinates(e);
 
     ctx.lineTo(x, y);
@@ -156,6 +160,8 @@ export default function DoodleCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     localStorage.removeItem('agada_doodles');
   };
