@@ -1301,9 +1301,9 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
   }, [])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', position: 'relative' }}>
 
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--navy)', color: '#fff' }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 14px 56px', background: 'var(--navy)', color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, background: 'var(--green)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 15 }}>A.</div>
           <div>
@@ -1661,7 +1661,6 @@ function HomeView({
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
 
-
   const handleQuickAdd = async (medName, saltName) => {
     const updated = profiles.map(p => {
       if (p.id === activeProfileId) {
@@ -1756,7 +1755,7 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 18px 32px 56px', animation: 'fadeIn 0.4s ease' }}>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
@@ -3678,7 +3677,6 @@ function HomeView({
                 })}
               </div>
 
-              {/* GitHub-style Adherence Heatmap */}
               <div style={{ 
                 padding: 16, 
                 marginBottom: 24, 

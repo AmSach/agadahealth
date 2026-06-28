@@ -6,7 +6,7 @@ export default function PrivacyPolicy({ onBack }) {
   const { lang } = useLang()
   const t = useT(lang)
   return (
-    <div style={{ flex: 1, padding: '24px 18px 48px', animation: 'fadeIn 0.3s ease', maxWidth: 540 }}>
+    <div style={{ flex: 1, padding: '24px 18px 48px 56px', animation: 'fadeIn 0.3s ease', maxWidth: 540 }}>
       <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--green)', fontSize: 14, fontWeight: 600, marginBottom: 24 }}>
         ← {t.back || 'Back'}
       </button>
