@@ -203,9 +203,9 @@ a:hover { color: var(--neon-pink); }
 
 .app-container::before {
   content: '📐 aman made this at 3am';
-  position: fixed;
-  top: 60px;
-  left: calc(50% - 270px - 15px);
+  position: absolute;
+  top: 120px;
+  left: -80px;
   font-family: 'Caveat', cursive;
   font-size: 12px;
   font-weight: 600;
@@ -213,7 +213,7 @@ a:hover { color: var(--neon-pink); }
   background: var(--marker-pink);
   padding: 3px 12px;
   transform: rotate(-90deg);
-  transform-origin: right top;
+  transform-origin: center center;
   z-index: 1000;
   border: 1.5px solid rgba(0,0,0,0.15);
   opacity: 0.85;
@@ -875,16 +875,16 @@ button[style*="Terms of Service"] {
   .app-container::before {
     display: block !important;
     content: '📐 aman made this at 3am · yes it actually works · no you cannot copy my homework';
-    position: fixed;
-    top: 50%;
-    left: calc(50% - 355px);
+    position: absolute;
+    top: 250px;
+    left: -210px;
     font-family: 'Caveat', cursive;
     font-size: 13px;
     font-weight: 600;
     color: var(--charcoal);
     background: var(--marker-pink);
     padding: 4px 14px;
-    transform: rotate(-90deg) translateX(50%);
+    transform: rotate(-90deg);
     transform-origin: center center;
     z-index: 1000;
     border: 1.5px solid rgba(0,0,0,0.15);
@@ -896,9 +896,9 @@ button[style*="Terms of Service"] {
   .app-container::after {
     display: block !important;
     content: '';
-    position: fixed;
+    position: absolute;
     top: 120px;
-    right: calc(50% - 350px);
+    right: -32px;
     width: 22px;
     height: 90px;
     background: repeating-linear-gradient(
