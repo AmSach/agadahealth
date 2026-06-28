@@ -223,7 +223,7 @@ export default function Scanner() {
   const [profileInput, setProfileInput] = useState('')
   const [showAddProfile, setShowAddProfile] = useState(false)
 
-  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0] || {
+  const activeProfile = (profiles && activeProfileId && profiles.find(p => p && p.id === activeProfileId)) || profiles?.[0] || {
     id: 'aman',
     name: 'Aman Sachan',
     bloodGroup: '',
@@ -236,7 +236,7 @@ export default function Scanner() {
     symptoms: [],
     reminderTimes: { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
   };
-  const cabinet = activeProfile.cabinet || [];
+  const cabinet = activeProfile?.cabinet || [];
 
   const [activeInteractions, setActiveInteractions] = useState([])
   const [activeDuplications, setActiveDuplications] = useState([])
@@ -432,8 +432,9 @@ export default function Scanner() {
   };
 
   React.useEffect(() => {
-    if (cabinet.length >= 2) {
-      const activeSalts = cabinet.map(item => item.saltComposition)
+    const cleanCabinet = (cabinet || []).filter(Boolean)
+    if (cleanCabinet.length >= 2) {
+      const activeSalts = cleanCabinet.map(item => item.saltComposition || '')
       const collisions = checkInteractions(activeSalts)
       const dups = checkTherapeuticDuplication(activeSalts)
       setActiveInteractions(collisions)
@@ -443,8 +444,8 @@ export default function Scanner() {
       setActiveDuplications([])
     }
 
-    if (cabinet.length > 0) {
-      const sched = orchestrateMedicationSchedule(cabinet)
+    if (cleanCabinet.length > 0) {
+      const sched = orchestrateMedicationSchedule(cleanCabinet)
       setActiveSchedule(sched)
     } else {
       setActiveSchedule({ schedule: { 'Morning': [], 'Afternoon': [], 'Evening': [], 'Bedtime': [] }, notes: [] })

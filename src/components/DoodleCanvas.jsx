@@ -40,13 +40,16 @@ export default function DoodleCanvas() {
   }, []);
 
   const drawStrokes = (ctx, strokes) => {
+    if (!Array.isArray(strokes)) return;
     strokes.forEach(stroke => {
-      if (stroke.length < 2) return;
+      if (!stroke || !Array.isArray(stroke) || stroke.length < 2 || !stroke[0]) return;
       ctx.beginPath();
       ctx.strokeStyle = stroke[0].color || '#2563eb';
       ctx.moveTo(stroke[0].x, stroke[0].y);
       for (let i = 1; i < stroke.length; i++) {
-        ctx.lineTo(stroke[i].x, stroke[i].y);
+        if (stroke[i]) {
+          ctx.lineTo(stroke[i].x, stroke[i].y);
+        }
       }
       ctx.stroke();
     });
@@ -125,7 +128,13 @@ export default function DoodleCanvas() {
     setIsDrawing(true);
 
     const saved = localStorage.getItem('agada_doodles');
-    const strokes = saved ? JSON.parse(saved) : [];
+    let strokes = [];
+    try {
+      strokes = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(strokes)) strokes = [];
+    } catch {
+      strokes = [];
+    }
     strokes.push([{ x, y, color }]);
     localStorage.setItem('agada_doodles', JSON.stringify(strokes));
   };
@@ -144,11 +153,13 @@ export default function DoodleCanvas() {
 
     const saved = localStorage.getItem('agada_doodles');
     if (saved) {
-      const strokes = JSON.parse(saved);
-      if (strokes.length > 0) {
-        strokes[strokes.length - 1].push({ x, y });
-        localStorage.setItem('agada_doodles', JSON.stringify(strokes));
-      }
+      try {
+        const strokes = JSON.parse(saved);
+        if (Array.isArray(strokes) && strokes.length > 0) {
+          strokes[strokes.length - 1].push({ x, y });
+          localStorage.setItem('agada_doodles', JSON.stringify(strokes));
+        }
+      } catch {}
     }
   };
 
