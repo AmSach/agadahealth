@@ -1,54 +1,47 @@
-# agada (अगद)
+# Agada (अगद) 🍃
 
-a tool that scans your medicine strip and finds you cheaper generic alternatives.
+A quick, offline-first tool to scan medicine strips and find cheap, government-verified generic alternatives in India.
 
-**try it → [agadahealth.vercel.app](https://agadahealth.vercel.app)**
+**Live Demo → [agadahealth.vercel.app](https://agadahealth.vercel.app)**
 
-## why this exists
+---
 
-i got ripped off at a pharmacy. paid ₹380 for a strip of tablets when the exact same salt composition was available as a generic for ₹32. literally the same drug, same dosage, same everything - just without the fancy brand name printed on the box. that pissed me off enough to build something about it.
+## Why did I build this?
 
-pharmaceutical companies in india charge 10x what the actual generic costs, and most people just... don't know. the information is technically public (the government has a whole database) but nobody's going to sit there and cross-reference salt names on a government website while standing at a chemist's counter.
+I stood at a pharmacy counter and paid ₹380 for a strip of branded pills, only to find out later that the exact same chemical formulation (same active salt, same dosage) was sold by the government's Jan Aushadhi scheme for ₹32. 
 
-so i built agada. you open it on your phone, point the camera at any medicine strip, and it tells you what you're actually paying for.
+In India, branded pharmaceutical markups are insane. The government publishes a registry of identical generics (the PMBJP database), but nobody is going to load a clunky government search portal and copy-paste long chemical salt names while waiting in line at the chemist.
 
-## what it does
+So, I built Agada. You point your phone camera at a medicine strip, it extracts the name, runs phonetic checks against local indices, and tells you exactly what generic version to ask the pharmacist for.
 
-- scans medicine strips/labels using your phone camera
-- identifies the drug and checks it against the government's official CDSCO database
-- shows the actual salt composition and what it does, in plain english
-- finds cheaper generic equivalents (sometimes 90% cheaper, not exaggerating)
-- tells you the prescription schedule (H, H1, X) so you know if you even need one
-- works offline after first load - no internet needed at the pharmacy
-- no login, no ads, no tracking
+---
 
-## the nerdy bits
+## What it actually does under the hood
 
-**ocr runs entirely in your browser.** tesseract compiled to wasm, so nothing gets sent to a server. your medicine photos stay on your device.
+1. **Local OCR (No Server Uploads)**: Compiles Tesseract to WebAssembly so text recognition runs entirely in your browser. None of your prescription images or medicine photos ever leave your device.
+2. **Double Metaphone + BM25 Matching**: Medicine packaging is usually bent, shiny, or smudged, which throws off standard text recognition. To handle this, the app uses a phonetic matching worker to match the blurry text against the CDSCO registry database.
+3. **Interactive Bloodstream Tracker**: Plots a concentration curve over a 24-hour timeline using a Bateman differential equation solver in JavaScript. It estimates drug absorption and elimination based on standard half-life rates, age, weight, and body mass.
+4. **Offline Cabinet & Bookmarks**: Save scanned pills to an encrypted local database (using browser IndexedDB) for quick refilling and tracking.
+5. **No tracking, no signups, no bloat.** Just a simple page that runs instantly in your mobile browser.
 
-**phonetic matching against CDSCO data.** medicine names on strips are messy - weird fonts, partial prints, smudged ink. i use a phonetic algorithm to fuzzy-match what the OCR reads against the actual drug database so it still works even when the scan isn't perfect.
+---
 
-**pharmacokinetics graph.** once you identify a drug, it plots a concentration-over-time curve using the bateman equation based on the drug's actual half-life and absorption rate. basically shows you how the drug moves through your body. thought it was cool so i added it.
+## How to run it locally
 
-**encrypted local cabinet.** you can save medicines locally in an encrypted store in your browser. nothing leaves your device.
-
-**emergency qr codes.** generates a qr code with your saved medicines so if something happens, someone can scan it and see what you're on.
-
-## run locally
+Get a local dev server running in 30 seconds:
 
 ```bash
+# Clone and install dependencies
 npm install
+
+# Run the dev server
 npm run dev
 ```
 
-that's it. opens on `localhost:5173`.
+The app will start at `http://localhost:5173`.
 
-or you could just use my version here at [agadahealth.vercel.app](https://agadahealth.vercel.app)
+---
 
-## credits (well yes obv me and me)
+## Disclaimer
 
-- drug data from [CDSCO](https://cdsco.gov.in) (central drugs standard control organisation)
-- generic pricing from [BPPI Jan Aushadhi](http://janaushadhi.gov.in)
-- built for [hack club stardance](https://stardance.hackclub.com)
-
-**disclaimer:** i'm not a doctor. this is not medical advice. always talk to an actual medical professional before changing your medication. this tool just helps you ask better questions at the pharmacy.
+I am a programmer, not a doctor. This is a helper utility to help you cross-reference drug prices and ask better questions at the chemist counter. Always verify your dosage strength and active ingredients with a certified medical professional or pharmacist before swallowing pills.

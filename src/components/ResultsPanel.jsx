@@ -5,7 +5,6 @@ import { getPKParameters, simulatePharmacokinetics, calculatePhysiologicalIndice
 const JA_STORE_URL = 'https://janaushadhi.gov.in/near-by-kendra'
 const REPORT_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSce6duzii7D1SlYOYI3DG45mVEJUyl3wSzByoYSvyHNStqFGA/viewform'
 
-// ─── Translation helper for AI-generated text ────────────────────────────────
 // Sends AI-generated strings through /api/groq proxy (keys stay server-side)
 async function translateTexts(texts, targetLang) {
   if (targetLang === 'en' || !texts || texts.length === 0) return texts
@@ -95,8 +94,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     }
   }
 
-
-  // Auto-translate AI-generated fields when lang != en
   React.useEffect(() => {
     if (lang === 'en') { setTranslated(null); return }
     const info = results?.medicineInfo
@@ -139,7 +136,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
   const jaAlts    = (alts.topAlternatives || []).filter(a => a.isJanAushadhi)
   const otherAlts = (alts.topAlternatives || []).filter(a => !a.isJanAushadhi)
 
-  // Real savings %  -  computed from actual DB data, not hardcoded
   const brandedMrp    = results?.mrp ? parseFloat(results.mrp) : null
   const brandedUnitSz = results?.unitSize || null
   const brandedPerUnit = brandedMrp
@@ -161,24 +157,21 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     : null
   const isCheapest = !alts.hasGenerics || (brandedPerUnit && cheapestAlt?.perUnit && cheapestAlt.perUnit >= brandedPerUnit)
 
-  // Helper for consistent layout wrapping
   const LayoutWrapper = ({ children }) => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg)', height: '100%', overflow: 'hidden' }}>
-      {/* Sticky Header */}
+      
       <div style={{ padding: '14px 16px', background: '#fff', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, boxShadow: 'var(--shadow)' }}>
         <button onClick={onReset} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--textlt)', padding: '6px 0', border: 'none', background: 'transparent', cursor: 'pointer' }}>
           <span style={{ fontSize: 18, lineHeight: 1 }}>‹</span> Back
         </button>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--navy)', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Scan Results</h2>
-        <div style={{ width: 60 }} /> {/* Spacer to balance absolute center */}
+        <div style={{ width: 60 }} /> 
       </div>
-      
-      {/* Scrollable Content */}
+
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {children}
       </div>
 
-      {/* Sticky Footer */}
       <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
           📷 Scan Another Medicine
@@ -187,8 +180,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     </div>
   )
 
-  // Hard block  -  not a medicine at all
-  // ── Hard block: HAZARDOUS substance  -  show danger warning ─────────────────
   if (results?.productType === 'HAZARDOUS') {
     return (
       <LayoutWrapper>
@@ -217,7 +208,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     )
   }
 
-  // ── Hard block: not a medicine at all ──────────────────────────────────────
   if (results?.productType === 'NOT_MEDICINE') {
     return (
       <LayoutWrapper>
@@ -237,12 +227,9 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     )
   }
 
-
-
   return (
     <LayoutWrapper>
 
-      {/* Top banner */}
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow)', animation: 'fadeUp 0.3s ease' }}>
         {results?.preview || preview
           ? <img src={results?.preview || preview} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }} />
@@ -260,8 +247,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
             {translating && <span style={badge('amber')}>Translating...</span>}
           </div>
         </div>
-        
-        {/* Bookmark Button */}
+
         <button
           onClick={toggleBookmark}
           title={isBookmarked ? "Remove Bookmark" : "Bookmark Medicine"}
@@ -289,14 +275,12 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         </div>
       </div>
 
-      {/* Low confidence warning */}
       {(results.confidence || 70) < 50 && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.55 }}>
           ⚠ Low confidence scan  -  the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
         </div>
       )}
 
-      {/* Dose unconfirmed warning  -  salt readable but dose not on front of pack */}
       {results.doseUnconfirmed && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
@@ -307,8 +291,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         </div>
       )}
 
-
-      {/* Modern Segmented Control */}
       <div style={{ display: 'flex', background: 'var(--border)', padding: 4, borderRadius: 12, marginBottom: 4, animation: 'fadeUp 0.3s ease 0.1s both' }}>
         {[['🛡️', 'Authentic'], ['💡', 'Usage'], ['💸', 'Alternatives']].map(([icon, label], i) => (
           <button key={i} onClick={() => setCard(i)} style={{ flex: 1, padding: '10px 4px', borderRadius: 9, background: card === i ? '#fff' : 'transparent', color: card === i ? 'var(--navy)' : 'var(--textlt)', fontSize: 13, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.2s', boxShadow: card === i ? '0 2px 8px rgba(0,0,0,0.08)' : 'none', border: 'none' }}>
@@ -317,7 +299,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         ))}
       </div>
 
-      {/* Cards Display */}
       <div style={{ animation: 'fadeIn 0.2s ease', flex: 1 }}>
         {card === 0 && (
           <AuthCard 
@@ -341,7 +322,6 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
   )
 }
 
-// ─── CARD 1: AUTHENTICITY ────────────────────────────────────────────────────
 function AuthCard({ 
   auth, results, t, reported, setReported,
   recallStatus, isCheckingRecall,
@@ -367,7 +347,6 @@ function AuthCard({
   return (
     <div style={{ background: statusConfig.bg, border: `1.5px solid ${statusConfig.border}`, borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
 
-      {/* Status row */}
       <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 13 }}>
         <div style={{ width: 46, height: 46, borderRadius: '50%', background: statusConfig.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: statusConfig.iconColor, fontWeight: 700, flexShrink: 0, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.1s both' }}>{statusConfig.icon}</div>
         <div>
@@ -378,7 +357,6 @@ function AuthCard({
 
       <div style={{ background: 'rgba(255,255,255,0.6)', padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-        {/* Genuine signals */}
         {auth.genuineSignalsFound?.length > 0 && (
           <div>
             <div style={sectionLabel('green')}>Genuine signals found</div>
@@ -390,7 +368,6 @@ function AuthCard({
           </div>
         )}
 
-        {/* Fake signals */}
         {auth.fakeSignalsFound?.length > 0 && (
           <div>
             <div style={sectionLabel('red')}>Suspicious signals</div>
@@ -402,7 +379,6 @@ function AuthCard({
           </div>
         )}
 
-        {/* Fields table */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
             ['Brand', results.brandName],
@@ -419,7 +395,6 @@ function AuthCard({
           ))}
         </div>
 
-        {/* CDSCO fact  -  clean, no conflicting drug name */}
         {auth.cdscoBadge && (
           <div style={{ padding: '10px 13px', background: auth.cdscoFound ? '#F0FDF4' : 'var(--bgsoft)', border: `1px solid ${auth.cdscoFound ? '#86EFAC' : 'var(--border)'}`, borderRadius: 9 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: auth.cdscoFound ? '#15803D' : 'var(--textlt)', marginBottom: auth.cdscoIndication ? 4 : 0 }}>
@@ -436,21 +411,18 @@ function AuthCard({
           </div>
         )}
 
-        {/* Expired */}
         {results.isExpired && (
           <div style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1px solid #FECACA', borderRadius: 9, fontSize: 12.5, color: '#991B1B', lineHeight: 1.55 }}>
             ⚠ This medicine appears to be <strong>expired</strong>. Do not consume. Return to your chemist.
           </div>
         )}
 
-        {/* Fake action */}
         {isFake && (
           <div style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1px solid #FECACA', borderRadius: 9, fontSize: 12.5, color: '#991B1B', lineHeight: 1.55 }}>
             Do not consume. Return to chemist and ask for CDSCO licence proof.<br />Report to CDSCO: <strong>1800-180-3024</strong> (free)
           </div>
         )}
 
-        {/* Cryptographic Ledger Audit Section */}
         {results.batchNumber && (
           <div style={{
             background: '#fff',
@@ -465,10 +437,9 @@ function AuthCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>
               🛡️ Batch recall & manufacturer verification
             </div>
-            
-            {/* User-friendly Summary */}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Recall Status */}
+              
               {isCheckingRecall ? (
                 <div style={{ fontSize: 13, color: 'var(--textlt)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   ⏳ Checking government recall records...
@@ -488,7 +459,6 @@ function AuthCard({
                 <div style={{ fontSize: 13, color: 'var(--textlt)' }}>Batch verification not available.</div>
               )}
 
-              {/* Manufacturer Signature */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -501,7 +471,6 @@ function AuthCard({
               </div>
             </div>
 
-            {/* Collapsible Details */}
             {results.batchNumber && (
               <div style={{ marginTop: 4 }}>
                 <button 
@@ -566,7 +535,6 @@ function AuthCard({
         )}
       </div>
 
-      {/* Cryptographic Report/Ledger section */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!reported ? (
           <button 
@@ -627,7 +595,6 @@ function AuthCard({
               This strip has been reported as suspicious. If you suspect the medicine is counterfeit, please do not consume it. You can return it to your chemist.
             </div>
 
-            {/* Collapsible Receipt Details */}
             {signedReportSignature && (
               <div style={{ marginTop: 4 }}>
                 <button 
@@ -705,8 +672,7 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    
-    // Red blood cells parameters
+
     const rbcs = []
     for (let i = 0; i < 6; i++) {
       rbcs.push({
@@ -724,8 +690,7 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       frame++
       const width = canvas.width = 180
       const height = canvas.height = 50
-      
-      // Deep medical dark backdrop
+
       ctx.fillStyle = '#0f172a'
       ctx.fillRect(0, 0, width, height)
       
@@ -735,17 +700,16 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       let statusColor = '#3b82f6'
       let glow = 4
       if (concentration > minToxic) {
-        statusColor = '#ef4444' // toxic red
+        statusColor = '#ef4444'
         glow = 12 + Math.sin(frame * 0.15) * 4
       } else if (concentration > minEffective) {
-        statusColor = '#10b981' // therapeutic green
+        statusColor = '#10b981'
         glow = 6 + Math.sin(frame * 0.1) * 2
       } else {
-        statusColor = '#f59e0b' // sub-therapeutic amber
+        statusColor = '#f59e0b'
         glow = 3
       }
-      
-      // Draw cylinder walls with glow
+
       ctx.shadowBlur = glow
       ctx.shadowColor = statusColor
       ctx.strokeStyle = statusColor
@@ -756,9 +720,8 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
       ctx.moveTo(0, tubeY + tubeH)
       ctx.lineTo(width, tubeY + tubeH)
       ctx.stroke()
-      ctx.shadowBlur = 0 // reset glow for cells
-      
-      // Glass body glare
+      ctx.shadowBlur = 0
+
       const grad = ctx.createLinearGradient(0, tubeY, 0, tubeY + tubeH)
       grad.addColorStop(0, 'rgba(255,255,255,0.06)')
       grad.addColorStop(0.5, 'rgba(255,255,255,0.0)')
@@ -787,8 +750,7 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
         ctx.arc(rbc.x, rbc.y, rbc.r, 0, Math.PI * 2)
         ctx.fill()
       }
-      
-      // Draw floating drug particles
+
       const maxParticles = 35
       const targetParticles = Math.min(maxParticles, Math.round((concentration / maxConc) * maxParticles))
       
@@ -837,14 +799,12 @@ export function BloodstreamSimulator({ concentration, minEffective, minToxic, ma
   )
 }
 
-// ─── CARD 2: MEDICINE INFO ────────────────────────────────────────────────────
 function InfoCard({ info, results, translating, profile }) {
   const [showSide, setShowSide] = useState(false)
   const [scrubTime, setScrubTime] = useState(0.0)
   const isAyurvedic   = results.productType === 'AYURVEDIC'
   const isSupplement  = results.productType === 'SUPPLEMENT'
 
-  // Pharmacokinetics State & Calculations
   const pkParams = getPKParameters(results.saltComposition || results.brandName)
   const parsedDose = results.saltComposition ? (() => {
     const m = results.saltComposition.match(/(\d+)\s*(mg|mcg|g)/i)
@@ -856,7 +816,7 @@ function InfoCard({ info, results, translating, profile }) {
   const [doseAge, setDoseAge] = useState(profile?.age || 30)
   const [doseGender, setDoseGender] = useState(profile?.gender || 'male')
   const [doseStrength, setDoseStrength] = useState(parsedDose)
-  const [doseFreq, setDoseFreq] = useState(3) // 3x daily
+  const [doseFreq, setDoseFreq] = useState(3)
 
   useEffect(() => {
     if (profile) {
@@ -917,24 +877,22 @@ function InfoCard({ info, results, translating, profile }) {
     }
   }
 
-  // 3D Capsule color config based on drug properties
   const saltLower = (results.saltComposition || '').toLowerCase()
   const isAntibiotic = saltLower.includes('amoxicillin') || saltLower.includes('penicillin') || saltLower.includes('cef') || saltLower.includes('cipro')
   const isPainKiller = saltLower.includes('paracetamol') || saltLower.includes('ibuprofen') || saltLower.includes('diclofenac') || saltLower.includes('naproxen')
   
-  let capTopColor = '#f59e0b' // default orange
-  let capBottomColor = '#f8fafc' // white
+  let capTopColor = '#f59e0b'
+  let capBottomColor = '#f8fafc'
   
   if (isAyurvedic || isSupplement) {
-    capTopColor = '#10b981' // green
+    capTopColor = '#10b981'
   } else if (isAntibiotic) {
-    capTopColor = '#ef4444' // red
-    capBottomColor = '#3b82f6' // blue
+    capTopColor = '#ef4444'
+    capBottomColor = '#3b82f6'
   } else if (isPainKiller) {
-    capTopColor = '#ef4444' // red
+    capTopColor = '#ef4444'
   }
 
-  // Chronotherapy optimization tips
   let chronoTip = ""
   if (saltLower.includes('atorvastatin') || saltLower.includes('statin')) {
     chronoTip = "🌙 Evening Dosing (Chronotherapy): Cholesterol synthesis peaks at night. Taking statins at bedtime optimizes therapeutic efficacy."
@@ -948,7 +906,6 @@ function InfoCard({ info, results, translating, profile }) {
     chronoTip = "🛡️ Daily Intake Cap: Keep at least 4-6 hours between doses. Absolute maximum safe daily limit is 4000mg to prevent liver toxicity."
   }
 
-  // Scale functions for SVG
   const getX = (t) => 35 + (t / 24) * 290
   const getY = (c) => 15 + (1 - (c / maxConc)) * 140
 
@@ -1043,7 +1000,6 @@ function InfoCard({ info, results, translating, profile }) {
           </div>
         )}
 
-        {/* 🔬 Medicine Level Tracker Widget */}
         {pkParams && (
           <div style={{
             background: '#fff',
@@ -1071,11 +1027,11 @@ function InfoCard({ info, results, translating, profile }) {
                 `}</style>
                 <svg viewBox="0 0 40 40" width="32" height="32" className="svg-tracker-capsule" title="Dose concentration level indicator">
                   <g transform="rotate(45 20 20)">
-                    {/* Top half */}
+                    
                     <path d="M14 20 A6 6 0 0 1 26 20 h-12" fill={capTopColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                    {/* Bottom half */}
+                    
                     <path d="M14 20 A6 6 0 0 0 26 20 h-12" fill={capBottomColor} stroke="rgba(0,0,0,0.1)" strokeWidth="0.5" />
-                    {/* Center band */}
+                    
                     <line x1="14" y1="20" x2="26" y2="20" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
                   </g>
                 </svg>
@@ -1086,10 +1042,8 @@ function InfoCard({ info, results, translating, profile }) {
               This chart simulates the amount of <strong>{pkParams.name}</strong> active in your body over 24 hours. Adjust sliders to see toxic or therapeutic peaks. (this chart runs a Bateman differential equation physics solver inside javascript in real-time. i programmed it because looking at static pill labels doesn't tell you how long the chemical actually floats in your bloodstream).
             </p>
 
-            {/* Simulated graph & 3D Bloodstream Simulation row */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              
-              {/* SVG concentration chart */}
+
               <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 8, border: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
                 <svg width="100%" height="180" viewBox="0 0 340 180" style={{ maxWidth: 340 }}>
                   <defs>
@@ -1099,7 +1053,6 @@ function InfoCard({ info, results, translating, profile }) {
                     </linearGradient>
                   </defs>
 
-                  {/* Grid Lines & Ticks */}
                   {[0, 6, 12, 18, 24].map(t => (
                     <g key={t}>
                       <line x1={getX(t)} y1="15" x2={getX(t)} y2="155" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
@@ -1107,7 +1060,6 @@ function InfoCard({ info, results, translating, profile }) {
                     </g>
                   ))}
 
-                  {/* Range Band 1: TOO STRONG (Toxic Zone above minToxicConc) */}
                   {pkParams.minToxicConc < maxConc && (
                     <rect
                       x="35"
@@ -1119,7 +1071,6 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
-                  {/* Range Band 2: Safe & Works (Therapeutic Zone) */}
                   {pkParams.minEffectiveConc < maxConc && (
                     <rect
                       x="35"
@@ -1131,7 +1082,6 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
-                  {/* Range Band 3: Too Weak (Sub-therapeutic Zone below minEffectiveConc) */}
                   {pkParams.minEffectiveConc > 0 && (
                     <rect
                       x="35"
@@ -1143,15 +1093,12 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   )}
 
-                  {/* Threshold line 1: Too Weak Limit */}
                   <line x1="35" y1={getY(pkParams.minEffectiveConc)} x2="325" y2={getY(pkParams.minEffectiveConc)} stroke="var(--amber)" strokeWidth="1.2" strokeDasharray="3,3" />
                   <text x="328" y={getY(pkParams.minEffectiveConc) + 3} fontSize="8.5" fill="var(--amber)" fontWeight="800">Too Weak</text>
 
-                  {/* Threshold line 2: Safe & Works Limit */}
                   <line x1="35" y1={getY(pkParams.minEffectiveConc) - 0.5} x2="325" y2={getY(pkParams.minEffectiveConc) - 0.5} stroke="var(--green)" strokeWidth="1.2" strokeDasharray="3,3" />
                   <text x="328" y={getY(pkParams.minEffectiveConc) - 4} fontSize="8.5" fill="var(--green)" fontWeight="800">Safe & Active</text>
 
-                  {/* Threshold line 3: Too Strong Limit */}
                   {pkParams.minToxicConc < maxConc && (
                     <>
                       <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="var(--red)" strokeWidth="1.2" strokeDasharray="3,3" />
@@ -1159,16 +1106,12 @@ function InfoCard({ info, results, translating, profile }) {
                     </>
                   )}
 
-                  {/* Area under curve */}
                   {areaD && <path d={areaD} fill="url(#curve-grad)" />}
 
-                  {/* Curve path backing glow */}
                   {pathD && <path d={pathD} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.15" />}
 
-                  {/* Curve path */}
                   {pathD && <path d={pathD} fill="none" stroke="#0D8A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
 
-                  {/* Vertical scanning bar for time scrubber */}
                   <line 
                     x1={getX(scrubTime)} 
                     y1="15" 
@@ -1187,7 +1130,6 @@ function InfoCard({ info, results, translating, profile }) {
                     strokeWidth="1.5" 
                   />
 
-                  {/* Interactive Peak concentration dot */}
                   {pkData.length > 0 && (() => {
                     const peakPoint = pkData.reduce((max, p) => p.conc > max.conc ? p : max, pkData[0]);
                     return (
@@ -1198,25 +1140,20 @@ function InfoCard({ info, results, translating, profile }) {
                     );
                   })()}
 
-                  {/* Axes */}
                   <line x1="35" y1="15" x2="35" y2="155" stroke="var(--border)" strokeWidth="1.5" />
                   <line x1="35" y1="155" x2="325" y2="155" stroke="var(--border)" strokeWidth="1.5" />
 
-                  {/* Y Axis Ticks */}
                   <text x="30" y={getY(0)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Low</text>
                   <text x="30" y={getY(maxConc / 2)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">Medium</text>
                   <text x="30" y={getY(maxConc)} fontSize="9.5" fill="var(--textlt)" textAnchor="end" fontWeight="600">High</text>
-                  
-                  {/* Y Axis Label */}
+
                   <text x="12" y="85" fontSize="10" fill="var(--textlt)" transform="rotate(-90 12 85)" textAnchor="middle" fontWeight="700">Medicine Level</text>
                 </svg>
               </div>
 
-              {/* Time Scrubber Slider and Bloodstream Simulator Visualizer Row */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#1e293b', padding: 12, borderRadius: 14, border: '1px solid #334155' }}>
                 <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                  
-                  {/* Time Slider */}
+
                   <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>🕒 SCRUB TIMELINE: {scrubTime.toFixed(1)}h</span>
@@ -1239,7 +1176,6 @@ function InfoCard({ info, results, translating, profile }) {
                     />
                   </div>
 
-                  {/* 3D Bloodstream Visualizer */}
                   <div style={{ flex: '0 0 180px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
                     <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.04em' }}>🔴 BLOODSTREAM DENSITY</span>
                     <BloodstreamSimulator 
@@ -1255,10 +1191,8 @@ function InfoCard({ info, results, translating, profile }) {
 
             </div>
 
-            {/* Controls (Segmented Control Bars) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bgsoft)', padding: 12, borderRadius: 14, border: '1px solid var(--border)' }}>
-              
-              {/* Strength selector */}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>💊 Pill Strength:</span>
                 <div className="segmented-control">
@@ -1275,7 +1209,6 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
               </div>
 
-              {/* Frequency selector */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⏰ Dosing Frequency:</span>
                 <div className="segmented-control">
@@ -1292,7 +1225,6 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
               </div>
 
-              {/* Glassmorphic Patient HUD Card */}
               <div style={{
                 background: 'rgba(255, 255, 255, 0.75)',
                 backdropFilter: 'blur(12px)',
@@ -1323,7 +1255,6 @@ function InfoCard({ info, results, translating, profile }) {
                   </div>
                 </div>
 
-                {/* Adjusters Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, borderTop: '1px dashed var(--border)', paddingTop: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <label style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--textmd)', display: 'flex', justifyContent: 'space-between' }}>
@@ -1394,7 +1325,6 @@ function InfoCard({ info, results, translating, profile }) {
                   </div>
                 </div>
 
-                {/* Dynamic physiology scaling explanation */}
                 <div style={{ fontSize: '11px', color: 'var(--textmd)', lineHeight: 1.4, padding: '8px 10px', background: 'rgba(13,138,104,0.05)', borderRadius: 8, borderLeft: '3px solid var(--green)' }}>
                   ℹ️ <strong>Physiological Scaling:</strong> {pkParams.partition === 'hydrophilic' ? (
                     `Because ${pkParams.name} is hydrophilic, its Volume of Distribution (Vd) is scaled to your Lean Body Mass (LBM = ${indices.lbm}kg) rather than total weight.`
@@ -1406,7 +1336,6 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             </div>
 
-            {/* Daily Intake Limit Alert */}
             {pkParams.maxDailyDoseMg && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1431,7 +1360,6 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             )}
 
-            {/* Chronotherapy optimization tip */}
             {chronoTip && (
               <div style={{
                 padding: '8px 10px',
@@ -1447,7 +1375,6 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
             )}
 
-            {/* Dosing safety report status message */}
             <div style={{
               padding: '12px 14px',
               background: warningBg,
@@ -1469,7 +1396,6 @@ function InfoCard({ info, results, translating, profile }) {
   )
 }
 
-// ─── CARD 3: ALTERNATIVES ─────────────────────────────────────────────────────
 function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUnit, cheapestAlt }) {
   const aiAlts = (alts.topAlternatives || []).filter(a => a.aiEstimated)
   
@@ -1493,7 +1419,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
 
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Cheapest message OR savings hero */}
         {isCheapest ? (
           <div style={{ padding: '13px 15px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontSize: 30 }}>🏆</span>
@@ -1516,7 +1441,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Savings Calculator Widget (QoL 1) */}
         {showCalc && (
           <div style={{
             background: 'var(--bgsoft)',
@@ -1536,9 +1460,8 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
               </span>
             </div>
 
-            {/* Controls */}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-              {/* Daily Dosage */}
+              
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Tablets / day</label>
                 <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
@@ -1565,7 +1488,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
                 </div>
               </div>
 
-              {/* Prescription Days */}
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 600, display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Duration (Days)</label>
                 <div style={{ display: 'flex', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
@@ -1593,7 +1515,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
               </div>
             </div>
 
-            {/* Custom inputs / sliders for more precision */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--textlt)' }}>
                 <span>Custom Duration: {calcDays} Days</span>
@@ -1617,9 +1538,8 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
               />
             </div>
 
-            {/* Visual Bar Comparison Chart */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-              {/* Branded Bar */}
+              
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
                   <span>Branded Cost</span>
@@ -1630,7 +1550,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
                 </div>
               </div>
 
-              {/* Generic Bar */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--textmd)', marginBottom: 3 }}>
                   <span>Generic/Alternative Cost</span>
@@ -1642,7 +1561,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
               </div>
             </div>
 
-            {/* Savings Result */}
             <div style={{
               background: '#DCFCE7',
               border: '1px solid #86EFAC',
@@ -1665,15 +1583,12 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-
-        {/* Ask your chemist callout */}
         {alts.topAlternatives?.length > 0 && (
           <div style={{ padding: '10px 13px', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 12.5, color: '#1E40AF', lineHeight: 1.6 }}>
             💬 <strong>At any chemist, say:</strong> "Do you have a cheaper version of {alts.topAlternatives[0]?.salt?.split(' ')[0] || 'this medicine'}?"  -  any brand with the same salt is legally equivalent.
           </div>
         )}
 
-        {/* Jan Aushadhi */}
         {jaAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('green'), display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1684,7 +1599,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Branded generics at any chemist */}
         {otherAlts.length > 0 && (
           <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1699,7 +1613,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Dose-mismatch alternatives  -  shown separately with explicit warning */}
         {alts.doseMismatchAlt && (
           <div>
             <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
@@ -1716,7 +1629,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Find Jan Aushadhi store */}
         <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, textDecoration: 'none' }}>
           <span style={{ fontSize: 20 }}>📍</span>
           <div>
@@ -1726,7 +1638,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           <span style={{ marginLeft: 'auto', color: 'var(--green)', fontSize: 16 }}>›</span>
         </a>
 
-        {/* Live prices on pharmacy sites */}
         {alts.pharmacyLinks?.length > 0 && (
           <div>
             <div style={sectionLabel('gray')}>🔍 Check live prices</div>
@@ -1744,7 +1655,6 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           </div>
         )}
 
-        {/* Disclaimer */}
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
           ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate  -  always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
@@ -1757,7 +1667,7 @@ function AltRow({ med, highlight, dimmed }) {
   const displayMrp   = med.mrp || med.estimatedMrp
   const isDavaIndia  = med.priceSource === "DavaIndia" || med.priceSource === "1mg" || med.highConfidence === true
   const isJA         = med.isJanAushadhi
-  // per-unit label: use perUnitLabel if set, else infer from packSize/unitSize, else 'tablet'
+
   const unitLabel    = med.perUnitLabel || inferUnitLabel(med.unitSize || med.packSize)
 
   const bgColor     = (highlight || isJA) ? 'var(--greenlt)'
@@ -1809,8 +1719,6 @@ function AltRow({ med, highlight, dimmed }) {
     </div>
   )
 }
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
 
 // Infer a readable unit label from pack description (e.g. "10 capsules" → "capsule")
 function inferUnitLabel(packStr) {

@@ -1660,6 +1660,15 @@ function HomeView({
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
+  const [tears, setTears] = useState(() => {
+    return parseInt(localStorage.getItem('agada_tears') || '140');
+  });
+
+  const collectTears = () => {
+    const next = tears + Math.floor(Math.random() * 50) + 20;
+    setTears(next);
+    localStorage.setItem('agada_tears', next.toString());
+  };
 
   const handleQuickAdd = async (medName, saltName) => {
     const updated = profiles.map(p => {
@@ -1755,7 +1764,7 @@ function HomeView({
     });
   };
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--bg) 0%, #FFFFFF 100%)', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', padding: '0 18px 32px', animation: 'fadeIn 0.4s ease' }}>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '40px 0 32px', animation: 'fadeUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--greenlt)', color: 'var(--greendk)', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 20, boxShadow: '0 2px 8px rgba(15,122,90,0.1)' }}>
@@ -1778,6 +1787,34 @@ function HomeView({
           </div>
           <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
           <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
+        </div>
+
+        <div 
+          onClick={collectTears}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 12, 
+            padding: '14px 18px', 
+            marginBottom: 20, 
+            background: 'var(--bgsoft)', 
+            cursor: 'pointer',
+            border: '2.5px solid var(--charcoal)',
+            borderRadius: 12,
+            boxShadow: 'var(--shadow)',
+            width: '100%',
+            userSelect: 'none',
+            boxSizing: 'border-box'
+          }}
+        >
+          <span style={{ fontSize: 28 }}>💧</span>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--charcoal)', fontFamily: 'var(--font-mono)' }}>BIG PHARMA TEAR COLLECTOR</div>
+            <div style={{ fontSize: 11.5, color: 'var(--textmd)' }}>
+              Jar capacity: <strong style={{ color: 'var(--neon-green)', fontFamily: 'var(--font-mono)' }}>{tears} ml</strong> of executive tears collected.
+            </div>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, background: '#cbd5e1', padding: '3px 8px', borderRadius: 4, fontFamily: 'var(--font-mono)', border: '1.5px solid var(--charcoal)' }}>TAP JAR</span>
         </div>
 
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>

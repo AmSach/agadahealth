@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Kalam:wght@700&family=Space+Mono:wght@700&display=swap');
 
-
 @keyframes spin       { to { transform: rotate(360deg); } }
 @keyframes fadeUp     { from { opacity:0; transform:translateY(20px) rotate(-1deg); } to { opacity:1; transform:translateY(0) rotate(0deg); } }
 @keyframes fadeIn     { from { opacity:0; } to { opacity:1; } }
@@ -119,6 +118,7 @@ body {
 }
 
 body::before {
+  display: none !important;
   content: '';
   position: fixed;
   top: 0; bottom: 0;
@@ -183,16 +183,22 @@ a:hover { color: var(--neon-pink); }
 
 .app-container {
   min-height: 100vh;
-  background: transparent !important;
+  background-color: #ffffff !important;
+  background-image:
+    linear-gradient(rgba(116, 185, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 185, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(rgba(116, 185, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 185, 255, 0.06) 1px, transparent 1px) !important;
+  background-size: 80px 80px, 80px 80px, 20px 20px, 20px 20px !important;
   display: flex;
   flex-direction: column;
   max-width: 540px;
   margin: 0 auto;
   position: relative;
   z-index: 1;
-  border-left: none !important;
-  border-right: none !important;
-  box-shadow: none !important;
+  border-left: 3px solid var(--charcoal) !important;
+  border-right: 3px solid var(--charcoal) !important;
+  box-shadow: var(--shadowmd) !important;
 }
 
 .app-container::before {
@@ -825,6 +831,7 @@ button[style*="Terms of Service"] {
     display: none !important;
   }
   body::before {
+  display: none !important;
     display: none !important;
   }
   
@@ -909,6 +916,7 @@ button[style*="Terms of Service"] {
   }
 
   body::before {
+  display: none !important;
     display: block !important;
     left: calc(50% - 320px + 45px) !important;
   }
@@ -1046,8 +1054,6 @@ div[style*="flex: 1"][style*="display: 'flex'"][style*="flexDirection: 'column'"
   background: var(--bg) !important;
 }
 
-
-
 .chaos-stamp {
   position: absolute;
   top: 12px; right: 14px;
@@ -1096,4 +1102,54 @@ div[style*="background: '#fff'"]:nth-child(even), div[style*='background: "#fff"
 div[style*="background: '#fff'"]:hover, div[style*='background: "#fff"']:hover {
   transform: scale(1.01) rotate(0deg) !important;
   z-index: 12;
+}
+
+.spiral-binder {
+  position: absolute;
+  top: 40px;
+  left: 12px; 
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.spiral-ring {
+  width: 24px;
+  height: 10px;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%);
+  border: 2px solid var(--charcoal);
+  border-radius: 6px;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.12);
+}
+
+@media (max-width: 580px) {
+  .spiral-binder {
+    display: none !important; 
+  }
+}
+
+.coffee-stain {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid rgba(139, 92, 26, 0.08);
+  background: radial-gradient(circle, rgba(139, 92, 26, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.notebook-clip {
+  position: absolute;
+  top: -16px;
+  right: 40px;
+  width: 30px;
+  height: 60px;
+  border: 3px solid var(--charcoal);
+  border-radius: 8px;
+  background: #cbd5e1;
+  box-shadow: var(--shadow);
+  z-index: 200;
 }
