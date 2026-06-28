@@ -1153,3 +1153,38 @@ div[style*="background: '#fff'"]:hover, div[style*='background: "#fff"']:hover {
   box-shadow: var(--shadow);
   z-index: 200;
 }
+
+.washi-tape {
+  position: absolute;
+  top: -10px;
+  left: 24px;
+  width: 100px;
+  height: 20px;
+  background: rgba(254, 240, 138, 0.7); 
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.06);
+  transform: rotate(-2.5deg);
+  font-family: 'Kalam', cursive;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 20px;
+  color: rgba(30, 41, 59, 0.6);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+.washi-tape::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: -5px; width: 6px;
+  background: linear-gradient(90deg, transparent, rgba(254, 240, 138, 0.7));
+  clip-path: polygon(100% 0%, 0% 50%, 100% 100%);
+}
+.washi-tape::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; right: -5px; width: 6px;
+  background: linear-gradient(-90deg, transparent, rgba(254, 240, 138, 0.7));
+  clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
+}

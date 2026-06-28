@@ -1808,13 +1808,15 @@ function HomeView({
         marginTop: '16px',
         marginBottom: '20px',
         boxShadow: 'var(--shadow)',
-        animation: 'fadeUp 0.5s ease 0.35s both'
+        animation: 'fadeUp 0.5s ease 0.35s both',
+        position: 'relative'
       }}>
+        <div className="washi-tape">HACK DATASET</div>
         <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔍 Instant Medicine & Salt Lookup
+          🕵️‍♂️ COLD CASES DATABASE (SEARCH SENSORS)
         </h3>
         <p style={{ fontSize: 11, color: 'var(--textlt)', margin: '0 0 12px 0' }}>
-          Type a brand name or composition salt. Works offline using Double Metaphone and BM25 index matching.
+          Enter brand or salt name. Sweeps government offline records using Double Metaphone + BM25 search indices.
         </p>
 
         <div>
@@ -3634,7 +3636,7 @@ function HomeView({
           {activeTab === 'reminders' && (
             <div>
               
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ Set Your Daily Pill Times</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ CONFIG INTERVAL DOSING REMINDERS</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => {
                   let slotLabel = slot;
@@ -3731,7 +3733,7 @@ function HomeView({
                 </div>
               </div>
 
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ LOG SYSTEM INTAKES</h4>
               {(() => {
                 const dateStr = new Date().toDateString();
                 const ad = activeProfile.adherence || {};
@@ -3743,7 +3745,7 @@ function HomeView({
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--greenlt)', border: '1.5px solid #86EFAC', padding: 14, borderRadius: 16, marginBottom: 16, boxShadow: 'var(--shadow)' }}>
                     <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--greendk)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Did you take your medicine today?</span>
+                      <span>🧬 CELLULAR DOSAGE INTEGRITY CHECK</span>
                       <span style={{ opacity: 0.8 }}>{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                     </div>
 
@@ -3763,7 +3765,7 @@ function HomeView({
                         textAlign: 'center',
                         animation: 'popIn 0.3s ease'
                       }}>
-                        <span>🎉</span> All done for today! Great job taking your meds.
+                        <span>🎉</span> ✓ ALL INTENDED DOSES COMMITTED FOR TODAY. SATURATION SECURED.
                       </div>
                     ) : null}
 

@@ -37,6 +37,11 @@ export default function App() {
             pointerEvents: 'none'
           }} />
 
+          <div className="notebook-clip"></div>
+
+          <div className="coffee-stain" style={{ top: '150px', right: '40px', transform: 'rotate(12deg) scale(0.9)', pointerEvents: 'none' }}></div>
+          <div className="coffee-stain" style={{ bottom: '120px', left: '60px', transform: 'rotate(-40deg) scale(0.7)', pointerEvents: 'none' }}></div>
+
           <DoodleCanvas />
 
           {page === 'home'    && <Scanner />}
