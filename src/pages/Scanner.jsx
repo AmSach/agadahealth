@@ -1660,15 +1660,7 @@ function HomeView({
 }) {
   const [showPrivacySchool, setShowPrivacySchool] = useState(false)
   const [schoolTab, setSchoolTab] = useState('diary')
-  const [tears, setTears] = useState(() => {
-    return parseInt(localStorage.getItem('agada_tears') || '140');
-  });
 
-  const collectTears = () => {
-    const next = tears + Math.floor(Math.random() * 50) + 20;
-    setTears(next);
-    localStorage.setItem('agada_tears', next.toString());
-  };
 
   const handleQuickAdd = async (medName, saltName) => {
     const updated = profiles.map(p => {
@@ -1787,34 +1779,6 @@ function HomeView({
           </div>
           <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
           <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
-        </div>
-
-        <div 
-          onClick={collectTears}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 12, 
-            padding: '14px 18px', 
-            marginBottom: 20, 
-            background: 'var(--bgsoft)', 
-            cursor: 'pointer',
-            border: '2.5px solid var(--charcoal)',
-            borderRadius: 12,
-            boxShadow: 'var(--shadow)',
-            width: '100%',
-            userSelect: 'none',
-            boxSizing: 'border-box'
-          }}
-        >
-          <span style={{ fontSize: 28 }}>💧</span>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--charcoal)', fontFamily: 'var(--font-mono)' }}>BIG PHARMA TEAR COLLECTOR</div>
-            <div style={{ fontSize: 11.5, color: 'var(--textmd)' }}>
-              Jar capacity: <strong style={{ color: 'var(--neon-green)', fontFamily: 'var(--font-mono)' }}>{tears} ml</strong> of executive tears collected.
-            </div>
-          </div>
-          <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, background: '#cbd5e1', padding: '3px 8px', borderRadius: 4, fontFamily: 'var(--font-mono)', border: '1.5px solid var(--charcoal)' }}>TAP JAR</span>
         </div>
 
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
@@ -3712,6 +3676,61 @@ function HomeView({
                     </div>
                   );
                 })}
+              </div>
+
+              {/* GitHub-style Adherence Heatmap */}
+              <div style={{ 
+                padding: 16, 
+                marginBottom: 24, 
+                background: '#fff', 
+                border: '2.5px solid var(--charcoal)', 
+                borderRadius: 12, 
+                boxShadow: 'var(--shadow)',
+                boxSizing: 'border-box'
+              }}>
+                <h5 style={{ fontSize: 13, fontWeight: 800, color: 'var(--charcoal)', margin: '0 0 12px 0', fontFamily: 'var(--font-mono)' }}>📈 ADHERENCE HEATMAP (LAST 30 DAYS)</h5>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6, justifyContent: 'center', marginBottom: 12 }}>
+                  {Array.from({ length: 30 }).map((_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (29 - i));
+                    const dayKey = d.toDateString();
+                    const dayAd = (activeProfile.adherence || {})[dayKey] || {};
+                    const count = Object.values(dayAd).filter(Boolean).length;
+                    
+                    let bg = '#e2e8f0';
+                    if (count === 1) bg = '#dcfce7';
+                    if (count === 2) bg = '#bbf7d0';
+                    if (count === 3) bg = '#4ade80';
+                    if (count >= 4) bg = '#22c55e';
+
+                    const formattedDate = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+                    return (
+                      <div
+                        key={i}
+                        title={`${formattedDate}: ${count} dose(s) taken`}
+                        style={{
+                          aspectRatio: '1',
+                          background: bg,
+                          border: '1.5px solid var(--charcoal)',
+                          borderRadius: 4,
+                          position: 'relative',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--textmd)', fontFamily: 'var(--font-mono)' }}>
+                  <span>29 days ago</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>Missed</span>
+                    <div style={{ width: 10, height: 10, background: '#e2e8f0', border: '1px solid var(--charcoal)', borderRadius: 2 }} />
+                    <div style={{ width: 10, height: 10, background: '#22c55e', border: '1px solid var(--charcoal)', borderRadius: 2 }} />
+                    <span>All Doses</span>
+                  </div>
+                  <span>Today</span>
+                </div>
               </div>
 
               <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
