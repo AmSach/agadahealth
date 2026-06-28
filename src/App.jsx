@@ -1,6 +1,7 @@
 import React, { useState, createContext, useContext } from 'react'
 import Scanner from './pages/Scanner.jsx'
 import DoodleCanvas from './components/DoodleCanvas.jsx'
+import PillPet from './components/PillPet.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import Terms from './pages/Terms.jsx'
 import Documentation from './pages/Documentation.jsx'
@@ -43,6 +44,7 @@ export default function App() {
           <div className="coffee-stain" style={{ bottom: '120px', left: '60px', transform: 'rotate(-40deg) scale(0.7)', pointerEvents: 'none' }}></div>
 
           <DoodleCanvas />
+          <PillPet />
 
           {page === 'home'    && <Scanner />}
           {page === 'privacy' && <PrivacyPolicy onBack={() => setPage('home')} />}

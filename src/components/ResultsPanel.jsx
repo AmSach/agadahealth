@@ -248,6 +248,8 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
           </div>
         </div>
 
+      <PillSynth saltName={results.saltComposition || results.brandName || 'Paracetamol 500mg'} />
+
         <button
           onClick={toggleBookmark}
           title={isBookmarked ? "Remove Bookmark" : "Bookmark Medicine"}
