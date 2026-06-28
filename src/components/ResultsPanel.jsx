@@ -30,6 +30,8 @@ async function translateTexts(texts, targetLang) {
 }
 
 export default function ResultsPanel({ results, preview, onReset, t, lang, isBookmarked: propsIsBookmarked, onToggleBookmark, profile }) {
+  if (!results) return null;
+
   const [card, setCard] = useState(0)
   const [reported, setReported] = useState(false)
   const [translated, setTranslated] = useState(null)

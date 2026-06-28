@@ -3,7 +3,8 @@ import ResultsPanel from './ResultsPanel.jsx'
 import { lookupMedicineNameOnly } from '../services/geminiService.js'
 
 export default function PrescriptionResultsPanel({ results, preview, onReset, t, lang, bookmarks, onToggleBookmark }) {
-  const { data } = results
+  if (!results) return null;
+  const data = results?.data || results;
   const [loadingLookup, setLoadingLookup] = useState(false)
   const [lookupMed, setLookupMed] = useState(null)
   const [lookupResults, setLookupResults] = useState(null)

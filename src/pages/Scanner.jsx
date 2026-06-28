@@ -1467,7 +1467,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
           completedStepIds={completedStepIds}
         />
       )}
-      {view === VIEWS.RESULTS && (
+      {view === VIEWS.RESULTS && results && (
         results?.isEmergencyCard ? (
           <EmergencyCardResultView results={results} onReset={reset} t={t} />
         ) : results?.isPrescription ? (
