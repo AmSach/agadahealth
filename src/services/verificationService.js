@@ -66,7 +66,7 @@ export async function checkRecallStatus(batchNumber) {
 
   return {
     recalled: verified,
-    message: verified ? "⚠️ ALERT: Batch is matched in CDSCO recalled list!" : "Audit match failed.",
+    message: verified ? "️ ALERT: Batch is matched in CDSCO recalled list!" : "Audit match failed.",
     root: RECALL_MERKLE_ROOT,
     proofPath: proof
   };

@@ -176,8 +176,8 @@ export async function scanMedicine(imageBase64, mimeType = 'image/jpeg', barcode
       confidence:      img.confidence || 90,
       saltSource:      'AI_VISION',
       cannotRead:      true,
-      cannotReadReason: '⚠️ DANGER: This appears to be a hazardous chemical - NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
-      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance - not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '⚠️ HAZARDOUS SUBSTANCE - NOT FOR CONSUMPTION' },
+      cannotReadReason: '️ DANGER: This appears to be a hazardous chemical - NOT a medicine. Do NOT consume or ingest this product. Keep away from children. In case of accidental ingestion, call Poison Control: 1800-116-117 (India, free).',
+      authenticity:    { status: 'CANNOT_DETERMINE', reason: 'Hazardous substance - not a medicine.', genuineSignalsFound: [], fakeSignalsFound: [], cdscoBadge: null, warning: '️ HAZARDOUS SUBSTANCE - NOT FOR CONSUMPTION' },
       medicineInfo:    null,
       alternatives:    { hasGenerics: false, topAlternatives: [], pharmacyLinks: [] },
       dataSource:      { salt: 'N/A', alts: 'N/A', cdsco: 'N/A', cdscoFound: false },
@@ -372,7 +372,7 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
     reason: `Medicine appears expired (${img.expiryDate}).`,
     genuineSignalsFound: genuine, fakeSignalsFound: [...fake, 'Expired'],
     cdscoBadge: cdsco.badge || null, cdscoIndication: cdsco.indication || null,
-    warning: '⚠ Expired. Do not consume.',
+    warning: ' Expired. Do not consume.',
   }
 
   const score = genuine.length * 18 - fake.length * 25 + (cdsco.found ? 20 : 0) + (barcode ? 15 : 0) + (qrSalt ? 20 : 0)
@@ -390,7 +390,7 @@ function buildAuthenticity(img, cdsco, isExpired, barcode, qrSalt) {
     genuineSignalsFound: genuine,
     fakeSignalsFound:    fake,
     cdscoBadge:      cdsco.badge || (
-      img.productType === 'AYURVEDIC'  ? '🌿 Regulated by AYUSH, not CDSCO.' :
+      img.productType === 'AYURVEDIC'  ? ' Regulated by AYUSH, not CDSCO.' :
       img.productType === 'SUPPLEMENT' ? 'Dietary supplement - not CDSCO scheduled.' :
       'Salt not found in CDSCO registry.'
     ),

@@ -21,15 +21,15 @@ export default function HamMenu({ open, onClose, lang, setLang, t, onScan, onHea
     }}>
       <div style={{ padding: '8px 0 4px' }}>
 
-        <MenuItem icon="📷" label={t.menuScan || 'Scan Medicine'} sub={t.menuScanSub || 'Verify and compare any strip'} onClick={() => { onScan(); onClose() }} pill={t.active || 'Active'} />
+        <MenuItem icon="" label={t.menuScan || 'Scan Medicine'} sub={t.menuScanSub || 'Verify and compare any strip'} onClick={() => { onScan(); onClose() }} pill={t.active || 'Active'} />
 
-        <MenuItem icon="💊" label={t.menuCabinet || 'Cabinet & Stock'} sub={t.menuCabinetSub || 'Manage inventory and pill counts'} onClick={() => { if (onCabinet) onCabinet(); onClose() }} />
+        <MenuItem icon="" label={t.menuCabinet || 'Cabinet & Stock'} sub={t.menuCabinetSub || 'Manage inventory and pill counts'} onClick={() => { if (onCabinet) onCabinet(); onClose() }} />
 
-        <MenuItem icon="📅" label={t.menuReminders || 'Alarms & Adherence'} sub={t.menuRemindersSub || 'Set reminders and log pill intake'} onClick={() => { if (onReminders) onReminders(); onClose() }} />
+        <MenuItem icon="" label={t.menuReminders || 'Alarms & Adherence'} sub={t.menuRemindersSub || 'Set reminders and log pill intake'} onClick={() => { if (onReminders) onReminders(); onClose() }} />
 
-        <MenuItem icon="📋" label={t.menuHealthCard || 'Emergency Health Card'} sub={t.menuHealthCardSub || 'Offline scannable medical profile & QR'} onClick={() => { if (onHealthCard) onHealthCard(); onClose() }} />
+        <MenuItem icon="" label={t.menuHealthCard || 'Emergency Health Card'} sub={t.menuHealthCardSub || 'Offline scannable medical profile & QR'} onClick={() => { if (onHealthCard) onHealthCard(); onClose() }} />
 
-        <MenuItem icon="⚠️" label={t.menuSymptoms || 'Symptoms & Side Effects'} sub={t.menuSymptomsSub || 'Log side effects and check drug overlaps'} onClick={() => { if (onSymptoms) onSymptoms(); onClose() }} />
+        <MenuItem icon="️" label={t.menuSymptoms || 'Symptoms & Side Effects'} sub={t.menuSymptomsSub || 'Log side effects and check drug overlaps'} onClick={() => { if (onSymptoms) onSymptoms(); onClose() }} />
 
         <MenuItem icon="🌐" label={t.language || 'Language'} sub={LANGUAGES.find(l => l.code === lang)?.native || 'English'} onClick={() => setShowLang(s => !s)} />
         {showLang && (
@@ -49,7 +49,7 @@ export default function HamMenu({ open, onClose, lang, setLang, t, onScan, onHea
         <MenuItem icon="🏛" label={t.menuGov || 'Government sources'} sub="CDSCO · NPPA · Jan Aushadhi"
           onClick={() => window.open('https://cdsco.gov.in', '_blank')} />
 
-        <MenuItem icon="ℹ️" label={t.menuAbout || 'About Agada'} sub="India Innovates 2026 · Open Innovation"
+        <MenuItem icon="" label={t.menuAbout || 'About Agada'} sub="India Innovates 2026 · Open Innovation"
           onClick={() => window.open('https://agadahealth.vercel.app', '_blank')} />
 
         <div style={{ margin: '6px 18px 0', paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 12, paddingBottom: 12, flexWrap: 'wrap' }}>

@@ -727,7 +727,7 @@ export default function Scanner() {
     if (activeProfile && activeProfile.cabinet && activeProfile.cabinet.length > 0) {
       const times = activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }
       startReminderLoop(activeProfile.cabinet, times, (item, slot) => {
-        alert(`⏰ Reminder: It is time to take your ${item.brandName} (${slot} dose).`)
+        alert(` Reminder: It is time to take your ${item.brandName} (${slot} dose).`)
       })
     }
     return () => {
@@ -1023,7 +1023,7 @@ export default function Scanner() {
         const cdscoRes = bestCdscoMatch 
           ? {
               found: true,
-              badge: `✓ ${saltName} is CDSCO-approved`,
+              badge: ` ${saltName} is CDSCO-approved`,
               indication: bestCdscoMatch.row['Indication'] || null,
               approvalDate: bestCdscoMatch.row['Approval Date'] || null,
             }
@@ -1352,7 +1352,7 @@ function base64ToBlob(base64, mime = 'image/jpeg') {
       />
 
       <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', padding: '7px 16px', textAlign: 'center' }}>
-        <span style={{ fontSize: 11.5, color: '#92400E' }}>🚧 <strong>Beta</strong>  -  {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
+        <span style={{ fontSize: 11.5, color: '#92400E' }}>Beta: <strong>Beta</strong>  -  {t.betaBanner || 'AI results may not be 100% accurate. Verify with your pharmacist.'}</span>
       </div>
 
       {view === VIEWS.HOME    && (
@@ -1539,7 +1539,7 @@ function EmergencyCardResultView({ results, onReset, t }) {
         textAlign: 'center',
         boxShadow: 'var(--shadowmd)'
       }}>
-        <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚨</div>
+        <div style={{ fontSize: '24px', marginBottom: '8px' }}></div>
         <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '0.05em', margin: 0 }}>EMERGENCY MEDICAL ID</h2>
         <p style={{ fontSize: '11px', opacity: 0.85, margin: '4px 0 0' }}>DECODED OFFLINE VIA AGADA SECURE SCANNER</p>
       </div>
@@ -1636,7 +1636,7 @@ function EmergencyCardResultView({ results, onReset, t }) {
             boxShadow: 'var(--shadow)'
           }}
         >
-          🏥 Return to Scanner
+           Return to Scanner
         </button>
       </div>
     </div>
@@ -1795,19 +1795,19 @@ function HomeView({
         <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 36, animation: 'fadeUp 0.8s ease 0.1s both' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--greenlt)', borderRadius: 28, transform: 'rotate(-6deg)', opacity: 0.6 }} />
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', transform: 'rotate(4deg)' }}>
-            <span style={{ fontSize: 56 }}>💊</span>
+            <span style={{ fontSize: 56 }}></span>
           </div>
-          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}>✓ Verified</div>
+          <div style={{ position: 'absolute', top: '15%', left: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--green)', boxShadow: 'var(--shadow)', transform: 'rotate(-10deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.5s both' }}> Verified</div>
           <div style={{ position: 'absolute', bottom: '15%', right: '-15%', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', fontSize: 12, fontWeight: 700, color: 'var(--textlt)', boxShadow: 'var(--shadow)', transform: 'rotate(8deg)', animation: 'popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.65s both' }}>₹140 Save</div>
         </div>
 
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp 0.4s ease 0.3s both' }}>
           <button onClick={() => onCamera('medicine')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--green), #0D9488)', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(15,122,90,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📷</span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[📷\s]+/, '') : 'Scan Medicine Strip'}
+            <span style={{ fontSize: 22 }}></span> {t.scanMedicineBtn ? t.scanMedicineBtn.replace(/^[\s]+/, '') : 'Scan Medicine Strip'}
           </button>
           
           <button onClick={() => onCamera('prescription')} style={{ width: '100%', height: 60, background: 'linear-gradient(135deg, var(--navy), var(--navylt))', borderRadius: 16, color: '#fff', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 8px 16px rgba(26,43,74,0.25)', border: 'none', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <span style={{ fontSize: 22 }}>📝</span> {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[📝\s]+/, '') : 'Scan Prescription'}
+            <span style={{ fontSize: 22 }}></span> {t.scanPrescriptionBtn ? t.scanPrescriptionBtn.replace(/^[\s]+/, '') : 'Scan Prescription'}
           </button>
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -1834,7 +1834,7 @@ function HomeView({
       }}>
         <div className="washi-tape">SEARCH DATABASE</div>
         <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔍 Search by medicine name or salt
+           Search by medicine name or salt
         </h3>
         <p style={{ fontSize: 11, color: 'var(--textlt)', margin: '0 0 12px 0' }}>
           Search brand or salt name. Matches database records offline using Double Metaphone + BM25 indexing.
@@ -1884,7 +1884,7 @@ function HomeView({
             </button>
           </div>
           <div style={{ fontSize: 10, color: 'var(--textlt)', marginTop: 6, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>🔒</span> {searchStatus}
+            <span>[Locked]</span> {searchStatus}
           </div>
         </div>
 
@@ -1974,10 +1974,10 @@ function HomeView({
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, animation: 'fadeUp 0.5s ease 0.4s both' }}>
         {[
-          ['🛡️', 'CDSCO DB', '3,300+ tracked'],
-          ['💊', 'Jan Aushadhi', 'Live mapping'],
-          ['🤖', 'AI Assistant', 'Instant insights'],
-          ['🔒', 'Secure', 'Private scans']
+          ['', 'CDSCO DB', '3,300+ tracked'],
+          ['', 'Jan Aushadhi', 'Live mapping'],
+          ['', 'AI Assistant', 'Instant insights'],
+          ['[Locked]', 'Secure', 'Private scans']
         ].map(([icon, title, sub]) => (
           <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid var(--bgsoft)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--bgsoft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
@@ -1999,7 +1999,7 @@ function HomeView({
         boxShadow: 'var(--shadow)'
       }}>
         <h3 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          ⚙️ Settings & Device Security
+          ️ Settings & Device Security
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
@@ -2029,7 +2029,7 @@ function HomeView({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={useAsyncQueue} onChange={e => setUseAsyncQueue(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--green)' }} />
-              ⚡ Fast Analysis Mode
+               Fast Analysis Mode
             </label>
             <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--safflt)', color: 'var(--saffron)' }}>ASYNC STREAM</span>
           </div>
@@ -2054,7 +2054,7 @@ function HomeView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔒 Private Local Lock (PIN)
+              [Locked] Private Local Lock (PIN)
             </span>
             <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: vaultPin ? 'var(--greenlt)' : 'var(--bgsoft)', color: vaultPin ? 'var(--green)' : 'var(--textlt)' }}>
               {vaultPin ? 'SECURED (AES-256)' : 'UNLOCKED (PLAIN)'}
@@ -2072,10 +2072,10 @@ function HomeView({
             ) : (
               <>
                 <button onClick={() => { setIsVaultLocked(true); setBookmarks([]) }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--bgsoft)', color: 'var(--navy)', fontWeight: 700 }}>
-                  🔒 Lock History Now
+                  [Locked] Lock History Now
                 </button>
                 <button onClick={handleDisableEncryption} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, background: 'var(--redlt)', color: 'var(--red)', fontWeight: 700 }}>
-                  🔓 Remove PIN Lock
+                  [Unlocked] Remove PIN Lock
                 </button>
               </>
             )}
@@ -2169,14 +2169,14 @@ function HomeView({
               `}</style>
 
               <div style={{ fontSize: 11.5, color: 'var(--greendk)', lineHeight: 1.5, background: 'var(--greenlt)', padding: 12, borderRadius: 8, fontWeight: 600 }}>
-                🛡️ <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
+                 <strong>Agada runs 100% on your device:</strong> We never upload your search history, medical details, or medicine photos to any server. Your health stays private.
               </div>
 
               <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
                 {[
                   { id: 'diary', label: '📓 Local Diary', sub: 'Data Location' },
                   { id: 'vault', label: '🔑 Secret Vault', sub: 'PIN Encryption' },
-                  { id: 'camera', label: '🔍 Magnifying Glass', sub: 'On-Device Vision' }
+                  { id: 'camera', label: ' Magnifying Glass', sub: 'On-Device Vision' }
                 ].map(tab => {
                   const active = schoolTab === tab.id
                   return (
@@ -2215,7 +2215,7 @@ function HomeView({
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Note: THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
                           Most health apps upload your scanned prescriptions, searches, and symptom history to remote cloud servers. If that database gets hacked or sold, some data broker now knows about your weird rash. No thanks.
                         </div>
@@ -2273,7 +2273,7 @@ function HomeView({
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Note: THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
                           If a nosy roommate, family member, or friend gets their hands on your unlocked phone, they can open this page and browse your entire pill stash and chronic symptoms. Awkward.
                         </div>
@@ -2298,7 +2298,7 @@ function HomeView({
 
                       <div style={{ marginTop: 4, padding: '8px 10px', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, color: vaultPin ? 'var(--green)' : 'var(--orange)' }}>
-                          {vaultPin ? '🔒 VAULT ACTIVE:' : '🔓 UNSECURED:'}
+                          {vaultPin ? '[Locked] VAULT ACTIVE:' : '[Unlocked] UNSECURED:'}
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--navy)', fontWeight: 600 }}>
                           {vaultPin ? 'Your history is encrypted on-device with AES-256.' : 'No PIN lock is set. History is stored in plain text.'}
@@ -2344,14 +2344,14 @@ function HomeView({
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>⚠️ THE RISK / THE DANGER</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Note: THE RISK / THE DANGER</div>
                         <div style={{ fontSize: '12px', color: 'var(--navy)', fontWeight: 600, marginTop: 2, lineHeight: 1.4 }}>
                           Most documents scanner apps ship your raw camera snapshots to cloud server farms for image cleanup, which exposes your active camera stream to remote servers. Creepy.
                         </div>
                       </div>
                       
                       <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>🔍 THE METAPHOR (HOW IT WORKS)</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--green)', letterSpacing: '0.04em', textTransform: 'uppercase' }}> THE METAPHOR (HOW IT WORKS)</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--navy)', fontWeight: 800, marginTop: 2 }}>The Built-in Magnifying Glass</div>
                         <p style={{ fontSize: '11.5px', color: 'var(--textmd)', marginTop: 4, marginBottom: 0, lineHeight: 1.55 }}>
                           Instead of uploading frames, we load a virtual magnifying glass directly inside your browser tab. the WebAssembly module is compiled from about 200 lines of Rust to crop, binarize, and sharpen blurry medicine labels offline. i wanted it to be as lightweight as possible. the source code is open.
@@ -2418,7 +2418,7 @@ function HomeView({
           boxShadow: 'var(--shadow)',
           animation: 'fadeUp 0.5s ease 0.35s both'
         }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>[Locked]</div>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>Saved Medicines Vault</h3>
           <p style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 12 }}>Your local scan history is encrypted. Enter your 4-digit PIN to unlock it.</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
@@ -2427,14 +2427,14 @@ function HomeView({
           </div>
           {pinError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, fontWeight: 600 }}>{pinError}</div>}
           <div style={{ marginTop: 12 }}>
-            <button onClick={handleResetVault} style={{ background: 'transparent', border: 'none', color: 'var(--textlt)', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' }}>⚠️ Reset Corrupted Vault</button>
+            <button onClick={handleResetVault} style={{ background: 'transparent', border: 'none', color: 'var(--textlt)', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' }}>Note: Reset Corrupted Vault</button>
           </div>
         </div>
       ) : (
         bookmarks && bookmarks.length > 0 && (
           <div style={{ marginTop: 24, marginBottom: 12, animation: 'fadeUp 0.5s ease 0.35s both' }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔒 Saved Medicines ({bookmarks.length}) {vaultPin && <span style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 400 }}>(Encrypted)</span>}
+              [Locked] Saved Medicines ({bookmarks.length}) {vaultPin && <span style={{ fontSize: 10.5, color: 'var(--textlt)', fontWeight: 400 }}>(Encrypted)</span>}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
               {bookmarks.map((b, idx) => {
@@ -2484,7 +2484,7 @@ function HomeView({
                         transition: 'all 0.2s'
                       }}
                     >
-                      ✓
+                      
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2512,7 +2512,7 @@ function HomeView({
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--red)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'var(--textlt)'}
                     >
-                      🗑️
+                      
                     </button>
                   </div>
                 );
@@ -2549,11 +2549,11 @@ function HomeView({
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setShowAddProfile(o => !o)} style={{ fontSize: 12, fontWeight: 700, padding: '4px 8px', background: 'rgba(255,255,255,0.15)', borderRadius: 6, color: '#fff' }}>
-                {showAddProfile ? 'Cancel' : '➕ User'}
+                {showAddProfile ? 'Cancel' : ' User'}
               </button>
               {profiles.length > 1 && (
                 <button onClick={() => { if(confirm(`Delete profile for ${activeProfile.name}?`)) handleDeleteProfile(activeProfileId) }} style={{ fontSize: 12, fontWeight: 700, padding: '4px 8px', background: 'var(--red)', borderRadius: 6, color: '#fff' }}>
-                  🗑️
+                  
                 </button>
               )}
             </div>
@@ -2573,10 +2573,10 @@ function HomeView({
           )}
 
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}>💊 Cabinet</button>
-            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}>⏰ Daily Schedule</button>
-            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}>📋 Medical ID</button>
-            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>⚠️ Track Symptoms</button>
+            <button className={`btn-tab ${activeTab === 'cabinet' ? 'active' : ''}`} onClick={() => setActiveTab('cabinet')}> Cabinet</button>
+            <button className={`btn-tab ${activeTab === 'reminders' ? 'active' : ''}`} onClick={() => setActiveTab('reminders')}> Daily Schedule</button>
+            <button className={`btn-tab ${activeTab === 'healthcard' ? 'active' : ''}`} onClick={() => setActiveTab('healthcard')}> Medical ID</button>
+            <button className={`btn-tab ${activeTab === 'symptoms' ? 'active' : ''}`} onClick={() => setActiveTab('symptoms')}>Note: Track Symptoms</button>
           </div>
 
           {activeTab === 'cabinet' && (
@@ -2665,7 +2665,7 @@ function HomeView({
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                 <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  💊 {t.cabinetTitle || 'My Medicine Cabinet'}
+                   {t.cabinetTitle || 'My Medicine Cabinet'}
                 </h4>
                 
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2673,13 +2673,13 @@ function HomeView({
                     onClick={() => setShowCabinet3D(!showCabinet3D)}
                     style={{ fontSize: 11.5, fontWeight: 700, padding: '6px 12px', background: showCabinet3D ? 'var(--navy)' : 'var(--bgsoft)', color: showCabinet3D ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    {showCabinet3D ? '📋 Switch to List View' : '🖥️ Switch to 3D Shelves'}
+                    {showCabinet3D ? ' Switch to List View' : '🖥️ Switch to 3D Shelves'}
                   </button>
                   <button 
                     onClick={() => setShowManualAddModal(true)}
                     style={{ fontSize: 11.5, fontWeight: 700, padding: '6px 12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', boxShadow: '0 4px 10px rgba(13,138,104,0.15)' }}
                   >
-                    ➕ Add Custom Medicine
+                     Add Custom Medicine
                   </button>
                 </div>
               </div>
@@ -2690,7 +2690,7 @@ function HomeView({
                     type="text"
                     value={cabinetAddQuery}
                     onChange={(e) => handleCabinetAddSearch(e.target.value)}
-                    placeholder="🔍 Search CDSCO/Jan Aushadhi database to add immediately..."
+                    placeholder=" Search CDSCO/Jan Aushadhi database to add immediately..."
                     style={{ flex: 1, height: 42, padding: '0 12px', borderRadius: 10, border: '1.5px solid var(--bordermd)', fontSize: 13, color: 'var(--navy)', background: '#fff', outline: 'none' }}
                   />
                   {cabinetAddQuery && (
@@ -2731,7 +2731,7 @@ function HomeView({
                                   onClick={() => handleQuickAdd(res.row['Drug Name'], res.row['Drug Name'])} 
                                   style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
                                 >
-                                  ➕ Add
+                                   Add
                                 </button>
                               </div>
                             ))}
@@ -2753,7 +2753,7 @@ function HomeView({
                                   onClick={() => handleQuickAdd(res.row['Generic Name'], res.row['Generic Name'])} 
                                   style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
                                 >
-                                  ➕ Add
+                                   Add
                                 </button>
                               </div>
                             ))}
@@ -2772,13 +2772,13 @@ function HomeView({
                       <div className="cabinet-shelf-3d">
                         <div className="cabinet-shelf-ledge"></div>
                         <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
-                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                          <span style={{ fontSize: 24, color: '#10b981' }}></span>
                         </div>
                         <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
-                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                          <span style={{ fontSize: 24, color: '#10b981' }}></span>
                         </div>
                         <div className="slot-empty-dotted" onClick={() => setShowManualAddModal(true)}>
-                          <span style={{ fontSize: 24, color: '#10b981' }}>➕</span>
+                          <span style={{ fontSize: 24, color: '#10b981' }}></span>
                         </div>
                       </div>
                     </div>
@@ -2849,10 +2849,10 @@ function HomeView({
                                       
                                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
                                         <span style={{ fontSize: '11px' }}>
-                                          {isAyurvedic || isSupplement ? '🌿' : isAntibiotic ? '🧬' : isPainKiller ? '⚡' : '💊'}
+                                          {isAyurvedic || isSupplement ? '' : isAntibiotic ? '' : isPainKiller ? '' : ''}
                                         </span>
                                         <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                          {isLowStock && <span style={{ fontSize: '9px' }}>⚠️</span>}
+                                          {isLowStock && <span style={{ fontSize: '9px' }}>Note:</span>}
                                           {isExpired && <span style={{ fontSize: '7px', background: 'var(--red)', color: '#fff', padding: '1px 3px', borderRadius: 3, fontWeight: 800 }}>EXP</span>}
                                         </div>
                                       </div>
@@ -2950,11 +2950,11 @@ function HomeView({
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: 11.5, color: 'var(--textmd)', fontWeight: 700 }}>
-                                    📦 Stock Level: {item.pillCount || 0} / {maxPills} pills
+                                     Stock Level: {item.pillCount || 0} / {maxPills} pills
                                   </span>
                                   {isLowStock && (
                                     <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 800, animation: 'pulse 1.5s infinite' }}>
-                                      ⚠️ Low Stock
+                                      Note: Low Stock
                                     </span>
                                   )}
                                 </div>
@@ -3034,7 +3034,7 @@ function HomeView({
                         {activeInteractions.length > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'left' }}>
-                              ⚠️ Dangerous Combinations Found:
+                              Note: Dangerous Combinations Found:
                             </div>
                             {activeInteractions.map((col, idx) => (
                               <div key={idx} style={{ 
@@ -3060,7 +3060,7 @@ function HomeView({
                         {activeDuplications.length > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--saffron)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'left' }}>
-                              ⚠️ Double Dosing Warning:
+                              Note: Double Dosing Warning:
                             </div>
                             {activeDuplications.map((dup, idx) => (
                               <div key={idx} style={{ 
@@ -3093,7 +3093,7 @@ function HomeView({
                             textAlign: 'center',
                             boxShadow: 'var(--shadow)'
                           }}>
-                            ✅ Safe: No drug clashes or overlaps found in your cabinet.
+                            [Verified] Safe: No drug clashes or overlaps found in your cabinet.
                           </div>
                         )}
                         <InteractionGraphVisualizer cabinet={cabinet} />
@@ -3193,7 +3193,7 @@ function HomeView({
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
                           <div style={{ textAlign: 'left' }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}>🔬 SMART CABINET HUB</span>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--green)', background: 'var(--greenlt)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.04em' }}> SMART CABINET HUB</span>
                             <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', margin: '4px 0 2px' }}>{selectedMed.brandName}</h3>
                             <div style={{ fontSize: 12.5, color: 'var(--textmd)', fontWeight: 600 }}>{selectedMed.saltComposition}</div>
                           </div>
@@ -3213,16 +3213,16 @@ function HomeView({
                         </div>
 
                         <div style={{ background: 'var(--bgsoft)', borderRadius: 14, padding: 14, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}>📦 Batch & Expiry Tracker</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)', textAlign: 'left' }}> Batch & Expiry Tracker</span>
                           
                           {isExpired && (
                             <div style={{ padding: '8px 10px', background: 'var(--redlt)', border: '1px solid #FCA5A5', color: 'var(--red)', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ❌ EXPIRED! Please dispose of this medication safely. Do not consume.
+                              Error: EXPIRED! Please dispose of this medication safely. Do not consume.
                             </div>
                           )}
                           {isExpiringSoon && (
                             <div style={{ padding: '8px 10px', background: 'var(--safflt)', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, fontSize: 11.5, fontWeight: 700, textAlign: 'left' }}>
-                              ⚠️ EXPIRING SOON: This medicine expires in less than 30 days!
+                              Note: EXPIRING SOON: This medicine expires in less than 30 days!
                             </div>
                           )}
 
@@ -3261,11 +3261,11 @@ function HomeView({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '12px 14px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ textAlign: 'left' }}>
-                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}>🎯 Medication Adherence Rate</div>
+                              <div style={{ fontSize: 12, color: '#1e40af', fontWeight: 800 }}> Medication Adherence Rate</div>
                               <div style={{ fontSize: 18, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>{compliancePct}% compliance</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 800 }}>📦 Stock Level</div>
+                              <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 800 }}> Stock Level</div>
                               <div id="cabinet-stock-level" style={{ fontSize: 16, color: '#1e3a8a', fontWeight: 900, marginTop: 2 }}>Stock Level: {selectedMed.pillCount || 0} / 30 pills</div>
                             </div>
                           </div>
@@ -3330,7 +3330,7 @@ function HomeView({
                               boxShadow: '0 4px 10px rgba(37,99,235,0.2)'
                             }}
                           >
-                            ✔️ Log Dose Taken
+                             Log Dose Taken
                           </button>
                         </div>
 
@@ -3345,7 +3345,7 @@ function HomeView({
                           {!safetyResult.safe ? (
                             <div className="danger-overdose-banner" style={{ background: '#fef2f2', border: '2px solid #ef4444', borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                <span style={{ fontSize: 16 }}>⚠️</span>
+                                <span style={{ fontSize: 16 }}>Note:</span>
                                 <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>DANGEROUS OVERDOSE WARNING</span>
                               </div>
                               <p style={{ fontSize: 12.5, color: '#b91c1c', margin: 0, lineHeight: 1.4, fontWeight: 600, textAlign: 'left' }}>
@@ -3354,7 +3354,7 @@ function HomeView({
                             </div>
                           ) : (
                             <div style={{ background: 'var(--greenlt)', border: '1px solid #a7d9ca', borderRadius: 14, padding: '10px 12px', fontSize: 12, color: 'var(--greendk)', fontWeight: 700, textAlign: 'left' }}>
-                              ✅ {safetyResult.reason}
+                              [Verified] {safetyResult.reason}
                             </div>
                           )}
                         </div>
@@ -3453,7 +3453,7 @@ function HomeView({
                             </div>
 
                             <div style={{ background: '#f8fafc', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 12px', textAlign: 'left' }}>
-                              <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>📈 Scientific Dosing Parameters:</div>
+                              <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}> Scientific Dosing Parameters:</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', fontSize: 11, color: 'var(--textmd)' }}>
                                 <div>• <strong>Half-life:</strong> {pkParams.halfLifeElimination} hrs (Ke: {(Math.log(2)/pkParams.halfLifeElimination).toFixed(2)})</div>
                                 <div>• <strong>Volume of Distr. (Vd):</strong> {pkParams.vd} L/kg</div>
@@ -3472,7 +3472,7 @@ function HomeView({
                           </div>
 
                           {isCabinetSearching ? (
-                            <div style={{ fontSize: 12, color: 'var(--textlt)', fontStyle: 'italic', padding: '6px 0', textAlign: 'left' }}>🔍 Searching local CDSCO & BPPI databases...</div>
+                            <div style={{ fontSize: 12, color: 'var(--textlt)', fontStyle: 'italic', padding: '6px 0', textAlign: 'left' }}> Searching local CDSCO & BPPI databases...</div>
                           ) : cabinetSearchResults && cabinetSearchResults.ja && cabinetSearchResults.ja.length > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {cabinetSearchResults.ja.slice(0, 2).map((jaMed, jIdx) => {
@@ -3488,14 +3488,14 @@ function HomeView({
                                       rel="noopener noreferrer" 
                                       style={{ fontSize: 11, fontWeight: 800, background: 'var(--green)', color: '#fff', textDecoration: 'none', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}
                                     >
-                                      📍 Store
+                                       Store
                                     </a>
                                   </div>
                                 );
                               })}
                               
                               <div style={{ fontSize: 11, color: 'var(--textmd)', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 10px', lineHeight: 1.4, textAlign: 'left' }}>
-                                💡 Tip: You can legally substitute {selectedMed.brandName} with these government-approved generics. Find nearest Kendra store link above.
+                                 Tip: You can legally substitute {selectedMed.brandName} with these government-approved generics. Find nearest Kendra store link above.
                               </div>
                             </div>
                           ) : (
@@ -3549,7 +3549,7 @@ function HomeView({
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
                   <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', padding: 20, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                      <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>➕ Add Custom Medicine</h4>
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}> Add Custom Medicine</h4>
                       <button onClick={() => setShowManualAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--textlt)' }}>×</button>
                     </div>
                     
@@ -3660,7 +3660,7 @@ function HomeView({
           {activeTab === 'reminders' && (
             <div>
               
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>⏰ Set Daily Pill Times</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}> Set Daily Pill Times</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 {Object.entries(activeProfile.reminderTimes || { Morning: '08:00', Afternoon: '13:00', Evening: '18:00', Bedtime: '22:00' }).map(([slot, time]) => {
                   let slotLabel = slot;
@@ -3712,7 +3712,7 @@ function HomeView({
                 boxShadow: 'var(--shadow)',
                 boxSizing: 'border-box'
               }}>
-                <h5 style={{ fontSize: 13, fontWeight: 800, color: 'var(--charcoal)', margin: '0 0 12px 0', fontFamily: 'var(--font-mono)' }}>📈 ADHERENCE HEATMAP (LAST 30 DAYS)</h5>
+                <h5 style={{ fontSize: 13, fontWeight: 800, color: 'var(--charcoal)', margin: '0 0 12px 0', fontFamily: 'var(--font-mono)' }}> ADHERENCE HEATMAP (LAST 30 DAYS)</h5>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6, justifyContent: 'center', marginBottom: 12 }}>
                   {Array.from({ length: 30 }).map((_, i) => {
                     const d = new Date();
@@ -3757,7 +3757,7 @@ function HomeView({
                 </div>
               </div>
 
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>✅ Check Off Taken Pills</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>[Verified] Check Off Taken Pills</h4>
               {(() => {
                 const dateStr = new Date().toDateString();
                 const ad = activeProfile.adherence || {};
@@ -3824,7 +3824,7 @@ function HomeView({
                             }}
                           >
                             <span style={{ fontSize: 16 }}>{slotIcon}</span>
-                            <span>{isChecked ? '✓' : ''} {slot}</span>
+                            <span>{isChecked ? '' : ''} {slot}</span>
                           </button>
                         );
                       })}
@@ -3836,7 +3836,7 @@ function HomeView({
               {activeSchedule && activeSchedule.schedule && (
                 <div style={{ borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    📅 Your Pill Schedule for Today:
+                     Your Pill Schedule for Today:
                   </div>
                   
                   {activeSchedule.notes && activeSchedule.notes.map((note, nidx) => (
@@ -3852,7 +3852,7 @@ function HomeView({
                       lineHeight: 1.5,
                       boxShadow: 'var(--shadow)'
                     }}>
-                      💡 {note.message}
+                       {note.message}
                     </div>
                   ))}
 
@@ -3915,7 +3915,7 @@ function HomeView({
                                     </div>
                                     <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginTop: 2 }}>{med.saltComposition}</div>
                                     <div style={{ fontSize: 12, color: 'var(--textmd)', marginTop: 6, borderTop: '1px dashed var(--border)', paddingTop: 6, fontStyle: 'italic', lineHeight: 1.45 }}>
-                                      💡 {med.rationale}
+                                       {med.rationale}
                                     </div>
                                   </div>
                                 );
@@ -3937,7 +3937,7 @@ function HomeView({
 
           {activeTab === 'symptoms' && (
             <div>
-              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 10 }}>⚠️ Track How You Feel (Side Effects)</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', marginBottom: 10 }}>Note: Track How You Feel (Side Effects)</h4>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <input 
@@ -3972,7 +3972,7 @@ function HomeView({
                     boxShadow: 'var(--shadow)' 
                   }}
                 >
-                  ➕ Add
+                   Add
                 </button>
               </div>
 
@@ -3985,7 +3985,7 @@ function HomeView({
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        🚨 Warnings: A pill you take might be causing this!
+                         Warnings: A pill you take might be causing this!
                       </div>
                       {warnings.map((w, idx) => (
                         <div key={idx} style={{ 
@@ -4004,7 +4004,7 @@ function HomeView({
                         }}>
                           <div>{w.explanation}</div>
                           <div style={{ fontSize: 11.5, color: 'var(--textmd)', fontStyle: 'italic', marginTop: 4, borderTop: '1px dashed rgba(225,29,72,0.15)', paddingTop: 4 }}>
-                            💡 Your medicine with <strong>{w.salt}</strong> can cause <strong>{w.symptom}</strong>. We recommend talking to your doctor or pharmacist.
+                             Your medicine with <strong>{w.salt}</strong> can cause <strong>{w.symptom}</strong>. We recommend talking to your doctor or pharmacist.
                           </div>
                         </div>
                       ))}
@@ -4014,7 +4014,7 @@ function HomeView({
                 return null;
               })()}
 
-              <h5 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>📋 My Logged Symptoms</h5>
+              <h5 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}> My Logged Symptoms</h5>
               {(!activeProfile.symptoms || activeProfile.symptoms.length === 0) ? (
                 <p style={{ fontSize: 12.5, color: 'var(--textlt)', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
                   No symptoms logged. Type how you are feeling above to check if any of your medicines are causing it.
@@ -4036,7 +4036,7 @@ function HomeView({
                         <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{s.text}</span>
                         <span style={{ fontSize: 10.5, color: 'var(--textlt)', marginLeft: 8 }}>({s.date})</span>
                       </div>
-                      <button onClick={() => handleDeleteSymptom(sidx)} style={{ color: 'var(--red)', fontSize: 14, fontWeight: 700, border: 'none', background: 'transparent', cursor: 'pointer' }}>🗑️</button>
+                      <button onClick={() => handleDeleteSymptom(sidx)} style={{ color: 'var(--red)', fontSize: 14, fontWeight: 700, border: 'none', background: 'transparent', cursor: 'pointer' }}></button>
                     </div>
                   ))}
                 </div>
@@ -4124,7 +4124,7 @@ function LoadingView({ t, step, preview, processedPreview, barcodeHit, activeSte
                 color: (isDone || isActive) ? '#fff' : 'var(--textlt)', 
                 fontWeight: 700, 
                 flexShrink: 0
-              }}>{isDone ? '✓' : i+1}</div>
+              }}>{isDone ? '' : i+1}</div>
               
               <span style={{ 
                 fontSize: 13, 
@@ -4154,7 +4154,7 @@ function ErrorView({ error, onReset, t }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
       <div style={{ background: 'var(--redlt)', border: '1.5px solid #FECACA', borderRadius: 16, padding: '24px 20px', textAlign: 'center', width: '100%', maxWidth: 360 }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>Note:</div>
         <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--red)', marginBottom: 8 }}>{t.scanFailed || 'Scan failed'}</div>
         <p style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.6, marginBottom: 20 }}>{error}</p>
         <button onClick={onReset} style={{ background: 'var(--red)', color: '#fff', padding: '12px 28px', borderRadius: 10, fontSize: 14, fontWeight: 600 }}>{t.tryAgain || 'Try Again'}</button>

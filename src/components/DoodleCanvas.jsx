@@ -221,7 +221,7 @@ export default function DoodleCanvas() {
             borderRadius: 4
           }}
         >
-          {active ? '✏️ Draw On' : '✏️ Draw Off'}
+          {active ? ' Draw On' : ' Draw Off'}
         </button>
         {active && (
           <>
@@ -251,7 +251,7 @@ export default function DoodleCanvas() {
                 border: '1px solid #ccc'
               }}
             >
-              🗑️ Clear
+               Clear
             </button>
           </>
         )}

@@ -362,7 +362,7 @@ export default function ARScanner({ onCapture, onCancel, t }) {
   if (error) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--navy)', color: '#fff', padding: 24, textAlign: 'center' }}>
-        <span style={{ fontSize: 40, marginBottom: 12 }}>📷</span>
+        <span style={{ fontSize: 40, marginBottom: 12 }}></span>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Camera Access Failed</div>
         <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 20 }}>{error}</p>
         <button onClick={onCancel} style={{ background: '#fff', color: 'var(--navy)', padding: '10px 24px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>

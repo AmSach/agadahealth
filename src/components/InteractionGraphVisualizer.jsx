@@ -450,14 +450,14 @@ export default function InteractionGraphVisualizer({ cabinet }) {
       marginTop: 10
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--navy)' }}>🛡️ Clinical Graph Visualizer</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--navy)' }}> Clinical Graph Visualizer</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <span style={{ fontSize: 9.5, fontWeight: 800, background: '#e0f2fe', color: '#0369a1', padding: '1px 8px', borderRadius: 10 }}>
             {graphStats.nodesCount} Nodes
           </span>
           {graphStats.clashesCount > 0 && (
             <span style={{ fontSize: 9.5, fontWeight: 800, background: '#fef2f2', color: '#b91c1c', padding: '1px 8px', borderRadius: 10, animation: 'pulse 1.5s infinite' }}>
-              ⚠️ {graphStats.clashesCount} Clashes
+              ️ {graphStats.clashesCount} Clashes
             </span>
           )}
         </div>

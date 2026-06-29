@@ -314,7 +314,7 @@ export function orchestrateMedicationSchedule(cabinetItems) {
   if (hasAspirin && hasIbuprofen) {
     notes.push({
       type: 'spacing',
-      message: '⏰ Spaced-Dosing Alert: Aspirin and Ibuprofen are in your cabinet. Ibuprofen has been automatically scheduled to Bedtime to prevent it from blocking Aspirin’s cardiovascular antiplatelet effects.'
+      message: ' Spaced-Dosing Alert: Aspirin and Ibuprofen are in your cabinet. Ibuprofen has been automatically scheduled to Bedtime to prevent it from blocking Aspirin’s cardiovascular antiplatelet effects.'
     });
 
     processed.forEach(item => {
@@ -377,7 +377,7 @@ export function flagPotentialSideEffects(activeSalts, loggedSymptoms) {
         flags.push({
           salt: saltNode.name,
           symptom: sideEffectNode.name,
-          explanation: `⚠️ Potential Side Effect: Your symptom '${symptom}' matches a known side effect of ${saltNode.name} (${sideEffectNode.description}).`,
+          explanation: `️ Potential Side Effect: Your symptom '${symptom}' matches a known side effect of ${saltNode.name} (${sideEffectNode.description}).`,
         });
       }
     }

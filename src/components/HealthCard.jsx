@@ -88,7 +88,7 @@ Zero-Knowledge Offline Medical Pass`;
   return (
     <div className="health-card-container">
       <div className="health-card-header">
-        <h3>📋 Digital Emergency Health Card</h3>
+        <h3> Digital Emergency Health Card</h3>
         <p className="card-subtitle">offline card designed to be scanned on the first try by older, dust-covered barcode scanners in government hospitals. i stored this whole card in your local browser storage. no databases, no server logs, absolutely zero cloud tracking.</p>
       </div>
 
@@ -160,7 +160,7 @@ Zero-Knowledge Offline Medical Pass`;
                   ) : (
                     <div style={{ fontSize: '10px', color: '#94a3b8' }}>Generating QR...</div>
                   )}
-                  <span className="wallet-qr-caption">🔍 Tap to expand</span>
+                  <span className="wallet-qr-caption"> Tap to expand</span>
                 </div>
               </div>
 
@@ -179,14 +179,14 @@ Zero-Knowledge Offline Medical Pass`;
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
               <button className="btn-secondary" onClick={() => setIsEditing(true)}>
-                ✏️ Edit Emergency Card
+                 Edit Emergency Card
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="health-card-form glass-card">
             <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--navy)', marginBottom: '4px' }}>
-              ✏️ Edit Emergency Profile Card
+               Edit Emergency Profile Card
             </div>
             <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '10px', lineHeight: 1.5 }}>
               i stored this whole card in your local browser storage. no databases, no server logs, absolutely zero cloud tracking. if you lose this device or clear your browser cache, this card is gone forever. so don't do stupid stuff. (when you save this card, it encodes it as a high-error-correction offline QR code designed to be ugly so that older, dust-covered barcode scanners in government hospitals can read it instantly).
@@ -226,7 +226,7 @@ Zero-Knowledge Offline Medical Pass`;
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-age">📅 Age (years)</label>
+                <label htmlFor="card-age"> Age (years)</label>
                 <input
                   id="card-age"
                   type="number"
@@ -280,7 +280,7 @@ Zero-Knowledge Offline Medical Pass`;
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-allergies">⚠️ Allergies (medications or foods)</label>
+                <label htmlFor="card-allergies">️ Allergies (medications or foods)</label>
                 <input
                   id="card-allergies"
                   type="text"
@@ -292,7 +292,7 @@ Zero-Knowledge Offline Medical Pass`;
               </div>
 
               <div className="form-group">
-                <label htmlFor="card-chronic">🩺 Chronic Conditions</label>
+                <label htmlFor="card-chronic"> Chronic Conditions</label>
                 <input
                   id="card-chronic"
                   type="text"
@@ -340,7 +340,7 @@ Zero-Knowledge Offline Medical Pass`;
         <div className="modal-overlay" onClick={() => setShowQrModal(false)}>
           <div className="modal-content qr-large-modal" onClick={e => e.stopPropagation()}>
             <h4 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--navy)', marginBottom: '8px' }}>
-              🚨 Emergency Responder QR Card
+               Emergency Responder QR Card
             </h4>
             <p style={{ fontSize: '12px', color: 'var(--textlt)', marginBottom: '16px' }}>
               First responders can scan this to read your critical medical profiles offline.
@@ -371,11 +371,11 @@ Zero-Knowledge Offline Medical Pass`;
             </div>
             <div className="qr-card-data-summary" style={{ boxShadow: 'var(--shadow)' }}>
               <p><strong>👤 Name:</strong> {formData.name || 'N/A'}</p>
-              <p><strong>📅 Age / Gender:</strong> {formData.age || '30'} years / {formData.gender || 'male'}</p>
+              <p><strong> Age / Gender:</strong> {formData.age || '30'} years / {formData.gender || 'male'}</p>
               <p><strong>⚖️ Weight / Height:</strong> {formData.weight || '70'} kg / {formData.height || '170'} cm</p>
               <p><strong>🩸 Blood Group:</strong> {formData.bloodGroup || 'N/A'}</p>
-              <p><strong>⚠️ Allergies:</strong> {formData.allergies || 'None logged'}</p>
-              <p><strong>🩺 Conditions:</strong> {formData.chronicConditions || 'None logged'}</p>
+              <p><strong>️ Allergies:</strong> {formData.allergies || 'None logged'}</p>
+              <p><strong> Conditions:</strong> {formData.chronicConditions || 'None logged'}</p>
               <p><strong>📞 Emergency Contact:</strong> {formData.emergencyName} ({formData.emergencyPhone})</p>
             </div>
             <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowQrModal(false)}>Close</button>

@@ -6,12 +6,12 @@ export default function PillPet({ cabinetCount = 0 }) {
   const [isBouncing, setIsBouncing] = useState(false);
 
   const quotes = [
-    "i hunger for cheap jan aushadhi generics! 💊",
+    "i hunger for cheap jan aushadhi generics! ",
     "did you take your pills on time today?",
-    "big pharma hates this one simple trick! ⚡",
-    "molecular formula synthesis online! 🧪",
-    "chemists in india charging 10x? not on my watch! 💥",
-    "click me again and i'll break into an 8-bit dance! 🕺"
+    "big pharma hates this one simple trick! ",
+    "molecular formula synthesis online! ",
+    "chemists in india charging 10x? not on my watch! ",
+    "click me again and i'll break into an 8-bit dance! "
   ];
 
   const handlePetClick = () => {
@@ -24,7 +24,7 @@ export default function PillPet({ cabinetCount = 0 }) {
 
   useEffect(() => {
 
-    setBubble("hey! i'm pilly. point your camera at any med strip! 📷");
+    setBubble("hey! i'm pilly. point your camera at any med strip! ");
   }, []);
 
   return (
@@ -98,7 +98,7 @@ export default function PillPet({ cabinetCount = 0 }) {
           userSelect: 'none'
         }}
       >
-        <span style={{ fontSize: 26 }}>{mood === 'hyped' ? '😎' : '👾'}</span>
+        <span style={{ fontSize: 26 }}>{mood === 'hyped' ? '' : ''}</span>
       </div>
     </div>
   );

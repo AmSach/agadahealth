@@ -176,7 +176,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
 
       <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
-          📷 Scan Another Medicine
+           Scan Another Medicine
         </button>
       </div>
     </div>
@@ -187,7 +187,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
       <LayoutWrapper>
         <div style={{ background: '#fff3f3', border: '2.5px solid #e53935', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: '0 4px 18px rgba(229,57,53,0.15)' }}>
           <span style={{ fontSize: 56 }}>☠️</span>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>⚠️ HAZARDOUS  -  DO NOT CONSUME</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#b71c1c', letterSpacing: 0.3 }}>Note: HAZARDOUS  -  DO NOT CONSUME</div>
           <div style={{ fontSize: 13.5, color: '#c62828', lineHeight: 1.7, maxWidth: 300, fontWeight: 500 }}>
             This appears to be a <strong>dangerous chemical</strong>, not a medicine.
             Do <strong>not</strong> ingest, inhale, or allow contact with skin or eyes.
@@ -198,7 +198,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
             </div>
           )}
           <div style={{ background: '#ffebee', border: '1.5px solid #ef9a9a', borderRadius: 10, padding: '12px 16px', width: '100%', maxWidth: 300 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#b71c1c', marginBottom: 6 }}>🚨 Emergency / Poison Control</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#b71c1c', marginBottom: 6 }}> Emergency / Poison Control</div>
             <div style={{ fontSize: 13, color: '#c62828', fontWeight: 600 }}>India Poison Control: <a href="tel:18001116117" style={{ color: '#b71c1c' }}>1800-116-117</a></div>
             <div style={{ fontSize: 11, color: '#c62828', marginTop: 3 }}>Free · 24×7 · All India</div>
           </div>
@@ -214,7 +214,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
     return (
       <LayoutWrapper>
         <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: 'var(--shadow)' }}>
-          <span style={{ fontSize: 48 }}>🚫</span>
+          <span style={{ fontSize: 48 }}></span>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>Not a medicine</div>
           <div style={{ fontSize: 13.5, color: 'var(--textlt)', lineHeight: 1.6, maxWidth: 280 }}>
             {results.cannotReadReason || 'This does not appear to be a medicine. Agada only works with pharmaceutical products.'}
@@ -235,17 +235,17 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
       <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow)', animation: 'fadeUp 0.3s ease' }}>
         {results?.preview || preview
           ? <img src={results?.preview || preview} alt="" style={{ width: 44, height: 44, borderRadius: 9, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }} />
-          : <div style={{ width: 44, height: 44, borderRadius: 9, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💊</div>
+          : <div style={{ width: 44, height: 44, borderRadius: 9, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}></div>
         }
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{results.brandName || 'Medicine'}</div>
           <div style={{ fontSize: 11, color: 'var(--textlt)', marginTop: 1 }}>{results.saltComposition || results.productType}</div>
           <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-            {results.saltSource === 'QR_BARCODE' && <span style={badge('green')}>✓ QR VERIFIED</span>}
-            {results.dataSource?.cdscoFound && <span style={badge('green')}>✓ CDSCO</span>}
+            {results.saltSource === 'QR_BARCODE' && <span style={badge('green')}> QR VERIFIED</span>}
+            {results.dataSource?.cdscoFound && <span style={badge('green')}> CDSCO</span>}
             <span style={badge('blue')}>BPPI DB</span>
             {results.batchNumber && <span style={badge('gray')}>Batch: {results.batchNumber}</span>}
-            {results.isExpired && <span style={badge('red')}>⚠ EXPIRED</span>}
+            {results.isExpired && <span style={badge('red')}> EXPIRED</span>}
             {translating && <span style={badge('amber')}>Translating...</span>}
           </div>
         </div>
@@ -281,13 +281,13 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
 
       {(results.confidence || 70) < 50 && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.55 }}>
-          ⚠ Low confidence scan  -  the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
+           Low confidence scan  -  the image may be unclear or partially obscured. Results may be inaccurate. Try scanning in better light.
         </div>
       )}
 
       {results.doseUnconfirmed && (
         <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, padding: '10px 13px', fontSize: 12.5, color: '#92400E', lineHeight: 1.6, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>Note:</span>
           <div>
             <strong>Dose not confirmed</strong>  -  the dose ({results.saltComposition}) was not visible on this side of the pack. It may be printed on the back or side label.<br />
             <span style={{ fontWeight: 600 }}>Please check the full label before taking this medicine.</span> Alternatives shown are based on salt name only  -  verify the strength with your pharmacist.
@@ -296,7 +296,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
       )}
 
       <div style={{ display: 'flex', background: 'var(--border)', padding: 4, borderRadius: 12, marginBottom: 4, animation: 'fadeUp 0.3s ease 0.1s both' }}>
-        {[['🛡️', 'Authentic'], ['💡', 'Usage'], ['💸', 'Alternatives']].map(([icon, label], i) => (
+        {[['', 'Authentic'], ['', 'Usage'], ['💸', 'Alternatives']].map(([icon, label], i) => (
           <button key={i} onClick={() => setCard(i)} style={{ flex: 1, padding: '10px 4px', borderRadius: 9, background: card === i ? '#fff' : 'transparent', color: card === i ? 'var(--navy)' : 'var(--textlt)', fontSize: 13, fontWeight: card === i ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.2s', boxShadow: card === i ? '0 2px 8px rgba(0,0,0,0.08)' : 'none', border: 'none' }}>
             <span style={{ fontSize: 18, filter: card === i ? 'none' : 'grayscale(100%)', opacity: card === i ? 1 : 0.6 }}>{icon}</span>{label}
           </button>
@@ -338,7 +338,7 @@ function AuthCard({
   const isFake    = auth.status === 'LIKELY_FAKE'
 
   const statusConfig = isGenuine ? {
-    bg: '#F0FDF4', border: '#86EFAC', iconBg: '#16A34A', icon: '✓', iconColor: '#fff',
+    bg: '#F0FDF4', border: '#86EFAC', iconBg: '#16A34A', icon: '', iconColor: '#fff',
     titleColor: '#15803D', title: 'Verification: Genuine', sub: 'Found in official CDSCO registry',
   } : isFake ? {
     bg: 'var(--redlt)', border: '#FECACA', iconBg: 'var(--red)', icon: '✕', iconColor: '#fff',
@@ -366,7 +366,7 @@ function AuthCard({
             <div style={sectionLabel('green')}>Genuine signals found</div>
             {auth.genuineSignalsFound.map((s, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12.5, color: '#166534', marginBottom: 4, alignItems: 'flex-start' }}>
-                <span style={{ color: '#16A34A', fontWeight: 700, flexShrink: 0 }}>✓</span>{s}
+                <span style={{ color: '#16A34A', fontWeight: 700, flexShrink: 0 }}></span>{s}
               </div>
             ))}
           </div>
@@ -377,7 +377,7 @@ function AuthCard({
             <div style={sectionLabel('red')}>Suspicious signals</div>
             {auth.fakeSignalsFound.map((s, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12.5, color: '#991B1B', marginBottom: 4, alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 700, flexShrink: 0 }}>⚠</span>{s}
+                <span style={{ fontWeight: 700, flexShrink: 0 }}></span>{s}
               </div>
             ))}
           </div>
@@ -417,7 +417,7 @@ function AuthCard({
 
         {results.isExpired && (
           <div style={{ padding: '10px 12px', background: 'var(--redlt)', border: '1px solid #FECACA', borderRadius: 9, fontSize: 12.5, color: '#991B1B', lineHeight: 1.55 }}>
-            ⚠ This medicine appears to be <strong>expired</strong>. Do not consume. Return to your chemist.
+             This medicine appears to be <strong>expired</strong>. Do not consume. Return to your chemist.
           </div>
         )}
 
@@ -439,7 +439,7 @@ function AuthCard({
             gap: 10
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--navy)' }}>
-              🛡️ Batch recall & manufacturer verification
+               Batch recall & manufacturer verification
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -457,7 +457,7 @@ function AuthCard({
                   color: recallStatus.recalled ? '#b71c1c' : '#166534',
                   fontWeight: 600
                 }}>
-                  <span>{recallStatus.recalled ? '🚨 RECALL WARNING: This batch has been recalled!' : '✓ Safe from official safety recalls'}</span>
+                  <span>{recallStatus.recalled ? ' RECALL WARNING: This batch has been recalled!' : ' Safe from official safety recalls'}</span>
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--textlt)' }}>Batch verification not available.</div>
@@ -471,7 +471,7 @@ function AuthCard({
                 color: '#166534',
                 fontWeight: 600
               }}>
-                <span>✓ Verified manufacturer package signature</span>
+                <span> Verified manufacturer package signature</span>
               </div>
             </div>
 
@@ -578,7 +578,7 @@ function AuthCard({
               cursor: 'pointer'
             }}
           >
-            🚨 Sign & Report Counterfeit Strip
+             Sign & Report Counterfeit Strip
           </button>
         ) : (
           <div style={{ 
@@ -593,7 +593,7 @@ function AuthCard({
             gap: 8
           }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#9B1C1C' }}>
-              <span>🚨 Report Logged Successfully</span>
+              <span> Report Logged Successfully</span>
             </div>
             <div style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
               This strip has been reported as suspicious. If you suspect the medicine is counterfeit, please do not consume it. You can return it to your chemist.
@@ -862,19 +862,19 @@ function InfoCard({ info, results, translating, profile }) {
   const currentPoint = pkData.find(d => d.time === scrubTime) || pkData[0] || { time: 0, conc: 0 }
   const currentConc = currentPoint.conc
 
-  let warningMsg = "✅ Safe Dosing: The amount of medicine in your body looks correct. (these thresholds are from standard clinical sheets. obviously, listen to your actual doctor and not a website designed by a sleep-deprived programmer)"
+  let warningMsg = "[Verified] Safe Dosing: The amount of medicine in your body looks correct. (these thresholds are from standard clinical sheets. obviously, listen to your actual doctor and not a website designed by a sleep-deprived programmer)"
   let warningColor = "#166534"
   let warningBg = "#F0FDF4"
   let warningBorder = "#86EFAC"
 
   if (pkParams) {
     if (peakConc > pkParams.minToxicConc) {
-      warningMsg = "❌ DANGER: Too much medicine! Taking it this often or this strong is dangerous. (clinical sheets say this level is toxic. please listen to your doctor, not a website)"
+      warningMsg = "Error: DANGER: Too much medicine! Taking it this often or this strong is dangerous. (clinical sheets say this level is toxic. please listen to your doctor, not a website)"
       warningColor = "#991B1B"
       warningBg = "#FEF2F2"
       warningBorder = "#FCA5A5"
     } else if (peakConc < pkParams.minEffectiveConc) {
-      warningMsg = "⚠️ Not Enough: This amount is too low to work. (clinical sheets say this is below effective levels. speak to your doctor, not me)"
+      warningMsg = "Note: Not Enough: This amount is too low to work. (clinical sheets say this is below effective levels. speak to your doctor, not me)"
       warningColor = "#92400E"
       warningBg = "#FFFBEB"
       warningBorder = "#FCD34D"
@@ -907,7 +907,7 @@ function InfoCard({ info, results, translating, profile }) {
   } else if (saltLower.includes('ibuprofen') || saltLower.includes('naproxen') || saltLower.includes('diclofenac')) {
     chronoTip = "🍕 Take with Food: Always take NSAIDs with food or milk to protect the gastric mucosal lining and prevent irritation."
   } else if (saltLower.includes('paracetamol') || saltLower.includes('acetaminophen')) {
-    chronoTip = "🛡️ Daily Intake Cap: Keep at least 4-6 hours between doses. Absolute maximum safe daily limit is 4000mg to prevent liver toxicity."
+    chronoTip = " Daily Intake Cap: Keep at least 4-6 hours between doses. Absolute maximum safe daily limit is 4000mg to prevent liver toxicity."
   }
 
   const getX = (t) => 35 + (t / 24) * 290
@@ -922,7 +922,7 @@ function InfoCard({ info, results, translating, profile }) {
   return (
     <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, overflow: 'hidden', animation: 'fadeUp 0.3s ease' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>💡 Usage & Safety</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}> Usage & Safety</div>
         {translating && <span style={badge('amber')}>Translating...</span>}
       </div>
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -955,7 +955,7 @@ function InfoCard({ info, results, translating, profile }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {info.importantWarnings.map((w, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', background: '#FEF3C7', borderRadius: 10, borderLeft: '3px solid var(--amber)', alignItems: 'flex-start' }}>
-                <span style={{ flexShrink: 0 }}>⚠️</span>
+                <span style={{ flexShrink: 0 }}>Note:</span>
                 <span style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.5 }}>{w}</span>
               </div>
             ))}
@@ -981,26 +981,26 @@ function InfoCard({ info, results, translating, profile }) {
 
         {info.overdoseRisk && (
           <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, border: '1px solid #FECACA' }}>
-            <div style={sectionLabel('red')}>⚠ Overdose risk</div>
+            <div style={sectionLabel('red')}> Overdose risk</div>
             <p style={{ fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.55, margin: 0 }}>{info.overdoseRisk}</p>
           </div>
         )}
 
         {isAyurvedic && info.ayurvedicWarning && (
           <div style={{ padding: '10px 12px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 10, fontSize: 12.5, color: '#166534', lineHeight: 1.6 }}>
-            🌿 {info.ayurvedicWarning}
+             {info.ayurvedicWarning}
           </div>
         )}
 
         {isSupplement && info.supplementWarning && (
           <div style={{ padding: '10px 12px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, fontSize: 12.5, color: '#78350F', lineHeight: 1.6 }}>
-            💊 {info.supplementWarning}
+             {info.supplementWarning}
           </div>
         )}
 
         {info.doNotTakeWith && (
           <div style={{ padding: '9px 12px', background: 'var(--redlt)', borderRadius: 9, fontSize: 12.5, color: '#7F1D1D', lineHeight: 1.5 }}>
-            <strong>🚫 Do not take with: </strong>{info.doNotTakeWith}
+            <strong> Do not take with: </strong>{info.doNotTakeWith}
           </div>
         )}
 
@@ -1017,7 +1017,7 @@ function InfoCard({ info, results, translating, profile }) {
             boxShadow: 'var(--shadow)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>🔬 Medicine Level Tracker</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}> Medicine Level Tracker</span>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <style>{`
                   .svg-tracker-capsule {
@@ -1106,7 +1106,7 @@ function InfoCard({ info, results, translating, profile }) {
                   {pkParams.minToxicConc < maxConc && (
                     <>
                       <line x1="35" y1={getY(pkParams.minToxicConc)} x2="325" y2={getY(pkParams.minToxicConc)} stroke="var(--red)" strokeWidth="1.2" strokeDasharray="3,3" />
-                      <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8.5" fill="var(--red)" fontWeight="800">⚠️ TOO STRONG</text>
+                      <text x="328" y={getY(pkParams.minToxicConc) + 3} fontSize="8.5" fill="var(--red)" fontWeight="800">Note: TOO STRONG</text>
                     </>
                   )}
 
@@ -1198,7 +1198,7 @@ function InfoCard({ info, results, translating, profile }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bgsoft)', padding: 12, borderRadius: 14, border: '1px solid var(--border)' }}>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>💊 Pill Strength:</span>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}> Pill Strength:</span>
                 <div className="segmented-control">
                   {[Math.round(parsedDose / 2), parsedDose, parsedDose * 2].filter(v => v > 0).map(v => (
                     <button
@@ -1214,7 +1214,7 @@ function InfoCard({ info, results, translating, profile }) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}>⏰ Dosing Frequency:</span>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--navy)' }}> Dosing Frequency:</span>
                 <div className="segmented-control">
                   {[[1, 'Once a day'], [2, '2x a day'], [3, '3x a day'], [4, '4x a day']].map(([val, label]) => (
                     <button
@@ -1330,7 +1330,7 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
 
                 <div style={{ fontSize: '11px', color: 'var(--textmd)', lineHeight: 1.4, padding: '8px 10px', background: 'rgba(13,138,104,0.05)', borderRadius: 8, borderLeft: '3px solid var(--green)' }}>
-                  ℹ️ <strong>Physiological Scaling:</strong> {pkParams.partition === 'hydrophilic' ? (
+                   <strong>Physiological Scaling:</strong> {pkParams.partition === 'hydrophilic' ? (
                     `Because ${pkParams.name} is hydrophilic, its Volume of Distribution (Vd) is scaled to your Lean Body Mass (LBM = ${indices.lbm}kg) rather than total weight.`
                   ) : (
                     `Because ${pkParams.name} is lipophilic, its Volume of Distribution (Vd) is scaled to your total Body Weight (${doseWeight}kg).`
@@ -1343,7 +1343,7 @@ function InfoCard({ info, results, translating, profile }) {
             {pkParams.maxDailyDoseMg && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--textmd)' }}>📊 Daily Dose Capacity:</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--textmd)' }}> Daily Dose Capacity:</span>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: (doseStrength * doseFreq) > pkParams.maxDailyDoseMg ? 'var(--red)' : 'var(--green)' }}>
                     {doseStrength * doseFreq}mg / {pkParams.maxDailyDoseMg}mg max
                   </span>
@@ -1358,7 +1358,7 @@ function InfoCard({ info, results, translating, profile }) {
                 </div>
                 {(doseStrength * doseFreq) > pkParams.maxDailyDoseMg && (
                   <div style={{ fontSize: '10px', color: 'var(--red)', fontWeight: 800, marginTop: 2 }}>
-                    ⚠️ WARNING: Scheduled daily intake exceeds the clinical safe maximum daily limit!
+                    Note: WARNING: Scheduled daily intake exceeds the clinical safe maximum daily limit!
                   </div>
                 )}
               </div>
@@ -1579,7 +1579,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
               gap: 2,
               marginTop: 4
             }}>
-              <span>💰 Save ₹{savedAmount}!</span>
+              <span> Save ₹{savedAmount}!</span>
               <span style={{ fontSize: 11, fontWeight: 500, color: '#166534' }}>
                 ({savingsPct}% cheaper over {calcDays} days of treatment)
               </span>
@@ -1607,7 +1607,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
           <div>
             <div style={{ ...sectionLabel('blue'), display: 'flex', alignItems: 'center', gap: 6 }}>
               🏪 Tier 2  -  Any chemist
-              <span style={badgeHighConf()}>✓ DAVAINDIA</span>
+              <span style={badgeHighConf()}> DAVAINDIA</span>
               <span style={badge('blue')}>AI EST.</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>
@@ -1620,7 +1620,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         {alts.doseMismatchAlt && (
           <div>
             <div style={{ padding: '9px 13px', background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: 10, marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Different dose  -  ask your doctor first</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}> Different dose  -  ask your doctor first</div>
               <div style={{ fontSize: 11.5, color: '#78350F', lineHeight: 1.5 }}>These contain the same active salt but at a different strength. Do not substitute without a doctor's advice.</div>
             </div>
             <AltRow med={alts.doseMismatchAlt} dimmed />
@@ -1634,7 +1634,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         )}
 
         <a href={JA_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', background: 'var(--greenlt)', border: '1.5px solid #A7D9CA', borderRadius: 12, textDecoration: 'none' }}>
-          <span style={{ fontSize: 20 }}>📍</span>
+          <span style={{ fontSize: 20 }}></span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--greendk)' }}>Find Jan Aushadhi near me</div>
             <div style={{ fontSize: 11, color: '#166534' }}>janaushadhi.gov.in · 1800-180-8080 (free)</div>
@@ -1644,7 +1644,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
 
         {alts.pharmacyLinks?.length > 0 && (
           <div>
-            <div style={sectionLabel('gray')}>🔍 Check live prices</div>
+            <div style={sectionLabel('gray')}> Check live prices</div>
             <div style={{ fontSize: 11.5, color: 'var(--textlt)', marginBottom: 8, marginTop: -4 }}>Opens pharmacy site with real-time prices for this salt</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {alts.pharmacyLinks.map(link => (
@@ -1660,7 +1660,7 @@ function AltCard({ alts, jaAlts, otherAlts, savingsPct, isCheapest, brandedPerUn
         )}
 
         <div style={{ padding: '9px 12px', background: 'var(--bgsoft)', borderRadius: 9, fontSize: 11.5, color: 'var(--textlt)', lineHeight: 1.6, border: '1px solid var(--border)' }}>
-          ⚠ Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate  -  always verify at the chemist counter. Only buy from licensed pharmacies.
+           Jan Aushadhi prices from BPPI database. <strong>HIGH CONFIDENCE</strong> prices are sourced live from 1mg. <strong>AI EST.</strong> prices are approximate  -  always verify at the chemist counter. Only buy from licensed pharmacies.
         </div>
       </div>
     </div>
@@ -1691,7 +1691,7 @@ function AltRow({ med, highlight, dimmed }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>{med.name}</span>
           {isJA        && <span style={badge('green')}>JAN AUSHADHI</span>}
-          {isDavaIndia && !isJA && <span style={badgeHighConf()}>✓ HIGH CONFIDENCE</span>}
+          {isDavaIndia && !isJA && <span style={badgeHighConf()}> HIGH CONFIDENCE</span>}
           {!isDavaIndia && !isJA && med.aiEstimated && <span style={badge('blue')}>AI EST.</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--textlt)', lineHeight: 1.5 }}>
@@ -1700,14 +1700,14 @@ function AltRow({ med, highlight, dimmed }) {
         </div>
         {isDavaIndia && !isJA && (
           <div style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 600, marginTop: 2 }}>
-            📦 Live price · {(med.priceSource || '1mg').replace(/\s*\(.*\)/, '')}
+             Live price · {(med.priceSource || '1mg').replace(/\s*\(.*\)/, '')}
           </div>
         )}
         {!isDavaIndia && med.aiEstimated && (
-          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>⚠ AI-estimated  -  may vary</div>
+          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}> AI-estimated  -  may vary</div>
         )}
         {med.availableAt && !isDavaIndia && (
-          <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}>📍 {med.availableAt}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--green)', fontWeight: 600, marginTop: 2 }}> {med.availableAt}</div>
         )}
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 10 }}>

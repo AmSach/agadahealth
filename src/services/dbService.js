@@ -242,7 +242,7 @@ export function lookupCDSCO(saltComposition) {
     .replace(/^as\s+an?\s+/i, '').trim()
   if (indication.length > 80) indication = indication.slice(0, 80) + '...'
   const displayName = primary.charAt(0).toUpperCase() + primary.slice(1)
-  return { found: true, badge: `✓ ${displayName} is CDSCO-approved`, indication: indication || null }
+  return { found: true, badge: ` ${displayName} is CDSCO-approved`, indication: indication || null }
 }
 
 export function pharmacyLinks(saltComposition) {

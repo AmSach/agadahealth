@@ -63,7 +63,7 @@ export function startReminderLoop(cabinetItems, timeSettings, onDoseTriggered) {
 
       const itemSlot = item.meta?.idealTime || 'Morning';
       if (slotsToFire.includes(itemSlot) && item.notificationsEnabled) {
-        const title = `💊 Agada Medicine Reminder: ${item.brandName}`;
+        const title = ` Agada Medicine Reminder: ${item.brandName}`;
         const body = `It's time to take your dose of ${item.brandName} (${item.saltComposition}).\nGuideline: ${item.meta?.foodRelation || 'With or without food'}.`;
         
         triggerInstantNotification(title, { body });

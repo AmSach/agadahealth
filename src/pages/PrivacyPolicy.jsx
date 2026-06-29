@@ -50,7 +50,7 @@ export default function PrivacyPolicy({ onBack }) {
       ))}
 
       <div style={{ background: 'var(--greenlt)', borderRadius: 12, padding: '14px 16px', fontSize: 13, color: 'var(--greendk)', fontWeight: 500, lineHeight: 1.6 }}>
-        🔒 {t.privacyFooter || 'Agada is a public service. Your health data stays with you - always.'}
+        [Locked] {t.privacyFooter || 'Agada is a public service. Your health data stays with you - always.'}
       </div>
     </div>
   )

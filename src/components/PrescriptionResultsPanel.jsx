@@ -60,7 +60,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
 
       <div style={{ padding: '14px 16px', background: '#fff', borderTop: '1px solid var(--border)', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={onReset} style={{ width: '100%', height: 48, background: 'var(--navy)', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s', border: 'none', cursor: 'pointer' }}>
-          📷 Scan Another Document
+           Scan Another Document
         </button>
       </div>
     </div>
@@ -70,7 +70,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
     return (
       <LayoutWrapper>
         <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 14, padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center', boxShadow: 'var(--shadow)' }}>
-          <span style={{ fontSize: 48 }}>🔍</span>
+          <span style={{ fontSize: 48 }}></span>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--navy)' }}>Could not read clearly</div>
           <div style={{ fontSize: 13.5, color: 'var(--textlt)', lineHeight: 1.6, maxWidth: 280 }}>
             {data.cannotReadReason || 'Ensure the prescription is well-lit and the text is legible.'}
@@ -88,12 +88,12 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
           {preview ? (
             <img src={preview} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: 'cover', border: '1px solid var(--border)' }} />
           ) : (
-            <div style={{ width: 50, height: 50, borderRadius: 10, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📝</div>
+            <div style={{ width: 50, height: 50, borderRadius: 10, background: 'var(--greenlt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}></div>
           )}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 2 }}>{data.doctorName || 'Doctor details unavailable'}</div>
             <div style={{ fontSize: 13, color: 'var(--textlt)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>📅 {data.date || 'Unknown Date'}</span>
+              <span> {data.date || 'Unknown Date'}</span>
             </div>
           </div>
         </div>
@@ -108,7 +108,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
       </div>
 
       <div style={{ animation: 'fadeUp 0.4s ease 0.1s both' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', margin: '0 0 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>💊 Prescribed Medicines ({medicines.length})</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', margin: '0 0 12px 4px', display: 'flex', alignItems: 'center', gap: 6 }}> Prescribed Medicines ({medicines.length})</h3>
         
         {medicines.length === 0 ? (
           <div style={{ padding: '16px', background: '#fff', borderRadius: 12, border: '1px dashed var(--bordermd)', textAlign: 'center', color: 'var(--textlt)', fontSize: 13 }}>
@@ -162,7 +162,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
                         Searching...
                       </>
                     ) : (
-                      <>🔍 Find Alternatives</>
+                      <> Find Alternatives</>
                     )}
                   </button>
                 </div>
@@ -173,7 +173,7 @@ export default function PrescriptionResultsPanel({ results, preview, onReset, t,
       </div>
 
       <div style={{ padding: '12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, fontSize: 11.5, color: '#991B1B', lineHeight: 1.6, animation: 'fadeUp 0.4s ease 0.2s both' }}>
-        <strong>⚠️ Disclaimer</strong>: This is an AI transcription of the prescription. Handwriting interpretation can contain errors. <strong>Always verify with the original prescription or consult your pharmacist before consuming any medication.</strong>
+        <strong>Note: Disclaimer</strong>: This is an AI transcription of the prescription. Handwriting interpretation can contain errors. <strong>Always verify with the original prescription or consult your pharmacist before consuming any medication.</strong>
       </div>
     </LayoutWrapper>
   )
