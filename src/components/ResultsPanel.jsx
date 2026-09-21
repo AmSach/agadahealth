@@ -61,7 +61,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
 
   const [localIsBookmarked, setLocalIsBookmarked] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+      let saved = []; try { saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]'); } catch(e){}
       return saved.some(b => b.brandName === results.brandName && b.saltComposition === results.saltComposition)
     } catch {
       return false
@@ -76,7 +76,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
       return
     }
     try {
-      const saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]')
+      let saved = []; try { saved = JSON.parse(localStorage.getItem('agada_bookmarks') || '[]'); } catch(e){}
       let updated
       if (isBookmarked) {
         updated = saved.filter(b => !(b.brandName === results.brandName && b.saltComposition === results.saltComposition))
@@ -90,7 +90,7 @@ export default function ResultsPanel({ results, preview, onReset, t, lang, isBoo
         }]
         setLocalIsBookmarked(true)
       }
-      localStorage.setItem('agada_bookmarks', JSON.stringify(updated))
+      try { localStorage.setItem('agada_bookmarks', JSON.stringify(updated)); } catch(e){}
     } catch (e) {
       console.error(e)
     }

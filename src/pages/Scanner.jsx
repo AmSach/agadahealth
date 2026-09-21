@@ -471,7 +471,7 @@ export default function Scanner() {
 
       let savedStr = await getSecureLogs()
       if (!savedStr) {
-        savedStr = localStorage.getItem('agada_bookmarks')
+        try { savedStr = localStorage.getItem('agada_bookmarks'); } catch(e){}
         if (savedStr) {
           await saveSecureLogs(savedStr)
           localStorage.removeItem('agada_bookmarks')
@@ -542,7 +542,7 @@ export default function Scanner() {
       }
       
       setProfiles(loadedProfiles)
-      const activeId = localStorage.getItem('agada_active_profile_id') || loadedProfiles[0]?.id || 'aman'
+      let activeId = loadedProfiles[0]?.id || 'aman'; try { activeId = localStorage.getItem('agada_active_profile_id') || activeId; } catch(e){}
       setActiveProfileId(activeId)
       setIsVaultLocked(false)
     } catch (e) {
@@ -708,7 +708,7 @@ export default function Scanner() {
     const nextProfiles = [...profiles, newProf]
     await saveAllProfiles(nextProfiles)
     setActiveProfileId(cleanId)
-    localStorage.setItem('agada_active_profile_id', cleanId)
+    try { localStorage.setItem('agada_active_profile_id', cleanId); } catch(e){}
     setProfileInput('')
     setShowAddProfile(false)
   }
@@ -720,7 +720,7 @@ export default function Scanner() {
     await dbDeleteProfile(profileId)
     const nextId = updated[0].id
     setActiveProfileId(nextId)
-    localStorage.setItem('agada_active_profile_id', nextId)
+    try { localStorage.setItem('agada_active_profile_id', nextId); } catch(e){}
   }
 
   React.useEffect(() => {
@@ -840,7 +840,7 @@ export default function Scanner() {
         await dbDeleteProfile(k);
       }
       await saveSecureLogs('[]');
-      localStorage.removeItem('agada_bookmarks');
+      try { localStorage.removeItem('agada_bookmarks'); } catch(e){}
       setVaultPin('');
       setIsVaultLocked(false);
       setPinError('');
@@ -2540,7 +2540,7 @@ function HomeView({
                 value={activeProfileId} 
                 onChange={e => {
                   setActiveProfileId(e.target.value);
-                  localStorage.setItem('agada_active_profile_id', e.target.value);
+                  try { localStorage.setItem('agada_active_profile_id', e.target.value); } catch(e){}
                 }}
                 style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
               >

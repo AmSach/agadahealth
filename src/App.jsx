@@ -5,6 +5,7 @@ import PillPet from './components/PillPet.jsx'
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
 import Terms from './pages/Terms.jsx'
 import Documentation from './pages/Documentation.jsx'
+import AuroraBackground from './components/AuroraBackground.jsx'
 
 export const LangContext = createContext({ lang: 'en', setLang: () => {} })
 export const useLang = () => useContext(LangContext)
@@ -19,6 +20,7 @@ export default function App() {
     <LangContext.Provider value={{ lang, setLang }}>
       <PageContext.Provider value={{ setPage }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+        <AuroraBackground />
         <div className="app-container" style={{ position: 'relative' }}>
           
           <div className="spiral-binder">

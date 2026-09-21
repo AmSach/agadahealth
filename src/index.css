@@ -183,7 +183,7 @@ a:hover { color: var(--neon-pink); }
 
 .app-container {
   min-height: 100vh;
-  background-color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.88) !important;
   background-image:
     linear-gradient(rgba(116, 185, 255, 0.15) 1px, transparent 1px),
     linear-gradient(90deg, rgba(116, 185, 255, 0.15) 1px, transparent 1px),

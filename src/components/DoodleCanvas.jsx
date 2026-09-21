@@ -21,7 +21,7 @@ export default function DoodleCanvas() {
       context.lineJoin = 'round';
       context.lineWidth = 2.5;
 
-      const saved = localStorage.getItem('agada_doodles');
+      let saved = null; try { saved = localStorage.getItem('agada_doodles'); } catch(e){}
       if (saved) {
         try {
           const strokes = JSON.parse(saved);
@@ -127,7 +127,7 @@ export default function DoodleCanvas() {
     ctx.moveTo(x, y);
     setIsDrawing(true);
 
-    const saved = localStorage.getItem('agada_doodles');
+    let saved = null; try { saved = localStorage.getItem('agada_doodles'); } catch(e){}
     let strokes = [];
     try {
       strokes = saved ? JSON.parse(saved) : [];
@@ -136,7 +136,7 @@ export default function DoodleCanvas() {
       strokes = [];
     }
     strokes.push([{ x, y, color }]);
-    localStorage.setItem('agada_doodles', JSON.stringify(strokes));
+    try { localStorage.setItem('agada_doodles', JSON.stringify(strokes)); } catch(e){}
   };
 
   const draw = (e) => {
@@ -151,13 +151,13 @@ export default function DoodleCanvas() {
     ctx.lineTo(x, y);
     ctx.stroke();
 
-    const saved = localStorage.getItem('agada_doodles');
+    let saved = null; try { saved = localStorage.getItem('agada_doodles'); } catch(e){}
     if (saved) {
       try {
         const strokes = JSON.parse(saved);
         if (Array.isArray(strokes) && strokes.length > 0) {
           strokes[strokes.length - 1].push({ x, y });
-          localStorage.setItem('agada_doodles', JSON.stringify(strokes));
+          try { localStorage.setItem('agada_doodles', JSON.stringify(strokes)); } catch(e){}
         }
       } catch {}
     }
@@ -174,7 +174,7 @@ export default function DoodleCanvas() {
     if (!ctx) return;
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    localStorage.removeItem('agada_doodles');
+    try { localStorage.removeItem('agada_doodles'); } catch(e){}
   };
 
   return (
